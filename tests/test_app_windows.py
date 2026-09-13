@@ -10,10 +10,11 @@ from stream_media_viewer import (
     display_version,
 )
 from stream_media_viewer.app import ProtectThread, StreamMediaViewerApp
+from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.scan import scan_folder
 from stream_media_viewer.settings import AppSettings
-from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
 from stream_media_viewer.ui.output_window import IDLE_WINDOW_TITLE
+from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
 
 
 def test_two_windows_start_hidden(qtbot) -> None:
@@ -151,3 +152,43 @@ def test_common_buttons_stay_put_when_video_controls_appear(qtbot) -> None:
     assert app.operator.btn_send.x() == send_x
     assert app.operator.btn_panic.x() == panic_x
     assert app.operator.btn_play.x() > app.operator.btn_brush.x()
+
+
+def test_list_caption_omits_filename_and_shows_place(qtbot) -> None:
+    from datetime import datetime
+
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    item = MediaItem(
+        path=Path("C:/secret/trip_DSC01234.jpg"),
+        kind="image",
+        captured_at=datetime(2024, 4, 1, 12, 0),
+        has_gps=True,
+        place_name="京都",
+    )
+    label = app._row_label(item)
+    assert "DSC01234" not in label
+    assert "京都" in label
+    tip = app._row_tooltip(item)
+    assert "DSC01234" in tip
+    assert "京都" in tip
+
+
+def test_preview_click_toggles_play_on_video(qtbot) -> None:
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtGui import QPixmap
+
+    from stream_media_viewer.ui.preview_canvas import PreviewCanvas
+
+    canvas = PreviewCanvas()
+    qtbot.addWidget(canvas)
+    canvas.resize(240, 180)
+    canvas.show()
+    pix = QPixmap(240, 180)
+    pix.fill(Qt.GlobalColor.black)
+    canvas.set_frame(pix)
+    canvas.click_toggles_play = True
+    clicked: list[bool] = []
+    canvas.clicked.connect(lambda: clicked.append(True))
+    qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(120, 90))
+    assert clicked

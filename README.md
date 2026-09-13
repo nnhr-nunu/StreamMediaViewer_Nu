@@ -23,8 +23,8 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 ## 使い方
 
 1. 「フォルダ」から写真や動画のフォルダを選びます。最近使ったフォルダも選べます。最初は下の階層のフォルダも読みます（⚙でオフにできます）。
-2. 左の一覧の縮小画からファイルを選び、操作用ウィンドウで確認します。配信用ウィンドウにはまだ表示されません。
-3. 写真のときは再生ボタンは出ません。動画のときだけ、右側に再生と下準備が出ます。開始位置・終了位置も動画のときだけ出ます。
+2. 左の大きな縮小画からファイルを選び、操作用ウィンドウで確認します。ファイル名は一覧に出ません。配信用ウィンドウにはまだ表示されません。
+3. 写真のときは再生ボタンは出ません。動画のときだけ、右側に再生と下準備が出ます。動画の画面をクリックしても再生／停止できます。開始位置・終了位置も動画のときだけ出ます。
 4. 必要に応じて手動でぼかしを追加します。
 5. ✨でコントラストと彩度の自動補正を切り替えます。押すたびに「オフ → 弱 → 強」と変わります。ぼかしの強さ・言語・下のフォルダを読むかは⚙から変えられます。
 6. 「送る」または Enterキーで、確認中の写真や動画を配信用ウィンドウに表示します。
@@ -39,7 +39,7 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 | 次のファイル | 6 | D | 次 |
 | 配信出力に表示 | Enter | Enter | 送る |
 | 配信出力を非表示 | 0 | Esc | 隠す |
-| 動画の再生／停止 | 5 | Space | 再生（動画のときだけ） |
+| 動画の再生／停止 | 5 | Space | 再生、または動画の画面をクリック |
 | ブックマーク | | F | ☆ |
 | 手動ぼかしを取り消す | | Ctrl+Z（Mac では Command+Z のことがあります） | ↩ |
 
@@ -92,8 +92,8 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 ## Start in 3 minutes
 
 1. Use **Folder** to open today’s photos and videos. Recent folders are available too. Subfolders are included at first (turn this off in ⚙).
-2. Pick a thumbnail on the left and review it in the operator window. It is not shown in the output window yet.
-3. Play controls appear only for videos, on the right. They stay hidden for still photos.
+2. Pick a large thumbnail on the left and review it in the operator window. Filenames stay in the tooltip. It is not shown in the output window yet.
+3. Play controls appear only for videos, on the right. Click the video preview to play or pause. They stay hidden for still photos.
 4. Add manual blur where needed.
 5. Click ✨ to cycle contrast and saturation enhancement: Off → Soft → Strong. Use ⚙ for blur strength, language, and whether to include subfolders.
 6. Press **Send** or Enter to display the selected photo or video in the output window.
@@ -108,7 +108,7 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 | Next | 6 | D | Next |
 | Show in output | Enter | Enter | Send |
 | Hide output | 0 | Esc | Hide |
-| Play / pause | 5 | Space | Play (videos only) |
+| Play / pause | 5 | Space | Play, or click the video |
 | Bookmark | | F | ☆ |
 | Undo hand-drawn blur | | Ctrl+Z (Command+Z on some Macs) | ↩ |
 

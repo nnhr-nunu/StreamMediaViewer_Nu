@@ -4,9 +4,12 @@ from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QMouseEvent, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QLabel
 
+_CLICK_PX = 8
+
 
 class PreviewCanvas(QLabel):
     mark_added = Signal(dict)
+    clicked = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -14,18 +17,24 @@ class PreviewCanvas(QLabel):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(480, 270)
         self.mode = "rect"
+        self.click_toggles_play = False
         self._origin: QPoint | None = None
         self._current: QRect | None = None
         self._stroke: list[tuple[float, float]] = []
         self._pixmap: QPixmap | None = None
 
-    def set_frame(self, pixmap: QPixmap) -> None:
+    def set_frame(self, pixmap: QPixmap, *, smooth: bool = True) -> None:
         self._pixmap = pixmap
+        transform = (
+            Qt.TransformationMode.SmoothTransformation
+            if smooth
+            else Qt.TransformationMode.FastTransformation
+        )
         self.setPixmap(
             pixmap.scaled(
                 self.size(),
                 Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
+                transform,
             )
         )
 
@@ -69,8 +78,18 @@ class PreviewCanvas(QLabel):
         if event.button() != Qt.MouseButton.LeftButton:
             return
         pix = self.pixmap()
-        if pix is None or self._origin is None:
+        origin = self._origin
+        if pix is None or origin is None:
             self._origin = None
+            return
+        pos = event.position().toPoint()
+        click = abs(pos.x() - origin.x()) < _CLICK_PX and abs(pos.y() - origin.y()) < _CLICK_PX
+        if click and self.click_toggles_play:
+            self._origin = None
+            self._current = None
+            self._stroke = []
+            self.update()
+            self.clicked.emit()
             return
         x0 = (self.width() - pix.width()) // 2
         y0 = (self.height() - pix.height()) // 2

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -9,15 +10,20 @@ from PIL import Image, IptcImagePlugin
 from PIL.ExifTags import GPSTAGS, TAGS
 
 from stream_media_viewer.config import SUPPORTED_IMAGE_SUFFIXES, SUPPORTED_VIDEO_SUFFIXES
+from stream_media_viewer.library.geo import gps_to_decimal, place_from_gps
 
 _MAC_EPOCH = datetime(1904, 1, 1)
 _MIN_YEAR = 1990
 _MAX_YEAR = 2100
 
 
-def format_place_name(city: str, country: str) -> str:
-    parts = [part.strip() for part in (city, country) if part and part.strip()]
-    return " ".join(parts)
+def format_place_name(*parts: str) -> str:
+    seen: list[str] = []
+    for part in parts:
+        text = part.strip()
+        if text and text not in seen:
+            seen.append(text)
+    return " ".join(seen)
 
 
 def _decode_iptc(value: object) -> str:
@@ -36,9 +42,37 @@ def _decode_iptc(value: object) -> str:
 def place_name_from_iptc(info: dict | None) -> str:
     if not info:
         return ""
+    sub = _decode_iptc(info.get((2, 92)))
     city = _decode_iptc(info.get((2, 90)))
+    province = _decode_iptc(info.get((2, 95)))
     country = _decode_iptc(info.get((2, 101)))
-    return format_place_name(city, country)
+    return format_place_name(sub, city, province, country)
+
+
+def _xmp_texts(node: object, found: list[str]) -> None:
+    if isinstance(node, dict):
+        for key, value in node.items():
+            key_l = str(key).lower()
+            if "gps" in key_l or "lat" in key_l or "lon" in key_l or "coord" in key_l:
+                _xmp_texts(value, found)
+                continue
+            if any(
+                token in key_l for token in ("city", "country", "location", "state", "province")
+            ):
+                if isinstance(value, str) and value.strip():
+                    found.append(value.strip())
+            _xmp_texts(value, found)
+    elif isinstance(node, list):
+        for item in node:
+            _xmp_texts(item, found)
+
+
+def place_name_from_xmp(xmp: dict | None) -> str:
+    if not xmp:
+        return ""
+    found: list[str] = []
+    _xmp_texts(xmp, found)
+    return format_place_name(*found[:4])
 
 
 def _parse_exif_datetime(value: object) -> datetime | None:
@@ -60,10 +94,17 @@ def image_capture_meta(path: Path) -> tuple[datetime | None, bool, str]:
                 iptc = IptcImagePlugin.getiptcinfo(img)
             except Exception:
                 iptc = None
+            xmp = None
+            if hasattr(img, "getxmp") and importlib.util.find_spec("defusedxml"):
+                try:
+                    xmp = img.getxmp()
+                except Exception:
+                    xmp = None
     except OSError:
         return None, False, ""
     captured: datetime | None = None
     has_gps = False
+    gps_place = ""
     if raw:
         named = {TAGS.get(k, k): v for k, v in raw.items()}
         for key in ("DateTimeOriginal", "DateTimeDigitized", "DateTime"):
@@ -73,8 +114,26 @@ def image_capture_meta(path: Path) -> tuple[datetime | None, bool, str]:
         gps_ifd = raw.get_ifd(0x8825) if hasattr(raw, "get_ifd") else None
         if gps_ifd:
             labels = {GPSTAGS.get(k, k): v for k, v in gps_ifd.items()}
-            has_gps = bool(labels.get("GPSLatitude") and labels.get("GPSLongitude"))
-    return captured, has_gps, place_name_from_iptc(iptc)
+            lat = gps_to_decimal(
+                labels.get("GPSLatitude"), str(labels.get("GPSLatitudeRef") or "N")
+            )
+            lon = gps_to_decimal(
+                labels.get("GPSLongitude"), str(labels.get("GPSLongitudeRef") or "E")
+            )
+            has_gps = lat is not None and lon is not None
+            area = labels.get("GPSAreaInformation")
+            if isinstance(area, bytes):
+                gps_place = area.decode("utf-8", "ignore").strip("\x00 ").strip()
+            elif isinstance(area, str):
+                gps_place = area.strip()
+            if has_gps and lat is not None and lon is not None and not gps_place:
+                gps_place = place_from_gps(lat, lon)
+    place = (
+        place_name_from_iptc(iptc)
+        or place_name_from_xmp(xmp if isinstance(xmp, dict) else None)
+        or gps_place
+    )
+    return captured, has_gps, place
 
 
 def _read_box_header(handle, file_end: int) -> tuple[bytes, int, int] | None:

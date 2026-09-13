@@ -7,11 +7,26 @@ import cv2
 import numpy as np
 from PySide6.QtCore import QObject, QTimer, QUrl, Signal
 
+from stream_media_viewer.library.scan import PREVIEW_MAX_SIDE
+
 try:
     from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 except ImportError:  # pragma: no cover
     QAudioOutput = None  # type: ignore[misc, assignment]
     QMediaPlayer = None  # type: ignore[misc, assignment]
+
+
+def _limit_frame(frame: np.ndarray) -> np.ndarray:
+    height, width = frame.shape[:2]
+    long_edge = max(height, width)
+    if long_edge <= PREVIEW_MAX_SIDE:
+        return frame
+    scale = PREVIEW_MAX_SIDE / long_edge
+    return cv2.resize(
+        frame,
+        (max(1, int(width * scale)), max(1, int(height * scale))),
+        interpolation=cv2.INTER_AREA,
+    )
 
 
 class VideoPlayer(QObject):
@@ -22,7 +37,9 @@ class VideoPlayer(QObject):
         super().__init__()
         self._cap: cv2.VideoCapture | None = None
         self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._tick)
+        self._interval_ms = 33
         self.in_ms = 0
         self.out_ms: int | None = None
         self.loop = False
@@ -54,7 +71,10 @@ class VideoPlayer(QObject):
         if self._audio is not None:
             self._audio.setSource(QUrl.fromLocalFile(path))
         fps = float(self._cap.get(cv2.CAP_PROP_FPS) or 30.0)
-        return fps if fps > 1 else 30.0
+        if fps <= 1:
+            fps = 30.0
+        self._interval_ms = max(16, int(1000 / fps))
+        return fps
 
     def duration_ms(self) -> int:
         if not self._cap:
@@ -90,7 +110,7 @@ class VideoPlayer(QObject):
         ok, frame = self._cap.read()
         if not ok:
             return None
-        return self._apply(frame)
+        return self._apply(_limit_frame(frame))
 
     def play(self) -> None:
         self.playing = True
@@ -103,9 +123,8 @@ class VideoPlayer(QObject):
                 self._sink.setVolume(0.0)
         if self._cache_dir is not None:
             self._cache_index = 0
-            self._timer.start(max(8, int(1000 / self._cache_fps)))
-        else:
-            self._timer.start(1)
+            self._interval_ms = max(16, int(1000 / self._cache_fps))
+        self._timer.start(self._interval_ms)
 
     def pause(self) -> None:
         self.playing = False
@@ -147,6 +166,10 @@ class VideoPlayer(QObject):
             self._sink.setVolume(0.0)
             self._audio.pause()
 
+    def _continue(self) -> None:
+        if self.playing:
+            self._timer.start(self._interval_ms)
+
     def _tick(self) -> None:
         if self._cache_dir is not None:
             self._tick_cache()
@@ -160,6 +183,7 @@ class VideoPlayer(QObject):
                 self._sync_audio_clock()
                 if self._audio is not None and self.audio_enabled:
                     self._audio.play()
+                self._continue()
                 return
             self.pause()
             self.finished.emit()
@@ -171,16 +195,18 @@ class VideoPlayer(QObject):
                 self._sync_audio_clock()
                 if self._audio is not None and self.audio_enabled:
                     self._audio.play()
+                self._continue()
                 return
             self.pause()
             self.finished.emit()
             return
-        protected = self._apply(frame)
+        protected = self._apply(_limit_frame(frame))
         if protected is None:
             self.pause()
             return
         self._sync_audio_clock()
         self.frame_ready.emit(protected)
+        self._continue()
 
     def _tick_cache(self) -> None:
         if not self.playing or self._cache_dir is None:
@@ -193,6 +219,7 @@ class VideoPlayer(QObject):
                 if self._audio is not None and self.audio_enabled:
                     self._audio.setPosition(self.in_ms)
                     self._audio.play()
+                self._continue()
                 return
             self.pause()
             self.finished.emit()
@@ -206,3 +233,4 @@ class VideoPlayer(QObject):
         self.frame_ready.emit(frame)
         self._sync_audio_clock()
         self._cache_index += 1
+        self._continue()
