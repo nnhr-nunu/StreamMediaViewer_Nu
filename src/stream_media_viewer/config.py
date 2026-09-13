@@ -10,13 +10,15 @@ DEFAULT_KEYMAP = {
     "preview_prev": "A",
     "send_to_output": "Return",
     "send_to_output_alt": "Ctrl+Return",
-    "panic": "Space",
+    "panic": "0",
     "panic_alt": "Esc",
+    "play_pause": "Space",
+    "play_pause_numpad": "5",
     "toggle_favorite": "F",
     "undo_manual_blur": "Ctrl+Z",
 }
 
-SUPPORTED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+SUPPORTED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic", ".heif"}
 SUPPORTED_VIDEO_SUFFIXES = {".mp4", ".mov", ".mkv", ".webm", ".avi"}
 
 

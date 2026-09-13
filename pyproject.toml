@@ -13,6 +13,7 @@ dependencies = [
   "opencv-python>=4.10.0",
   "mediapipe>=0.10.14",
   "Pillow>=10.4.0",
+  "pillow-heif>=0.18.0",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +29,9 @@ stream-media-viewer = "stream_media_viewer.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+stream_media_viewer = ["assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
