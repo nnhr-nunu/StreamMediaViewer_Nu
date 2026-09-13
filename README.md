@@ -2,7 +2,7 @@
 
 配信者が手元で写真・動画を確認し、顔や個人情報が乗らない状態だけを OBS へ出すための **Windows デスクトップアプリ**です。
 
-この README はセットアップと起動の入口です。製品の概要は [docs/product/overview.md](./docs/product/overview.md)、未完了タスクは [task.md](./task.md)、エージェント向け導線は [AGENTS.md](./AGENTS.md) を見てください。
+この README はセットアップと起動の入口です。動きの正本は [docs/product/spec.md](./docs/product/spec.md)、短い案内は [docs/product/overview.md](./docs/product/overview.md)、未完了タスクは [task.md](./task.md)、エージェント向け導線は [AGENTS.md](./AGENTS.md) です。
 
 ## 必要環境
 
@@ -32,10 +32,10 @@ python -m stream_media_viewer
 
 | 窓 | タイトル | 用途 |
 | -- | -------- | ---- |
-| 手元操作 | `StreamMediaViewer(ぬ)` | プレビュー・送信・緊急マスク |
-| 配信出力 | `StreamMediaViewer(ぬ) - 配信出力` | OBS のウィンドウキャプチャ対象。既定は黒画面 |
+| 操作画面 | `StreamMediaViewer(ぬ)` | 確認・送信・緊急 |
+| 配信用の窓 | `StreamMediaViewer(ぬ) - 配信出力` | OBS のウィンドウキャプチャ対象。送るまで／緊急時は隠れる |
 
-OBS 側は「ウィンドウキャプチャ」で配信出力ウィンドウを選ぶだけで取り込めます（プラグイン不要）。
+OBS 側は「ウィンドウキャプチャ」で配信用の窓を選ぶだけで取り込めます（プラグイン不要）。窓が隠れたあとも古い絵が残る場合は、OBS 側の取り込み設定を README 追記で案内します。
 
 ## テスト
 
@@ -45,7 +45,7 @@ pytest
 
 `.py` を変えたあとは commit 前に `pytest` を実行します。
 
-## 配布（Phase 4）
+## 配布
 
 PyInstaller で単一 `.exe` 化する想定です。いまは開発起動のみです。
 
