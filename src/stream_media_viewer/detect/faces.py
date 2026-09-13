@@ -142,6 +142,21 @@ def crop_ahash(bgr: np.ndarray, box: Box) -> str | None:
     return f"{value:016x}"
 
 
+def face_box_at(boxes: list[Box], nx: float, ny: float, width: int, height: int) -> Box | None:
+    if width < 1 or height < 1:
+        return None
+    px = nx * width
+    py = ny * height
+    hits = [
+        box
+        for box in boxes
+        if box.x <= px < box.x + box.w and box.y <= py < box.y + box.h
+    ]
+    if not hits:
+        return None
+    return min(hits, key=lambda box: box.w * box.h)
+
+
 def remember_false_faces(hashes: list[str], bgr: np.ndarray, boxes: list[Box]) -> list[str]:
     out = [item for item in hashes if item]
     for box in boxes:

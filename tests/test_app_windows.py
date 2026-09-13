@@ -174,7 +174,7 @@ def test_list_caption_omits_filename_and_shows_place(qtbot) -> None:
     label = app._row_label(item)
     assert "DSC01234" not in label
     assert "京都" in label
-    assert "04/01" in label
+    assert "04/01 12:00" in label
     assert "\n京都" not in label
     meta = app._item_meta_text(item)
     assert "DSC01234" in meta
@@ -201,10 +201,10 @@ def test_preview_click_toggles_play_on_video(qtbot) -> None:
     pix.fill(Qt.GlobalColor.black)
     canvas.set_frame(pix)
     canvas.click_toggles_play = True
-    clicked: list[bool] = []
-    canvas.clicked.connect(lambda: clicked.append(True))
+    hits: list[tuple[float, float]] = []
+    canvas.region_clicked.connect(lambda x, y: hits.append((x, y)))
     qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(120, 90))
-    assert clicked
+    assert hits
 
 
 def test_preview_norm_maps_center_of_pixmap(qtbot) -> None:
@@ -240,7 +240,10 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert "手動ぼかし" in op.btn_manual.text()
     assert "💧" in op.btn_manual.text()
     assert not hasattr(op, "chk_gps")
-    assert not hasattr(op, "chk_faces")
+    assert op.chk_filter_face.text() == "😊"
+    lay = op.filter_box.layout()
+    assert lay.indexOf(op.chk_videos) == lay.indexOf(op.chk_filter_face) - 1
+    assert op.date_from.maximumWidth() <= 128
     assert op.filter_box.layout().indexOf(op.combo_sort) == -1
     assert op.sort_box.layout().indexOf(op.combo_sort) >= 0
     assert op.combo_sort.count() == 3
@@ -301,12 +304,24 @@ def test_folder_dates_span_oldest_to_newest(qtbot) -> None:
 
 
 def test_row_label_says_has_face_not_warning(qtbot) -> None:
+    from datetime import datetime
+
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
-    item = MediaItem(path=Path("face.jpg"), kind="image", captured_at=None, has_gps=False, has_face=True)
+    item = MediaItem(
+        path=Path("face.jpg"),
+        kind="image",
+        captured_at=datetime(2024, 9, 13, 21, 5),
+        has_gps=False,
+        has_face=True,
+        place_name="京都",
+    )
     label = app._row_label(item)
-    assert "顔あり" in label
+    assert "😊" in label
+    assert "顔あり" not in label
     assert "⚠" not in label
+    assert "09/13 21:05" in label
+    assert "京都" in label
     app.settings.note_for(str(item.path)).marks = [{"kind": "rect", "x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2}]
     assert "💧手動ぼかし" in app._row_label(item)
 

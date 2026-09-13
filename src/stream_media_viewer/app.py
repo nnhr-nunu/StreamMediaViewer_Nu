@@ -11,7 +11,7 @@ from PySide6.QtCore import QDate, QThread, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessageBox
 
-from stream_media_viewer.detect.faces import detect_face_boxes, remember_false_faces
+from stream_media_viewer.detect.faces import detect_face_boxes, face_box_at, remember_false_faces
 from stream_media_viewer.detect.false_faces import load_shipped_hashes, try_update_shipped_catalog
 from stream_media_viewer.detect.protect import protect_for_note, protect_frame_safe
 from stream_media_viewer.errors import install_excepthook, log_exception
@@ -48,7 +48,7 @@ from stream_media_viewer.settings import (
     save_settings,
 )
 from stream_media_viewer.ui.geometry import geometry_hex, restore_saved_geometry
-from stream_media_viewer.ui.list_row import row_marks
+from stream_media_viewer.ui.list_row import FACE_MARK, row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
 from stream_media_viewer.ui.output_window import OutputWindow
 from stream_media_viewer.ui.pixmaps import bgr_to_pixmap
@@ -165,6 +165,7 @@ class StreamMediaViewerApp:
         op.settings_requested.connect(self._open_settings)
         op.language_cycle_requested.connect(self._cycle_language)
         op.false_face_requested.connect(self._correct_false_face)
+        op.region_clicked.connect(self._on_preview_region)
         op.rotate_left_requested.connect(lambda: self._rotate_current(270))
         op.rotate_right_requested.connect(lambda: self._rotate_current(90))
         op.timeline.sliderReleased.connect(self._apply_in_out)
@@ -437,7 +438,7 @@ class StreamMediaViewerApp:
             star_only=op.chk_star_only.isChecked(),
             photos=op.chk_photos.isChecked(),
             videos=op.chk_videos.isChecked(),
-            faces=False,
+            faces=op.chk_filter_face.isChecked(),
             gps_yes=False,
             gps_no=False,
             place=op.selected_place(),
@@ -495,12 +496,8 @@ class StreamMediaViewerApp:
             ready=cache_is_ready(self._key_for(item), self._folder_id()),
             manual=bool(note.marks),
         )
-        warn = (
-            t(self.settings.language, "list_face")
-            if item.has_face or (self.settings.text_blur and item.has_text_region)
-            else ""
-        )
-        when = item.captured_at.strftime("%m/%d") if item.captured_at else ""
+        warn = FACE_MARK if item.has_face else ""
+        when = item.captured_at.strftime("%m/%d %H:%M") if item.captured_at else ""
         place = item.place_name
         detail = "  ".join(part for part in (marks, when, place, warn) if part)
         return detail
@@ -522,7 +519,7 @@ class StreamMediaViewerApp:
         if duration_ms and duration_ms > 0:
             parts.append(_format_duration(duration_ms))
         if item.has_face:
-            parts.append(t(lang, "list_face"))
+            parts.append(FACE_MARK)
         note = self.settings.note_for(str(item.path))
         if note.marks:
             parts.append("💧" + t(lang, "btn_manual"))
@@ -819,9 +816,14 @@ class StreamMediaViewerApp:
         item = self._current()
         if item is None:
             self.operator.set_false_face_visible(False)
+            self.operator.preview.setToolTip("")
             return
         note = self.settings.note_for(str(item.path))
         self.operator.set_false_face_visible(bool(item.has_face and not note.skip_faces))
+        if item.has_face and not note.skip_faces:
+            self.operator.preview.setToolTip(t(self.settings.language, "false_face"))
+        else:
+            self.operator.preview.setToolTip("")
 
     def _rotate_current(self, step: int) -> None:
         item = self._current()
@@ -893,6 +895,47 @@ class StreamMediaViewerApp:
         self._protect_cache.clear()
         self._reprotect_current()
         self._save_settings()
+
+    def _on_preview_region(self, nx: float, ny: float) -> None:
+        if self.operator.preview.mode != "off":
+            return
+        if self._reject_false_at(nx, ny):
+            return
+        self._toggle_play()
+
+    def _reject_false_at(self, nx: float, ny: float) -> bool:
+        item = self._current()
+        if item is None or not item.has_face:
+            return False
+        note = self.settings.note_for(str(item.path))
+        if note.skip_faces:
+            return False
+        source = self._source_bgr
+        if source is None and item.kind == "image":
+            image = load_rgb_image(item.path)
+            if image is not None:
+                source = rgb_to_bgr(np.array(image))
+                self._source_bgr = source
+        if source is None:
+            return False
+        oriented = rotate_bgr(source, note.rotation)
+        boxes = detect_face_boxes(
+            oriented, false_face_hashes=self.settings.all_false_face_hashes()
+        )
+        height, width = oriented.shape[:2]
+        hit = face_box_at(boxes, nx, ny, width, height)
+        if hit is None:
+            return False
+        learned = remember_false_faces(
+            self.settings.all_false_face_hashes(), oriented, [hit]
+        )
+        try_update_shipped_catalog(learned)
+        bundled = set(load_shipped_hashes())
+        self.settings.false_face_hashes = [item for item in learned if item not in bundled]
+        self._protect_cache.clear()
+        self._reprotect_current()
+        self._save_settings()
+        return True
 
     def _add_mark(self, mark: dict) -> None:
         item = self._current()

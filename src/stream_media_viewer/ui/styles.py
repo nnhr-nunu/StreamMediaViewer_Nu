@@ -76,7 +76,8 @@ QComboBox, QDateEdit {
   min-height: 32px;
 }
 QDateEdit {
-  min-width: 168px;
+  min-width: 118px;
+  max-width: 128px;
 }
 QComboBox::drop-down, QDateEdit::drop-down {
   subcontrol-origin: padding;

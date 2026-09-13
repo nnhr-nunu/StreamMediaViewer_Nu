@@ -26,7 +26,10 @@ STRINGS = {
         "btn_help": "キー説明",
         "btn_lang": "言語",
         "btn_false_face": "誤検出修正",
-        "false_face": "顔がないのに検出されたら押す。この写真のぼかしを消し、似た誤検出を覚えます",
+        "false_face": (
+            "顔がまったくないとき。この写真の自動ぼかしを全部消します。"
+            "顔もあるのに他が誤検出なら、間違ったぼかしの上をクリック"
+        ),
         "btn_rot_left": "左90°",
         "btn_rot_right": "右90°",
         "rot_left": "左に90度回す。元のファイルは変わりません",
@@ -149,7 +152,10 @@ STRINGS = {
         "btn_help": "Keys",
         "btn_lang": "Language",
         "btn_false_face": "Not a face",
-        "false_face": "Use when there is no face. Clears blur on this file and remembers similar false detections",
+        "false_face": (
+            "Use when there is no face at all. Clears every auto-blur on this file. "
+            "If a real face is blurred and something else is too, click the wrong blur"
+        ),
         "btn_rot_left": "Left 90°",
         "btn_rot_right": "Right 90°",
         "rot_left": "Rotate 90° left. The original file stays unchanged",

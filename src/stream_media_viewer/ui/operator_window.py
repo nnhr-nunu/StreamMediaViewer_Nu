@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut, QTransform
 from PySide6.QtWidgets import (
     QApplication,
@@ -45,6 +45,7 @@ _LIST_GRID = QSize(228, 238)
 _PREVIEW_MIN = 520
 _LIST_SHARE = 0.42
 _TWO_COL_MIN = 400
+_CAPTION_H = 40
 _ROLE_PIX = Qt.ItemDataRole.UserRole
 _ROLE_KIND = Qt.ItemDataRole.UserRole + 1
 _ROLE_ROT = Qt.ItemDataRole.UserRole + 2
@@ -87,6 +88,7 @@ class OperatorWindow(QMainWindow):
     false_face_requested = Signal()
     rotate_left_requested = Signal()
     rotate_right_requested = Signal()
+    region_clicked = Signal(float, float)
     brush_width_changed = Signal(int)
 
     def __init__(self, gate: OutputGate) -> None:
@@ -131,6 +133,7 @@ class OperatorWindow(QMainWindow):
         self.chk_star_only = QCheckBox()
         self.chk_photos = QCheckBox()
         self.chk_videos = QCheckBox()
+        self.chk_filter_face = QCheckBox()
         self.chk_dates = QCheckBox()
         self.combo_place = DropHintCombo()
         self.combo_place.setMinimumWidth(150)
@@ -138,11 +141,19 @@ class OperatorWindow(QMainWindow):
         self.combo_folder.setMinimumWidth(150)
         self.date_from = CalendarDateEdit()
         self.date_to = CalendarDateEdit()
-        self.date_from.setMinimumWidth(168)
-        self.date_to.setMinimumWidth(168)
-        for box in (self.chk_star_only, self.chk_photos, self.chk_videos, self.chk_dates):
+        self.date_from.setMinimumWidth(112)
+        self.date_to.setMinimumWidth(112)
+        self.date_from.setMaximumWidth(128)
+        self.date_to.setMaximumWidth(128)
+        for box in (
+            self.chk_star_only,
+            self.chk_photos,
+            self.chk_videos,
+            self.chk_filter_face,
+            self.chk_dates,
+        ):
             box.setChecked(False)
-        for box in (self.chk_star_only, self.chk_photos, self.chk_videos):
+        for box in (self.chk_star_only, self.chk_photos, self.chk_videos, self.chk_filter_face):
             filters.addWidget(box)
         filters.addWidget(self.combo_folder)
         filters.addWidget(self.combo_place)
@@ -316,6 +327,9 @@ class OperatorWindow(QMainWindow):
         bar.addWidget(self.btn_help)
         outer.addWidget(bar_host)
 
+        self._relayout_timer = QTimer(self)
+        self._relayout_timer.setSingleShot(True)
+        self._relayout_timer.timeout.connect(self._relayout_list)
         self.setCentralWidget(root)
         self._bind()
         self.set_media_kind(None)
@@ -369,6 +383,7 @@ class OperatorWindow(QMainWindow):
         self.list.currentRowChanged.connect(self.item_selected.emit)
         self.preview.mark_added.connect(self.mark_added.emit)
         self.preview.clicked.connect(self.play_requested.emit)
+        self.preview.region_clicked.connect(self.region_clicked.emit)
         self.btn_help.clicked.connect(self._show_shortcuts)
         self.btn_lang.clicked.connect(self.language_cycle_requested.emit)
         self.btn_false_face.clicked.connect(self.false_face_requested.emit)
@@ -384,6 +399,7 @@ class OperatorWindow(QMainWindow):
             self.chk_star_only,
             self.chk_photos,
             self.chk_videos,
+            self.chk_filter_face,
             self.chk_dates,
         ):
             box.toggled.connect(lambda _=False: self.filters_changed.emit())
@@ -480,6 +496,8 @@ class OperatorWindow(QMainWindow):
         self.chk_star_only.setToolTip(t(lang, "filter_star"))
         self.chk_photos.setText(t(lang, "filter_photo"))
         self.chk_videos.setText(t(lang, "filter_video"))
+        self.chk_filter_face.setText("😊")
+        self.chk_filter_face.setToolTip(t(lang, "filter_face"))
         self.chk_dates.setText(t(lang, "filter_dates"))
         self._fill_sort()
         self._set_combo_all(self.combo_place, "filter_place_all")
@@ -694,9 +712,10 @@ class OperatorWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
-        self._relayout_list()
+        self._relayout_list(rescale=False)
+        self._relayout_timer.start(60)
 
-    def _relayout_list(self) -> None:
+    def _relayout_list(self, rescale: bool = True) -> None:
         body = max(720, self.width() - 24)
         list_w = max(220, min(body - _PREVIEW_MIN, int(body * _LIST_SHARE)))
         two = list_w >= _TWO_COL_MIN
@@ -704,7 +723,7 @@ class OperatorWindow(QMainWindow):
         inner = max(160, list_w - 24)
         cell_w = inner // cols
         icon = max(140, min(520, cell_w - 6))
-        cell_h = icon + 18
+        cell_h = icon + _CAPTION_H
         self.list.setIconSize(QSize(icon, icon))
         self.list.setGridSize(QSize(cell_w, cell_h))
         self.list.setMinimumWidth(list_w)
@@ -714,6 +733,8 @@ class OperatorWindow(QMainWindow):
             if item is None:
                 continue
             item.setSizeHint(QSize(cell_w, cell_h))
+            if not rescale:
+                continue
             fitted = self._row_icon(item)
             if fitted is not None:
                 item.setIcon(QIcon(fitted))

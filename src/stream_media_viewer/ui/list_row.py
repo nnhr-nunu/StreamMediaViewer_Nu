@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+FACE_MARK = "😊"
+
 
 def row_marks(*, favorite: bool, live: bool, ready: bool, manual: bool = False) -> str:
     parts: list[str] = []
