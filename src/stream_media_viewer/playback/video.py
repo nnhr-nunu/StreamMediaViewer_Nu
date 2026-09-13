@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -31,6 +32,10 @@ class VideoPlayer(QObject):
         self._last_ok: np.ndarray | None = None
         self._audio = None
         self._sink = None
+        self._cache_dir: Path | None = None
+        self._cache_index = 0
+        self._cache_fps = 30.0
+        self._source_path = ""
         if QMediaPlayer is not None and QAudioOutput is not None:
             self._sink = QAudioOutput(self)
             self._audio = QMediaPlayer(self)
@@ -39,6 +44,8 @@ class VideoPlayer(QObject):
 
     def open(self, path: str) -> float:
         self.close()
+        self._source_path = path
+        self._cache_dir = None
         self._cap = cv2.VideoCapture(path)
         if self._audio is not None:
             self._audio.setSource(QUrl.fromLocalFile(path))
@@ -55,9 +62,16 @@ class VideoPlayer(QObject):
         return int(1000 * frames / fps)
 
     def position_ms(self) -> int:
+        if self._cache_dir is not None:
+            return int(self.in_ms + self._cache_index * (1000 / max(1.0, self._cache_fps)))
         if not self._cap:
             return 0
         return int(self._cap.get(cv2.CAP_PROP_POS_MSEC) or 0)
+
+    def set_cache(self, folder: Path | None, fps: float) -> None:
+        self._cache_dir = folder
+        self._cache_fps = fps if fps > 1 else 30.0
+        self._cache_index = 0
 
     def set_protect(self, fn: Callable[[np.ndarray], np.ndarray] | None) -> None:
         self._protect = fn
@@ -83,7 +97,11 @@ class VideoPlayer(QObject):
             self._audio.pause()
             if self._sink is not None:
                 self._sink.setVolume(0.0)
-        self._timer.start(1)
+        if self._cache_dir is not None:
+            self._cache_index = 0
+            self._timer.start(max(8, int(1000 / self._cache_fps)))
+        else:
+            self._timer.start(1)
 
     def pause(self) -> None:
         self.playing = False
@@ -121,6 +139,9 @@ class VideoPlayer(QObject):
             self._audio.pause()
 
     def _tick(self) -> None:
+        if self._cache_dir is not None:
+            self._tick_cache()
+            return
         if not self._cap or not self.playing:
             return
         pos = self.position_ms()
@@ -148,3 +169,28 @@ class VideoPlayer(QObject):
         protected = self._apply(frame)
         self._sync_audio_clock()
         self.frame_ready.emit(protected)
+
+    def _tick_cache(self) -> None:
+        if not self.playing or self._cache_dir is None:
+            return
+        frame_path = self._cache_dir / f"{self._cache_index:06d}.jpg"
+        if not frame_path.is_file():
+            if self.loop:
+                self._cache_index = 0
+                self._sync_audio_clock()
+                if self._audio is not None and self.audio_enabled:
+                    self._audio.setPosition(self.in_ms)
+                    self._audio.play()
+                return
+            self.pause()
+            self.finished.emit()
+            return
+        frame = cv2.imread(str(frame_path))
+        if frame is None:
+            self.pause()
+            self.finished.emit()
+            return
+        self._last_ok = frame
+        self.frame_ready.emit(frame)
+        self._sync_audio_clock()
+        self._cache_index += 1

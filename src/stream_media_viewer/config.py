@@ -1,5 +1,9 @@
-"""アプリ定数。仕様が固まるまでの初期値。"""
+"""アプリ定数。"""
 
+from __future__ import annotations
+
+import os
+import sys
 from pathlib import Path
 
 APP_DIR_NAME = "StreamMediaViewer_Nu"
@@ -23,4 +27,9 @@ SUPPORTED_VIDEO_SUFFIXES = {".mp4", ".mov", ".mkv", ".webm", ".avi"}
 
 
 def user_config_dir() -> Path:
-    return Path.home() / "AppData" / "Local" / APP_DIR_NAME
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / APP_DIR_NAME
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(base) / APP_DIR_NAME
+    return Path.home() / ".local" / "share" / APP_DIR_NAME

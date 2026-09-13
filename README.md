@@ -1,48 +1,94 @@
 # StreamMediaViewer(ぬ)
 
-旅行などの写真・動画を、顔をぼかしてから OBS に出す Windows アプリです。**Python のインストールは不要**です。
+YouTube などで写真・動画を紹介するとき、**顔をぼかしてから**配信ソフト（OBS）に出すためのアプリです。確認用の画面と、配信に出す画面が分かれています。送るまで配信側には出ません。
 
-動きの正本は [docs/product/spec.md](./docs/product/spec.md)。
+Python を入れなくても使えます。
 
-## いちばん簡単な入手
+## ダウンロード
 
-1. **[最新版をダウンロード](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/latest)**（`StreamMediaViewer.zip`）
-2. 展開する
-3. `StreamMediaViewer.exe` をダブルクリック
+**[最新版はここ](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/latest)**
 
-`main` に更新が入るたびに、同じリンクの zip が新しいものに差し替わります。
+| 使うPC | ファイル | 起動 |
+| ------ | -------- | ---- |
+| Windows 10 / 11 | `StreamMediaViewer-windows.zip` | 展開して `StreamMediaViewer.exe` をダブルクリック |
+| Mac | `StreamMediaViewer-macOS.zip` | 展開して `StreamMediaViewer`（または `.app`）を開く |
 
-## 3 分で配信に出す
+同じリンクが、更新のたびに新しい zip に差し替わります。Mac で「開発元が未確認」と出たら、右クリック → 開く、で起動できます。
 
-1. 📁 で今日使うフォルダを開く
-2. 一覧で確認 → ⬆ または Enter で送る
-3. OBS の「ウィンドウキャプチャ」で `StreamMediaViewer(ぬ) - 配信出力` を選ぶ  
-   送るまでこの窓は隠れます。シーンの下にゲームやカメラを置いてください
-4. 危ないと思ったら **Esc** またはテンキー **0**
+## 推奨環境
 
-OBS で窓が消えたあとも古い絵が残るときは:
+- **Windows 10 以降** または **macOS 12 以降**
+- 画面が 2 枚あると楽（操作用と、OBS 取り込み用）
+- CPU に余裕があること（顔の処理と OBS の配信を同じPCで行うため）
+- OBS Studio（ウィンドウキャプチャができれば他の配信ソフトでも可）
+- 写真・動画は SSD 上のフォルダが速い
+- 対応ファイル: JPEG / PNG / WebP / BMP / HEIC、動画は MP4 / MOV / MKV / WebM / AVI
 
-- キャプチャ方法を **Windows 10 (1903 以降)** にする
-- 「ウィンドウが見つからないときは何も出さない／ソースを隠す」があればオン
+ゲーム配信でCPUが常にフルのPCでは、動画の顔処理が追いつきません。そのときは下の「動画の準備」を使ってください。
 
-よく使うキー: **A / 4** 前、**D / 6** 次、**Enter** 送る、**Space / 5** 再生、**F** 星。  
-動画の音は、送ったあとだけ出ます（OBS のデスクトップ音声に乗ります）。確認中の再生では音を出しません。
+## 使い方（3分）
 
-あ/A で日本語と英語。ボタンはアイコンが本体です。
+1. アプリを起動する（送るまでは配信用の窓は出ません）
+2. 📁 で **今日使うフォルダを1つ** 開く
+3. 左の一覧で写真を選ぶ。ここでの表示は確認用で、配信には乗りません
+4. 顔のぼかしを目で見る。足りなければ ▢（四角）や 🖌（筆）で足す
+5. ⬆ または **Enter** で送る → 1920×1080 の配信用の窓が出る
+6. OBS の「ウィンドウキャプチャ」で `StreamMediaViewer(ぬ) - 配信出力` を選ぶ。このソースの下にゲームやカメラを置いてください
+7. 危ないと思ったら **Esc** またはテンキー **0**（窓が消えます。もう一度送るまで出ません）
+
+あ/A で日本語と英語を切り替えます。ボタンはアイコンが本体です。カーソルを乗せると短い説明が出ます。
+
+## キー
+
+| 操作 | テンキー | キーボード | マウス |
+| ---- | -------- | ---------- | ------ |
+| 前のファイル | 4 | A | ◀ |
+| 次のファイル | 6 | D | ▶▶ |
+| 送る | Enter | Enter | ⬆ |
+| 緊急で隠す | 0 | Esc | ⬛ |
+| 再生／停止 | 5 | Space | ▶ |
+| 星 | | F | ☆ |
+| やり直し | | Ctrl+Z（Mac は Command+Z になる場合あり） | ↩ |
+| 動画を先に準備 | | | ⏳ |
+
+## 動画
+
+- 確認中の再生は配信に乗りません。音も確認中は出ません
+- 送ると、決めた区間の先頭から再生します。上と下のスライダーが区間の始まりと終わりです
+- 「繰返」はその動画だけ繰り返します
+- **⏳** で、選んでいる区間をあらかじめ処理します。選んだ時点でも裏で準備を始めます。準備が終わってから送ると、配信中に映像が遅れにくくなります。元のファイルは書き換えません（PC内の作業用フォルダに保存）
+
+## 安全について
+
+- 顔の自動ぼかしは最初オンです。オフにすると、オフにしたあと最初の送信だけ確認が出ます
+- 車の番号・名札の自動は最初オフです。オンでも外れることがあるので、目視と手動を優先してください
+- 配信に出す絵から、撮影場所の埋め込み情報は外します。操作画面では日時や「場所あり」は使えます
+- 元の写真・動画はそのままです
+
+## OBS で古い絵が残るとき
+
+1. キャプチャ方法を **Windows 10 (1903 以降)** にする（Mac はデフォルトのまま試す）
+2. 「ウィンドウが見つからないときは何も出さない／ソースを隠す」があればオン
+3. それでも残るときは、ソースを一度オフにしてからオン
 
 ## 開発者
 
 Python 3.10〜3.12。
 
 ```powershell
-cd D:\Dev\StreamMediaViewer_Nu
+git clone https://github.com/nnhr-nunu/StreamMediaViewer_Nu.git
+cd StreamMediaViewer_Nu
 python -m venv .venv
+# Windows
 .\.venv\Scripts\Activate.ps1
+# Mac
+source .venv/bin/activate
 python -m pip install -U pip
 pip install -e ".[dev]"
 python -m stream_media_viewer
 pytest
-.\scripts\build.ps1
 ```
 
-設定は `%LOCALAPPDATA%\StreamMediaViewer_Nu\settings.json`（exe のときは exe と同じフォルダ）。写真フォルダには書き込みません。
+Windows の exe 作成: `.\scripts\build.ps1`
+
+動きの正本: [docs/product/spec.md](./docs/product/spec.md)

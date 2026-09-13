@@ -13,6 +13,13 @@ from stream_media_viewer.detect.protect import protect_frame
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.scan import load_rgb_image, scan_folder
+from stream_media_viewer.playback.preload import (
+    PreloadWorker,
+    cache_folder,
+    cache_is_ready,
+    cache_key,
+    read_meta,
+)
 from stream_media_viewer.playback.video import VideoPlayer
 from stream_media_viewer.render.canvas import fit_letterbox, rgb_to_bgr
 from stream_media_viewer.safety.output_gate import OutputGate
@@ -64,6 +71,7 @@ class StreamMediaViewerApp:
         self._video.finished.connect(self._on_video_finished)
         self._playing_to_output = False
         self._live_path = ""
+        self._preload: PreloadWorker | None = None
         self._wire()
         self._restore_checks()
         if self.settings.last_folder:
@@ -85,6 +93,7 @@ class StreamMediaViewerApp:
         op.mark_added.connect(self._add_mark)
         op.settings_changed.connect(self._on_settings_ui)
         op.standby_requested.connect(self._pick_standby)
+        op.prepare_requested.connect(self._start_preload)
         op.timeline.sliderReleased.connect(self._apply_in_out)
         op.timeline_out.sliderReleased.connect(self._apply_in_out)
 
@@ -198,6 +207,7 @@ class StreamMediaViewerApp:
         self.operator.list.setCurrentRow(self._index)
 
     def _reload_current(self) -> None:
+        self._stop_preload()
         item = self._current()
         self._video.close()
         self._playing_to_output = False
@@ -258,6 +268,9 @@ class StreamMediaViewerApp:
         self.operator.preview.set_frame(bgr_to_pixmap(fitted))
         self.gate.mark_processed()
         self.operator.refresh_status()
+        item = self._current()
+        if item and item.kind == "video":
+            self._start_preload()
 
     def _on_send(self) -> None:
         if self._preview is None:
@@ -285,6 +298,7 @@ class StreamMediaViewerApp:
             self._video.set_protect(lambda frame: self._protect_sync(frame, note.marks))
             self._video.audio_enabled = self.settings.video_audio
             self._playing_to_output = True
+            self._bind_cache(item)
             self._video.seek_ms(note.in_ms)
             self._video.play()
         self._sync_windows()
@@ -324,6 +338,8 @@ class StreamMediaViewerApp:
             item and self._live_path == str(item.path) and not self.gate.masked
         )
         self._video.audio_enabled = self._playing_to_output and self.settings.video_audio
+        if item:
+            self._bind_cache(item)
         self._video.seek_ms(note.in_ms)
         self._video.play()
 
@@ -370,6 +386,68 @@ class StreamMediaViewerApp:
         note.out_ms = max(self.operator.timeline.value(), self.operator.timeline_out.value())
         self._video.in_ms = note.in_ms
         self._video.out_ms = note.out_ms
+        self._stop_preload()
+        self._start_preload()
+
+    def _key_for(self, item: MediaItem) -> str:
+        note = self.settings.note_for(str(item.path))
+        return cache_key(
+            item.path,
+            in_ms=note.in_ms,
+            out_ms=note.out_ms,
+            face_blur=self.settings.face_blur,
+            text_blur=self.settings.text_blur,
+            strength=self.settings.blur_strength,
+            marks=note.marks,
+        )
+
+    def _bind_cache(self, item: MediaItem) -> None:
+        key = self._key_for(item)
+        if cache_is_ready(key):
+            meta = read_meta(key)
+            self._video.set_cache(cache_folder(key), float(meta.get("fps") or 30))
+            return
+        self._video.set_cache(None, 30)
+
+    def _stop_preload(self) -> None:
+        if self._preload is not None and self._preload.isRunning():
+            self._preload.requestInterruption()
+            self._preload.wait(1500)
+        self._preload = None
+
+    def _start_preload(self) -> None:
+        item = self._current()
+        if item is None or item.kind != "video":
+            return
+        note = self.settings.note_for(str(item.path))
+        key = self._key_for(item)
+        lang = self.settings.language
+        prefix = self.operator.meta.text().split(" · ")[0]
+        if cache_is_ready(key):
+            self.operator.meta.setText(f"{prefix} · {t(lang, 'prepared')}")
+            return
+        if self._preload is not None and self._preload.isRunning():
+            return
+        self._preload = PreloadWorker(
+            item.path,
+            key,
+            self.settings,
+            list(note.marks),
+            note.in_ms,
+            note.out_ms,
+        )
+        self._preload.progress.connect(self._on_preload_progress)
+        self._preload.finished_ok.connect(self._on_preload_done)
+        self._preload.start()
+
+    def _on_preload_progress(self, done: int, total: int) -> None:
+        prefix = self.operator.meta.text().split(" · ")[0]
+        label = t(self.settings.language, "preparing")
+        self.operator.meta.setText(f"{prefix} · {label} {done}/{max(1, total)}")
+
+    def _on_preload_done(self, _key: str) -> None:
+        prefix = self.operator.meta.text().split(" · ")[0]
+        self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'prepared')}")
 
     def _toggle_lang(self) -> None:
         self.settings.language = "en" if self.settings.language == "ja" else "ja"
