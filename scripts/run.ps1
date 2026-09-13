@@ -1,5 +1,5 @@
-# 手元のコードでアプリを起動する
-# 使い方: .\scripts\run.ps1
+# 手元のコードでアプリを起動する（コマンド用）
+# ダブルクリックならリポジトリ直下の 起動.bat
 
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path -Parent $PSScriptRoot)
