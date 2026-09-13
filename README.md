@@ -1,14 +1,14 @@
 # StreamMediaViewer(ぬ)
 
-配信で使う写真や動画の顔をぼかし、確認したものだけをOBSなどに表示するためのソフトウェアです。
+写真や動画に映っている人の顔にぼかしを自動で追加し、表示できるソフトウェアです。YouTuber、VTuberなどの配信者が旅行写真を配信するときに便利です。
 
-操作用ウィンドウで内容を確認し、配信用ウィンドウからOBSなどへ表示します。
+操作用ウィンドウで内容を確認した後、配信用ウィンドウからOBSへ表示する流れになっています。
 
 ## 入手
 
 **[最新版のダウンロードページを開く](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/tag/latest)**
 
-1. ページ下部の **Assets** を開きます。
+1. 上記最新版ダウンロードページを開きます。
 2. Windowsは `StreamMediaViewer-windows.zip`、Macは `StreamMediaViewer-macOS.zip` をダウンロードします。
 3. ダウンロードしたzipを展開します。
 4. Windowsは展開したフォルダの `StreamMediaViewer.exe` を、Macは `StreamMediaViewer.app`（または `StreamMediaViewer`）を開きます。
@@ -16,14 +16,9 @@
 | OS | ダウンロードするファイル | 起動方法 |
 | -------- | ------------ | ---- |
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | 展開して `StreamMediaViewer.exe` をダブルクリック |
-| Mac | `StreamMediaViewer-macOS.zip` | 展開して `StreamMediaViewer`（または `.app`）を開く |
+| Mac (macOS 12以降) | `StreamMediaViewer-macOS.zip` | 展開して `StreamMediaViewer`（または `.app`）を開く |
 
 Mac で「開発元が未確認」と出たら、ファイルを右クリックして「開く」を選んでください。
-
-## 用意するもの
-
-- Windows 10 以降、または macOS 12 以降
-- 配信ソフト（OBS Studio など）
 
 ## 使い方
 
@@ -73,13 +68,13 @@ X: [@nnhr_nunu](https://x.com/nnhr_nunu)
 
 # StreamMediaViewer (Nu) — English
 
-A Windows/Mac app that blurs faces before showing photos and videos in OBS or another streaming app. Review media privately, then display only what you approve.
+A Windows/Mac app that automatically adds blur to faces in photos and videos before displaying them. It is useful for YouTubers, VTubers, and other streamers who show travel photos. Review the media in the operator window, then display it in OBS through the output window.
 
 ## Download
 
 **[Open the latest download page](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/tag/latest)**
 
-1. Open **Assets** near the bottom of the page.
+1. Open the latest download page linked above.
 2. Download `StreamMediaViewer-windows.zip` for Windows or `StreamMediaViewer-macOS.zip` for Mac.
 3. Unzip the downloaded file.
 4. On Windows, open `StreamMediaViewer.exe`. On Mac, open `StreamMediaViewer.app` (or `StreamMediaViewer`).
@@ -87,14 +82,9 @@ A Windows/Mac app that blurs faces before showing photos and videos in OBS or an
 | PC | File | How to start |
 | -- | ---- | ------------ |
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | Unzip and double-click `StreamMediaViewer.exe` |
-| Mac | `StreamMediaViewer-macOS.zip` | Unzip and open `StreamMediaViewer` (or the `.app`) |
+| Mac (macOS 12+) | `StreamMediaViewer-macOS.zip` | Unzip and open `StreamMediaViewer` (or the `.app`) |
 
 On Mac, if Gatekeeper blocks it, right-click the app → Open.
-
-## What you need
-
-- Windows 10+ or macOS 12+
-- A streaming app such as **OBS Studio**
 
 ## Start in 3 minutes
 
