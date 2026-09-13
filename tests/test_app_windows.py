@@ -12,6 +12,7 @@ from stream_media_viewer import (
 from stream_media_viewer.app import ProtectThread, StreamMediaViewerApp
 from stream_media_viewer.library.scan import scan_folder
 from stream_media_viewer.settings import AppSettings
+from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
 from stream_media_viewer.ui.output_window import IDLE_WINDOW_TITLE
 
 
@@ -33,13 +34,29 @@ def test_two_windows_start_hidden(qtbot) -> None:
     assert app.output.windowTitle() == IDLE_WINDOW_TITLE
 
 
-def test_operator_shows_version_output_does_not(qtbot) -> None:
+def test_operator_shows_guide_version_stays_in_settings(qtbot) -> None:
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
     qtbot.addWidget(app.output)
     shown = display_version()
     assert __version__ in shown
-    assert shown in app.operator.version_label.text()
+    assert not hasattr(app.operator, "version_label")
+    assert "フォルダを選択" in app.operator.guide.text()
+    assert app.operator.btn_play.isHidden()
+    assert "次" in app.operator.btn_next.text()
+    dialog = SettingsDialog(
+        None,
+        SettingsDraft(
+            blur_strength=25,
+            face_blur=True,
+            text_blur=False,
+            video_audio=False,
+            enhance_level="weak",
+            language="ja",
+        ),
+    )
+    qtbot.addWidget(dialog)
+    assert shown in dialog.version_label.text()
     assert shown not in app.output.windowTitle()
     assert shown not in (app.output.canvas.text() or "")
 
@@ -66,15 +83,21 @@ def test_unreadable_video_is_dropped_from_list(qtbot, tmp_path: Path) -> None:
     qtbot.addWidget(app.operator)
     qtbot.addWidget(app.output)
     app._open_folder_path(str(tmp_path))
+    qtbot.waitUntil(lambda: any(item.path.name == "good.jpg" for item in app._items), timeout=8000)
+    qtbot.waitUntil(
+        lambda: "broken.mp4"
+        not in [app._items[i].path.name for i in app._visible],
+        timeout=8000,
+    )
     visible_names = [app._items[i].path.name for i in app._visible]
     assert "broken.mp4" not in visible_names
     assert any(item.path.name == "good.jpg" for item in app._items)
 
 
 def test_protect_thread_emits_failed_on_bad_frame(qtbot) -> None:
-    thread = ProtectThread(np.zeros((0, 0, 3), dtype=np.uint8), AppSettings(), [])
+    thread = ProtectThread(np.zeros((0, 0, 3), dtype=np.uint8), AppSettings(), [], 1)
     failed: list[bool] = []
-    thread.failed.connect(lambda: failed.append(True))
+    thread.failed.connect(lambda _seq: failed.append(True))
     thread.start()
     qtbot.waitUntil(lambda: not thread.isRunning(), timeout=5000)
     assert failed
@@ -90,3 +113,18 @@ def test_persist_failure_does_not_raise(qtbot, monkeypatch) -> None:
 
     monkeypatch.setattr("stream_media_viewer.app.save_settings", boom)
     app.persist()
+
+
+def test_photo_and_video_show_different_controls(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    app.operator.set_media_kind("image")
+    assert app.operator.btn_play.isHidden()
+    assert app.operator.btn_prep.isHidden()
+    assert app.operator.timeline.isHidden()
+    assert app.operator.chk_loop.isHidden()
+    app.operator.set_media_kind("video")
+    assert not app.operator.btn_play.isHidden()
+    assert not app.operator.btn_prep.isHidden()
+    assert not app.operator.timeline.isHidden()
+    assert not app.operator.chk_loop.isHidden()

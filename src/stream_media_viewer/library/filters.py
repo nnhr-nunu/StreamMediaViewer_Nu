@@ -21,6 +21,8 @@ def passes_filters(
     gps_yes: bool = False,
     gps_no: bool = False,
     place: str = "",
+    folder: str = "",
+    relative_folder: str = "",
     dates: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -41,6 +43,9 @@ def passes_filters(
         return False
     wanted = place.strip()
     if wanted and place_name != wanted:
+        return False
+    wanted_folder = folder.strip()
+    if wanted_folder and relative_folder != wanted_folder:
         return False
     if dates:
         if captured_at is None or date_from is None or date_to is None:

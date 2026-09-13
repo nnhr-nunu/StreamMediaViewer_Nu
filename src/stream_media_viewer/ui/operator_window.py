@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -14,12 +14,13 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QSlider,
+    QStackedLayout,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from stream_media_viewer import OPERATOR_WINDOW_TITLE, display_version
+from stream_media_viewer import OPERATOR_WINDOW_TITLE
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.render.enhance import parse_enhance_level
@@ -27,13 +28,21 @@ from stream_media_viewer.safety.output_gate import OutputGate, OutputReason
 from stream_media_viewer.ui.preview_canvas import PreviewCanvas
 from stream_media_viewer.ui.styles import DARK_QSS
 
+_LIST_ICON = QSize(96, 96)
+_LIST_ROW = QSize(300, 108)
 
-def _icon_button(text: str, tooltip: str) -> QToolButton:
+
+def _bar_button() -> QToolButton:
     button = QToolButton()
-    button.setText(text)
-    button.setToolTip(tooltip)
+    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
     button.setAutoRaise(False)
+    button.setMinimumSize(64, 52)
     return button
+
+
+def _caption(button: QToolButton, glyph: str, short: str, tip: str) -> None:
+    button.setText(f"{glyph}\n{short}")
+    button.setToolTip(tip)
 
 
 class OperatorWindow(QMainWindow):
@@ -45,10 +54,11 @@ class OperatorWindow(QMainWindow):
     play_requested = Signal()
     star_requested = Signal()
     undo_requested = Signal()
-    language_requested = Signal()
     item_selected = Signal(int)
     mark_added = Signal(dict)
     settings_changed = Signal()
+    filters_changed = Signal()
+    loop_changed = Signal()
     standby_requested = Signal()
     prepare_requested = Signal()
     prepare_folder_requested = Signal()
@@ -68,35 +78,28 @@ class OperatorWindow(QMainWindow):
         outer = QVBoxLayout(root)
 
         top = QHBoxLayout()
-        self.btn_folder = _icon_button("📁", "")
-        self.btn_lang = _icon_button("あ/A", "")
+        self.btn_folder = _bar_button()
         self.chk_face = QCheckBox()
         self.chk_face.setChecked(True)
         self.chk_text = QCheckBox()
-        self.chk_audio = QCheckBox()
-        self.btn_enhance = _icon_button("✨弱", "")
+        self.btn_enhance = _bar_button()
         self.enhance_level = "weak"
-        self.btn_standby = _icon_button("🖼", "")
-        self.btn_folder_prep = _icon_button("📂⏳", "")
-        self.btn_clear_cache = _icon_button("🗑", "")
-        self.btn_settings = _icon_button("⚙", "")
+        self.btn_standby = _bar_button()
+        self.btn_folder_prep = _bar_button()
+        self.btn_clear_cache = _bar_button()
+        self.btn_settings = _bar_button()
         self.cache_label = QLabel()
         self.cache_label.setObjectName("meta")
         top.addWidget(self.btn_folder)
         top.addWidget(self.chk_face)
         top.addWidget(self.chk_text)
-        top.addWidget(self.chk_audio)
         top.addWidget(self.btn_enhance)
         top.addWidget(self.btn_standby)
         top.addWidget(self.btn_folder_prep)
         top.addWidget(self.btn_clear_cache)
         top.addWidget(self.cache_label)
         top.addStretch()
-        self.version_label = QLabel(display_version())
-        self.version_label.setObjectName("meta")
-        top.addWidget(self.version_label)
         top.addWidget(self.btn_settings)
-        top.addWidget(self.btn_lang)
         outer.addLayout(top)
 
         filters = QHBoxLayout()
@@ -109,6 +112,8 @@ class OperatorWindow(QMainWindow):
         self.chk_dates = QCheckBox()
         self.combo_place = QComboBox()
         self.combo_place.setMinimumWidth(140)
+        self.combo_folder = QComboBox()
+        self.combo_folder.setMinimumWidth(140)
         self.date_from = QDateEdit()
         self.date_to = QDateEdit()
         self.date_from.setCalendarPopup(True)
@@ -124,6 +129,7 @@ class OperatorWindow(QMainWindow):
         ):
             box.setChecked(False)
             filters.addWidget(box)
+        filters.addWidget(self.combo_folder)
         filters.addWidget(self.combo_place)
         filters.addWidget(self.date_from)
         filters.addWidget(self.date_to)
@@ -132,15 +138,27 @@ class OperatorWindow(QMainWindow):
 
         body = QHBoxLayout()
         self.list = QListWidget()
-        self.list.setMaximumWidth(320)
+        self.list.setIconSize(_LIST_ICON)
+        self.list.setSpacing(4)
+        self.list.setMinimumWidth(300)
+        self.list.setMaximumWidth(420)
+        self.list.setWordWrap(True)
         body.addWidget(self.list)
 
         preview_col = QVBoxLayout()
         self.meta = QLabel()
         self.meta.setObjectName("meta")
+        preview_host = QWidget()
+        self._preview_stack = QStackedLayout(preview_host)
         self.preview = PreviewCanvas()
+        self.guide = QLabel()
+        self.guide.setObjectName("guide")
+        self.guide.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.guide.setWordWrap(True)
+        self._preview_stack.addWidget(self.preview)
+        self._preview_stack.addWidget(self.guide)
         preview_col.addWidget(self.meta)
-        preview_col.addWidget(self.preview, stretch=1)
+        preview_col.addWidget(preview_host, stretch=1)
         self.lbl_in = QLabel()
         self.lbl_in.setObjectName("meta")
         self.timeline = QSlider(Qt.Orientation.Horizontal)
@@ -163,16 +181,16 @@ class OperatorWindow(QMainWindow):
         outer.addLayout(body, stretch=1)
 
         bar = QHBoxLayout()
-        self.btn_prev = _icon_button("◀", "")
-        self.btn_play = _icon_button("▶", "")
-        self.btn_next = _icon_button("▶▶", "")
-        self.btn_send = _icon_button("⬆", "")
-        self.btn_panic = _icon_button("⬛", "")
-        self.btn_star = _icon_button("☆", "")
-        self.btn_undo = _icon_button("↩", "")
-        self.btn_rect = _icon_button("▢", "")
-        self.btn_brush = _icon_button("🖌", "")
-        self.btn_prep = _icon_button("⏳", "")
+        self.btn_prev = _bar_button()
+        self.btn_play = _bar_button()
+        self.btn_next = _bar_button()
+        self.btn_send = _bar_button()
+        self.btn_panic = _bar_button()
+        self.btn_star = _bar_button()
+        self.btn_undo = _bar_button()
+        self.btn_rect = _bar_button()
+        self.btn_brush = _bar_button()
+        self.btn_prep = _bar_button()
         self.btn_rect.setCheckable(True)
         self.btn_brush.setCheckable(True)
         self.btn_rect.setChecked(True)
@@ -195,7 +213,9 @@ class OperatorWindow(QMainWindow):
 
         self.setCentralWidget(root)
         self._bind()
+        self.set_media_kind(None)
         self.retranslate()
+        self.show_guide(t("ja", "empty_guide"))
 
     def _bind(self) -> None:
         self.btn_folder.clicked.connect(self.open_folder_requested.emit)
@@ -206,7 +226,6 @@ class OperatorWindow(QMainWindow):
         self.btn_play.clicked.connect(self.play_requested.emit)
         self.btn_star.clicked.connect(self.star_requested.emit)
         self.btn_undo.clicked.connect(self.undo_requested.emit)
-        self.btn_lang.clicked.connect(self.language_requested.emit)
         self.btn_standby.clicked.connect(self.standby_requested.emit)
         self.btn_prep.clicked.connect(self.prepare_requested.emit)
         self.btn_folder_prep.clicked.connect(self.prepare_folder_requested.emit)
@@ -217,10 +236,10 @@ class OperatorWindow(QMainWindow):
         self.preview.mark_added.connect(self.mark_added.emit)
         self.btn_rect.clicked.connect(lambda: self._mode("rect"))
         self.btn_brush.clicked.connect(lambda: self._mode("stroke"))
+        self.chk_face.toggled.connect(lambda _=False: self.settings_changed.emit())
+        self.chk_text.toggled.connect(lambda _=False: self.settings_changed.emit())
+        self.chk_loop.toggled.connect(lambda _=False: self.loop_changed.emit())
         for box in (
-            self.chk_face,
-            self.chk_text,
-            self.chk_audio,
             self.chk_star_only,
             self.chk_photos,
             self.chk_videos,
@@ -228,12 +247,12 @@ class OperatorWindow(QMainWindow):
             self.chk_gps,
             self.chk_no_gps,
             self.chk_dates,
-            self.chk_loop,
         ):
-            box.toggled.connect(lambda _=False: self.settings_changed.emit())
-        self.combo_place.currentIndexChanged.connect(lambda _=0: self.settings_changed.emit())
-        self.date_from.dateChanged.connect(lambda _=None: self.settings_changed.emit())
-        self.date_to.dateChanged.connect(lambda _=None: self.settings_changed.emit())
+            box.toggled.connect(lambda _=False: self.filters_changed.emit())
+        self.combo_place.currentIndexChanged.connect(lambda _=0: self.filters_changed.emit())
+        self.combo_folder.currentIndexChanged.connect(lambda _=0: self.filters_changed.emit())
+        self.date_from.dateChanged.connect(lambda _=None: self.filters_changed.emit())
+        self.date_to.dateChanged.connect(lambda _=None: self.filters_changed.emit())
         QShortcut(QKeySequence("A"), self, self.prev_requested.emit)
         QShortcut(QKeySequence("D"), self, self.next_requested.emit)
         QShortcut(QKeySequence(Qt.Key.Key_Left), self, self.prev_requested.emit)
@@ -256,18 +275,23 @@ class OperatorWindow(QMainWindow):
 
     def retranslate(self) -> None:
         lang = self.lang
-        self.btn_folder.setToolTip(t(lang, "open_folder"))
-        self.btn_send.setToolTip(t(lang, "send"))
-        self.btn_panic.setToolTip(t(lang, "panic"))
-        self.btn_prev.setToolTip(t(lang, "prev"))
-        self.btn_next.setToolTip(t(lang, "next"))
-        self.btn_play.setToolTip(t(lang, "play"))
-        self.btn_star.setToolTip(t(lang, "star"))
-        self.btn_undo.setToolTip(t(lang, "undo"))
+        _caption(self.btn_folder, "📁", t(lang, "btn_folder"), t(lang, "open_folder"))
+        _caption(self.btn_send, "⬆", t(lang, "btn_send"), t(lang, "send"))
+        _caption(self.btn_panic, "⬛", t(lang, "btn_panic"), t(lang, "panic"))
+        _caption(self.btn_prev, "◀", t(lang, "btn_prev"), t(lang, "prev"))
+        _caption(self.btn_next, "▶", t(lang, "btn_next"), t(lang, "next"))
+        _caption(self.btn_play, "⏯", t(lang, "btn_play"), t(lang, "play"))
+        _caption(self.btn_star, "☆", t(lang, "btn_star"), t(lang, "star"))
+        _caption(self.btn_undo, "↩", t(lang, "btn_undo"), t(lang, "undo"))
+        _caption(self.btn_rect, "▢", t(lang, "btn_rect"), t(lang, "rect"))
+        _caption(self.btn_brush, "🖌", t(lang, "btn_brush"), t(lang, "brush"))
+        _caption(self.btn_prep, "⏳", t(lang, "btn_prep"), t(lang, "prepare"))
+        _caption(self.btn_standby, "🖼", t(lang, "btn_standby"), t(lang, "standby"))
+        _caption(self.btn_folder_prep, "📂", t(lang, "btn_folder_prep"), t(lang, "prepare_folder"))
+        _caption(self.btn_clear_cache, "🗑", t(lang, "btn_clear"), t(lang, "clear_cache"))
+        _caption(self.btn_settings, "⚙", t(lang, "btn_settings"), t(lang, "settings"))
         self.chk_face.setText(t(lang, "face_blur"))
         self.chk_text.setText(t(lang, "text_blur"))
-        self.chk_audio.setText(t(lang, "audio"))
-        self.chk_audio.setToolTip(t(lang, "audio_hint"))
         self.set_enhance_level(self.enhance_level)
         self.chk_loop.setText(t(lang, "loop"))
         self.chk_star_only.setText("⭐ " + t(lang, "filter_star"))
@@ -276,54 +300,95 @@ class OperatorWindow(QMainWindow):
         self.chk_faces.setText("⚠ " + t(lang, "filter_face"))
         self.chk_gps.setText(t(lang, "filter_gps"))
         self.chk_no_gps.setText(t(lang, "filter_gps_no"))
-        self.chk_dates.setText("📅")
-        if self.combo_place.count() == 0:
-            self.combo_place.addItem(t(lang, "filter_place_all"), "")
-        else:
-            self.combo_place.setItemText(0, t(lang, "filter_place_all"))
-        self.btn_lang.setToolTip(t(lang, "language"))
-        self.btn_settings.setToolTip(t(lang, "settings"))
-        self.btn_standby.setToolTip(t(lang, "standby"))
-        self.btn_rect.setToolTip(t(lang, "rect"))
-        self.btn_brush.setToolTip(t(lang, "brush"))
-        self.btn_prep.setToolTip(t(lang, "prepare"))
-        self.btn_folder_prep.setToolTip(t(lang, "prepare_folder"))
-        self.btn_clear_cache.setToolTip(t(lang, "clear_cache"))
+        self.chk_dates.setText(t(lang, "filter_dates"))
+        self._set_combo_all(self.combo_place, "filter_place_all")
+        self._set_combo_all(self.combo_folder, "filter_folder_all")
         self.lbl_in.setText(t(lang, "range_in"))
         self.lbl_out.setText(t(lang, "range_out"))
         self.timeline.setToolTip(t(lang, "range_in"))
         self.timeline_out.setToolTip(t(lang, "range_out"))
+        if self._preview_stack.currentWidget() is self.guide and not self.list.count():
+            self.show_guide(t(lang, "empty_guide"))
+
+    def _set_combo_all(self, combo: QComboBox, key: str) -> None:
+        if combo.count() == 0:
+            combo.addItem(t(self.lang, key), "")
+            return
+        combo.setItemText(0, t(self.lang, key))
 
     def set_places(self, names: list[str], selected: str) -> None:
-        current = selected
-        self.combo_place.blockSignals(True)
-        self.combo_place.clear()
-        self.combo_place.addItem(t(self.lang, "filter_place_all"), "")
+        self._fill_combo(self.combo_place, "filter_place_all", names, selected)
+
+    def set_folders(self, names: list[str], selected: str) -> None:
+        self._fill_combo(self.combo_folder, "filter_folder_all", names, selected)
+
+    def _fill_combo(self, combo: QComboBox, all_key: str, names: list[str], selected: str) -> None:
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem(t(self.lang, all_key), "")
         for name in names:
-            self.combo_place.addItem(name, name)
-        index = self.combo_place.findData(current)
-        self.combo_place.setCurrentIndex(index if index >= 0 else 0)
-        self.combo_place.blockSignals(False)
+            combo.addItem(name, name)
+        index = combo.findData(selected)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+        combo.blockSignals(False)
 
     def selected_place(self) -> str:
         return str(self.combo_place.currentData() or "")
 
+    def selected_folder(self) -> str:
+        return str(self.combo_folder.currentData() or "")
+
     def set_enhance_level(self, level: str) -> None:
         self.enhance_level = parse_enhance_level(level)
         lang = self.lang
-        self.btn_enhance.setText(t(lang, f"enhance_{level}"))
+        self.btn_enhance.setText(t(lang, f"enhance_{self.enhance_level}"))
         self.btn_enhance.setToolTip(t(lang, "enhance_hint"))
 
-    def set_range_visible(self, visible: bool) -> None:
-        for widget in (self.lbl_in, self.timeline, self.lbl_out, self.timeline_out, self.chk_loop):
-            widget.setVisible(visible)
+    def set_media_kind(self, kind: str | None) -> None:
+        video = kind == "video"
+        for widget in (
+            self.btn_play,
+            self.btn_prep,
+            self.lbl_in,
+            self.timeline,
+            self.lbl_out,
+            self.timeline_out,
+            self.chk_loop,
+        ):
+            widget.setVisible(video)
 
-    def set_items(self, items: list[MediaItem], labels: list[str]) -> None:
+    def set_range_visible(self, visible: bool) -> None:
+        self.set_media_kind("video" if visible else "image")
+
+    def show_guide(self, text: str) -> None:
+        self.guide.setText(text)
+        self._preview_stack.setCurrentWidget(self.guide)
+
+    def reveal_preview(self) -> None:
+        self._preview_stack.setCurrentWidget(self.preview)
+
+    def set_items(
+        self,
+        items: list[MediaItem],
+        labels: list[str],
+        icons: list[QPixmap | None] | None = None,
+    ) -> None:
         self.list.blockSignals(True)
         self.list.clear()
-        for label in labels:
-            self.list.addItem(QListWidgetItem(label))
+        for index, label in enumerate(labels):
+            row = QListWidgetItem(label)
+            pixmap = icons[index] if icons and index < len(icons) else None
+            if pixmap is not None and not pixmap.isNull():
+                row.setIcon(QIcon(pixmap))
+            row.setSizeHint(_LIST_ROW)
+            self.list.addItem(row)
         self.list.blockSignals(False)
+
+    def set_row_icon(self, row: int, pixmap: QPixmap) -> None:
+        item = self.list.item(row)
+        if item is None or pixmap.isNull():
+            return
+        item.setIcon(QIcon(pixmap))
 
     def refresh_status(self) -> None:
         live = self._gate.reason is OutputReason.LIVE

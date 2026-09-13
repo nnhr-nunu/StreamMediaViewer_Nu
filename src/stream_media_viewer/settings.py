@@ -58,6 +58,7 @@ class AppSettings:
     notes: dict[str, FileNote] = field(default_factory=dict)
     blur_off_confirmed: bool = False
     recent_folders: list[str] = field(default_factory=list)
+    include_subfolders: bool = True
 
     def note_for(self, path: str) -> FileNote:
         note = self.notes.get(path)
@@ -83,6 +84,7 @@ class AppSettings:
             "date_to": self.date_to,
             "blur_off_confirmed": self.blur_off_confirmed,
             "recent_folders": list(self.recent_folders),
+            "include_subfolders": self.include_subfolders,
             "notes": {key: note.to_dict() for key, note in self.notes.items()},
         }
 
@@ -122,6 +124,7 @@ class AppSettings:
             notes=notes,
             blur_off_confirmed=bool(data.get("blur_off_confirmed", False)),
             recent_folders=recent_folders,
+            include_subfolders=bool(data.get("include_subfolders", True)),
         )
 
 
