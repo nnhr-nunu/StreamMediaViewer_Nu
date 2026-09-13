@@ -1,8 +1,8 @@
 # StreamMediaViewer(ぬ)
 
-配信で写真や動画を見せる前に顔をぼかし、確認したものだけを視聴者へ送るアプリです。
+配信で使う写真や動画の顔をぼかし、確認したものだけをOBSなどに表示するためのソフトウェアです。
 
-自分が確認するウィンドウと、視聴者に見せるウィンドウは別です。「送る」を押すまで、視聴者には表示されません。Python のインストールは必要ありません。
+操作用ウィンドウで内容を確認し、配信用ウィンドウからOBSなどへ表示します。
 
 ## 入手
 
@@ -13,26 +13,22 @@
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | 展開して `StreamMediaViewer.exe` をダブルクリック |
 | Mac | `StreamMediaViewer-macOS.zip` | 展開して `StreamMediaViewer`（または `.app`）を開く |
 
-更新のたびに、同じページのファイルが新しいものに入れ替わります。Mac で「開発元が未確認」と出たら、ファイルを右クリックして「開く」を選んでください。
+Mac で「開発元が未確認」と出たら、ファイルを右クリックして「開く」を選んでください。
 
 ## 用意するもの
 
 - Windows 10 以降、または macOS 12 以降
-- 写真や動画が入ったフォルダ
 - 配信ソフト（OBS Studio など）
-- 2画面あると、自分の確認画面と配信画面を分けて使えます
 
 ## 使い方
 
-1. アプリを起動します。最初は視聴者向けのウィンドウは表示されません。
-2. 📁 で、今日使う写真や動画のフォルダを開きます。最近使ったフォルダからも選べます。
-3. 一覧からファイルを選び、手元の画面で確認します。この時点では配信に表示されません。
-4. 顔のぼかしを確認し、足りなければ ▢（四角）や 🖌（筆）で追加します。✨は自動補正で、押すたびに「オフ → 弱 → 強」と切り替わります。
-5. ⬆ または Enter で送ります。送ったものだけ、視聴者向けのウィンドウに表示されます。
-6. OBS で「ウィンドウの取り込み」を追加し、`StreamMediaViewer(ぬ) - 配信出力` を選びます。配信画面では、この取り込みをゲームやカメラより上に置きます。
-7. 危ないと思ったら **Esc** またはテンキーの **0** を押します。視聴者向けのウィンドウが隠れ、もう一度送るまで表示されません。
-
-画面右上の あ/A で日本語と英語を切り替えられます。ボタンにマウスを乗せると説明が表示されます。
+1. 📁から写真や動画のフォルダを選びます。最近使ったフォルダも選択できます。
+2. 一覧からファイルを選び、操作用ウィンドウで確認します。配信用ウィンドウにはまだ表示されません。
+3. 顔のぼかしを確認し、必要に応じて ▢（四角）や 🖌（筆）で追加します。
+4. ✨で自動補正を切り替えます。押すたびに「オフ → 弱 → 強」と変わります。自動補正は顔のぼかしとは別の機能です。
+5. ⬆ または Enter で、確認中の写真や動画を配信用ウィンドウに表示します。
+6. OBSで「ウィンドウの取り込み」を追加し、`StreamMediaViewer(ぬ) - 配信出力` を選びます。
+7. ⬛、Esc、またはテンキーの 0 で配信用ウィンドウを非表示にします。再び表示するには ⬆ または Enter を押します。
 
 ## よく使うキー
 
@@ -40,46 +36,32 @@
 | ------------ | -------- | ---------- | ------------ |
 | 前のファイル | 4 | A | ◀ |
 | 次のファイル | 6 | D | ▶▶ |
-| 視聴者に出す | Enter | Enter | ⬆ |
-| 視聴者向けを隠す | 0 | Esc | ⬛ |
+| 配信出力に表示 | Enter | Enter | ⬆ |
+| 配信出力を非表示 | 0 | Esc | ⬛ |
 | 動画の再生／停止 | 5 | Space | ▶ |
-| よく使う印（星） | | F | ☆ |
-| さっきのぼかしを取り消す | | Ctrl+Z（Mac では Command+Z のことがあります） | ↩ |
-| 今の動画を配信前に下準備 | | | ⏳ |
-| フォルダを配信前に下準備 | | | 📂⏳ |
-| 下準備を消して空き容量を戻す | | | 🗑 |
-
-## 動画と配信前の下準備
-
-- 再生中の動画は、送るまで視聴者には表示されません。確認中の音も配信には出ません。
-- 送ると、指定した区間の最初から再生します。「始まり」と「終わり」の位置をそれぞれ調整できます。
-- 「繰返」をオンにすると、その動画の指定区間を繰り返します。
-- **⏳** は選択中の動画を先に下準備します。ファイルを選んだときも、自動で下準備が始まります。
-- **📂⏳** は、開いているフォルダの写真と動画をまとめて下準備します。開始前に、おおよその必要容量を確認できます。
-- 下準備では、顔をぼかしたあとのデータを元のフォルダとは別の場所に保存します。元の写真や動画は変更しません。
-- **🗑 は元の写真や動画を削除しません。** 消えるのはアプリが作った下準備だけです。「このフォルダだけ」か「すべて」を選べます。
-- 一覧の **⬆** は現在配信中、**✓** は下準備が完了したファイルです。
+| ブックマーク | | F | ☆ |
+| 手動ぼかしを取り消す | | Ctrl+Z（Mac では Command+Z のことがあります） | ↩ |
 
 ## 顔や個人情報
 
-- 顔をぼかす機能は、最初からオンです。オフにしたあと、最初に送るときだけ「このまま出しますか？」と聞きます
-- 車の番号や名札を探す機能は、最初はオフです。見落とすことがあるため、自分の目と四角・筆での確認を優先してください。
-- 視聴者に表示する画像からは、撮影場所の情報を取り除きます。
-- 元の写真や動画はそのまま残ります。
+- 顔のぼかしは初期設定で有効です。
+- 車の番号や名札の自動検出は初期設定で無効です。
 
-## 視聴者側に前の絵が残るとき
+## よくある質問
 
-OBS が、ウィンドウが隠れたあとも前の画像を表示し続けることがあります。
+### OBS側に前の画像が残るとき
 
-1. 取り込み方法を「Windows 10 (1903 以降)」にする（Mac は初期設定のままで試す）
-2. 「ウィンドウが見つからないときは何も出さない」があればオンにする
+OBSが、ウィンドウを非表示にしたあとも前の画像を表示し続けることがあります。
+
+1. 取り込み方法を「Windows 10 (1903 以降)」にします（Macは初期設定のままで試します）。
+2. 「ウィンドウが見つからないときは何も出さない」があればオンにします。
 3. それでも残るときは、その取り込みを一度オフにして、もう一度オンにする
 
 ---
 
 # StreamMediaViewer (Nu) — English
 
-A Windows/Mac app that blurs faces before you show photos and videos on stream. You get a private preview, and viewers only see what you send. No Python install needed.
+A Windows/Mac app that blurs faces before showing photos and videos in OBS or another streaming app. Review media privately, then display only what you approve.
 
 ## Download
 
@@ -90,26 +72,22 @@ A Windows/Mac app that blurs faces before you show photos and videos on stream. 
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | Unzip and double-click `StreamMediaViewer.exe` |
 | Mac | `StreamMediaViewer-macOS.zip` | Unzip and open `StreamMediaViewer` (or the `.app`) |
 
-The same page is updated when we ship a new build. On Mac, if Gatekeeper blocks it, right-click the app → Open.
+On Mac, if Gatekeeper blocks it, right-click the app → Open.
 
 ## What you need
 
 - Windows 10+ or macOS 12+
-- A folder containing the photos or videos you want to show
 - A streaming app such as **OBS Studio**
-- Two screens are helpful, but not required
 
 ## Start in 3 minutes
 
-1. Launch the app. The viewer window is hidden at first.
-2. Click 📁 and choose the folder for today’s stream. Recent folders are available too.
-3. Select a file on the left. This is your private preview.
-4. Check the blur. Add more with the box or brush tools if needed. Click **✨ Soft** to cycle Off → Soft → Strong.
-5. Press ⬆ or Enter to send. Only the sent file appears for viewers.
-6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力` and place it above your game or camera source.
-7. Emergency: press **Esc** or numpad **0**. The output window hides until you send again.
-
-Use あ/A to switch Japanese / English. Icons are the main labels; hover for a short tip.
+1. Click 📁 and choose the folder for today’s stream. Recent folders are available too.
+2. Select a file on the left and review it in the operator window. It is not shown in the output window yet.
+3. Check the face blur and add more with the box or brush tools if needed.
+4. Click ✨ to cycle auto enhancement: Off → Soft → Strong. Auto enhancement is separate from face blur.
+5. Press ⬆ or Enter to display the selected photo or video in the output window.
+6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力`.
+7. Press ⬛, Esc, or numpad 0 to hide the output window. Press ⬆ or Enter to display it again.
 
 ## Keys
 
@@ -117,34 +95,23 @@ Use あ/A to switch Japanese / English. Icons are the main labels; hover for a s
 | ------ | ------ | ---- | ------ |
 | Previous | 4 | A | ◀ |
 | Next | 6 | D | ▶▶ |
-| Send to viewers | Enter | Enter | ⬆ |
+| Show in output | Enter | Enter | ⬆ |
 | Hide output | 0 | Esc | ⬛ |
 | Play / pause | 5 | Space | ▶ |
-| Star | | F | ☆ |
-| Undo blur | | Ctrl+Z (Command+Z on some Macs) | ↩ |
-| Prep this video before streaming | | | ⏳ |
-| Prep the whole folder before streaming | | | 📂⏳ |
-| Remove prep data | | | 🗑 |
-
-## Video and preparing ahead of time
-
-- Preview playback is private and silent.
-- After Send, the chosen range plays from the start. The sliders are labeled **Start** and **End**.
-- Loop applies to that file only.
-- **⏳** preps the current video. **📂⏳** preps the whole open folder.
-- Prep data is stored outside your photo folder. Originals are never changed.
-- **🗑 is not a file trash can.** It removes prep data only. You can choose this folder or all folders.
-- In the list, **⬆** is what viewers see now, and **✓** means prep is ready.
+| Bookmark | | F | ☆ |
+| Undo hand-drawn blur | | Ctrl+Z (Command+Z on some Macs) | ↩ |
 
 ## Privacy
 
-- Face blur is on by default. If you turn it off, the first Send asks you to confirm
-- Plate / name-tag detection is off by default and can miss. Trust your eyes and the box/brush tools
-- Location data is stripped from what viewers see. Your preview can still show date and “has place”
-- Original files stay as they are
+- Face blur is on by default.
+- Plate / name-tag detection is off by default.
 
-## If OBS keeps showing the last picture
+## FAQ
 
-1. Set capture method to Windows 10 (1903+) when available
-2. Enable “show nothing when the window is missing” if you have that option
+### OBS keeps showing the previous picture
+
+OBS may keep showing the previous picture after the output window is hidden.
+
+1. Set the capture method to Windows 10 (1903+) when available.
+2. Enable “show nothing when the window is missing” if available.
 3. Toggle the source off and on
