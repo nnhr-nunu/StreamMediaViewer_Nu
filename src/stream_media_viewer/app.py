@@ -12,6 +12,7 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessageBox
 
 from stream_media_viewer.detect.faces import detect_face_boxes, remember_false_faces
+from stream_media_viewer.detect.false_faces import load_shipped_hashes, try_update_shipped_catalog
 from stream_media_viewer.detect.protect import protect_for_note, protect_frame_safe
 from stream_media_viewer.errors import install_excepthook, log_exception
 from stream_media_viewer.i18n import t
@@ -86,7 +87,7 @@ class ProtectThread(QThread):
                 text_blur=self._settings.text_blur,
                 marks=self._marks,
                 strength=self._settings.blur_strength,
-                false_face_hashes=self._settings.false_face_hashes,
+                false_face_hashes=self._settings.all_false_face_hashes(),
             )
             if out is None:
                 self.failed.emit(self.seq)
@@ -191,6 +192,7 @@ class StreamMediaViewerApp:
         op.date_to.blockSignals(False)
         if self.settings.operator_geometry:
             self.operator.restoreGeometry(bytes.fromhex(self.settings.operator_geometry))
+        self.operator.clamp_to_screen()
         restore_saved_geometry(self.output, self.settings.output_pos)
 
     def _on_settings_ui(self) -> None:
@@ -739,7 +741,7 @@ class StreamMediaViewerApp:
                 text_blur=self.settings.text_blur,
                 marks=marks,
                 strength=self.settings.blur_strength,
-                false_face_hashes=self.settings.false_face_hashes,
+                false_face_hashes=self.settings.all_false_face_hashes(),
             )
         else:
             out, _, _ = protect_for_note(frame, self.settings, note)
@@ -835,9 +837,12 @@ class StreamMediaViewerApp:
                 self._source_bgr = source
         if source is not None:
             boxes = detect_face_boxes(source)
-            self.settings.false_face_hashes = remember_false_faces(
-                self.settings.false_face_hashes, source, boxes
+            learned = remember_false_faces(
+                self.settings.all_false_face_hashes(), source, boxes
             )
+            try_update_shipped_catalog(learned)
+            bundled = set(load_shipped_hashes())
+            self.settings.false_face_hashes = [item for item in learned if item not in bundled]
         note = self.settings.note_for(str(item.path))
         note.skip_faces = True
         note.has_face = False
@@ -846,6 +851,7 @@ class StreamMediaViewerApp:
         self._undo = []
         self._protect_cache.clear()
         self._reprotect_current()
+        self._save_settings()
 
     def _add_mark(self, mark: dict) -> None:
         item = self._current()
@@ -905,7 +911,7 @@ class StreamMediaViewerApp:
             marks=note.marks,
             enhance_level=self.settings.enhance_level,
             skip_faces=note.skip_faces,
-            false_face_hashes=self.settings.false_face_hashes,
+            false_face_hashes=self.settings.all_false_face_hashes(),
         )
 
     def _folder_id(self) -> str:
@@ -1096,6 +1102,9 @@ class StreamMediaViewerApp:
         geo = self.operator.saveGeometry()
         self.settings.operator_geometry = geo.toHex().data().decode("ascii")
         self.settings.output_pos = geometry_hex(self.output)
+        self._save_settings()
+
+    def _save_settings(self) -> None:
         try:
             save_settings(self.settings)
         except OSError as exc:

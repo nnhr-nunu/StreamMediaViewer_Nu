@@ -64,7 +64,7 @@ def protect_for_note(
         text_blur=settings.text_blur,
         marks=note.marks,
         strength=settings.blur_strength,
-        false_face_hashes=settings.false_face_hashes,
+        false_face_hashes=settings.all_false_face_hashes(),
     )
 
 
