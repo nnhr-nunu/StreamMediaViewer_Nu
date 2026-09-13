@@ -29,7 +29,7 @@
 1. アプリを起動する。最初は視聴者向けの窓は出ていません
 2. 📁 で、**今日使うフォルダを1つ**開く（2回目以降は、最近使ったフォルダからも選べます）
 3. 左の一覧で写真を選ぶ。これは自分の確認用です。この時点では配信に乗りません
-4. 顔がぼけているか目で見る。足りなければ ▢（四角）や 🖌（筆）で足す。上の「色を少し鮮やかに」は最初からオンです。オフにすると元の色に近い確認になります（元のファイルはどちらでも変わりません）
+4. 顔がぼけているか目で見る。足りなければ ▢（四角）や 🖌（筆）で足す。上の **✨弱** が自動補正です。押すたびに オフ → 弱 → 強。最初は弱です。元のファイルは変わりません
 5. ⬆ または Enter で送る。ここで初めて、横長フルHD（1920×1080）の窓が出ます
 6. OBS で「ウィンドウの取り込み」を追加し、名前が `StreamMediaViewer(ぬ) - 配信出力` のものを選ぶ。この取り込みの**下**に、ゲームやカメラを置いてください（写真を出していないときは、下の画面が見えます）。配信用の窓を 2 枚目の画面へ動かした位置は、次に起動しても同じ場所に出ます
 7. 危ないと思ったら **Esc**、またはテンキーの **0**。視聴者向けの窓が消えます。もう一度送るまで出ません
@@ -81,12 +81,11 @@ OBS が、窓が消えたあとも前の絵を覚えていることがありま�
 
 Python 3.10〜3.12。[docs/product/spec.md](./docs/product/spec.md) が動きの正本です。
 
-このリポジトリで動かす（Windows / PowerShell）:
+このリポジトリで動かす（Windows / PowerShell）。**実装の確認はこちらが速いです。**
 
 ```powershell
 cd D:\Dev\StreamMediaViewer_Nu
-.\.venv\Scripts\Activate.ps1
-python -m stream_media_viewer
+.\scripts\run.ps1
 ```
 
 venv が無い・依存を入れ直すとき:
@@ -97,16 +96,18 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -U pip
 pip install -e ".[dev]"
-python -m stream_media_viewer
+.\scripts\run.ps1
 ```
 
-Mac では `source .venv/bin/activate` のあと、同じく `python -m stream_media_viewer`。
+Mac では `source .venv/bin/activate` のあと `python -m stream_media_viewer`。
+
+**配信者と同じ形（exe）で見るとき**は、先に `.\scripts\build.ps1` を実行し、できた `dist\StreamMediaViewer\StreamMediaViewer.exe` をダブルクリックします。GitHub の zip と同じ種類のファイルです。日々の改修確認は exe より `.\scripts\run.ps1` の方がすぐ起動します。
 
 動作確認の見方:
 
 1. 手元の窓だけ先に出る。配信用の窓は「送る」まで出ない（緊急のあとも同じ）
 2. 📁 で写真フォルダを開き、顔がぼけているか手元で見る
-3. 「色を少し鮮やかに」をオフ／オンして、手元の色が変わること。フォルダ内の元ファイルの更新日時は変わらないこと
+3. **✨弱** を押して オフ／弱／強 が切り替わり、手元の色が変わること。フォルダ内の元ファイルの更新日時は変わらないこと
 4. ⬆ で配信用の窓が出る。OBS で取り込むなら、その窓を 2 枚目の画面へ動かして確認する
 5. Esc で配信用の窓が消える。もう一度送るまで出ない
 
@@ -160,7 +161,7 @@ The same page is updated when we ship a new build. On Mac, if Gatekeeper blocks 
 1. Launch the app. The viewer window stays hidden at first
 2. Click 📁 and pick **one folder for today’s stream** (later you can pick from recent folders)
 3. Click a file on the left. That is **your** preview only
-4. Check the blur. Add more with the box or brush tools if needed. **A bit more vivid** is on by default; turn it off for closer-to-original color. Original files never change
+4. Check the blur. Add more with the box or brush tools if needed. Click **✨ Soft** to cycle Off → Soft → Strong. Soft is the default. Original files never change
 5. Press ⬆ or Enter to send. A 1920×1080 window appears
 6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力`. Put game/camera **under** that source so they show when nothing is sent. If you move the output window to a second screen, it comes back there next time you launch
 7. Emergency: **Esc** or numpad **0**. The viewer window hides until you send again
@@ -208,4 +209,4 @@ Use あ/A to switch Japanese / English. Icons are the main labels; hover for a s
 
 ## For developers
 
-Python 3.10–3.12. Behaviour spec: [docs/product/spec.md](./docs/product/spec.md). Setup commands are in the Japanese section above.
+Python 3.10–3.12. Behaviour spec: [docs/product/spec.md](./docs/product/spec.md). On Windows, daily checks: `.\scripts\run.ps1`. Same app as streamers: `.\scripts\build.ps1` then `dist\StreamMediaViewer\StreamMediaViewer.exe`. Other setup is in the Japanese section above.

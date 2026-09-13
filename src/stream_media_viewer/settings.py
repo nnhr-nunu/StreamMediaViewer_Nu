@@ -10,6 +10,7 @@ from typing import Any
 
 from stream_media_viewer.config import SETTINGS_FILENAME, user_config_dir
 from stream_media_viewer.library.item import FileNote
+from stream_media_viewer.render.enhance import parse_enhance_level
 
 RECENT_FOLDER_LIMIT = 8
 
@@ -35,7 +36,7 @@ class AppSettings:
     face_blur: bool = True
     text_blur: bool = False
     video_audio: bool = False
-    auto_enhance: bool = True
+    enhance_level: str = "weak"
     standby_path: str = ""
     use_standby: bool = False
     operator_geometry: str = ""
@@ -61,7 +62,7 @@ class AppSettings:
             "face_blur": self.face_blur,
             "text_blur": self.text_blur,
             "video_audio": self.video_audio,
-            "auto_enhance": self.auto_enhance,
+            "enhance_level": self.enhance_level,
             "standby_path": self.standby_path,
             "use_standby": self.use_standby,
             "operator_geometry": self.operator_geometry,
@@ -95,7 +96,9 @@ class AppSettings:
             face_blur=bool(data.get("face_blur", True)),
             text_blur=bool(data.get("text_blur", False)),
             video_audio=bool(data.get("video_audio", False)),
-            auto_enhance=bool(data.get("auto_enhance", True)),
+            enhance_level=parse_enhance_level(
+                data["enhance_level"] if "enhance_level" in data else data.get("auto_enhance", "weak")
+            ),
             standby_path=str(data.get("standby_path") or ""),
             use_standby=bool(data.get("use_standby", False)),
             operator_geometry=str(data.get("operator_geometry") or ""),

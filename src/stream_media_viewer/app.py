@@ -29,7 +29,7 @@ from stream_media_viewer.playback.preload import (
 )
 from stream_media_viewer.playback.video import VideoPlayer
 from stream_media_viewer.render.canvas import fit_letterbox, rgb_to_bgr
-from stream_media_viewer.render.enhance import enhance_bgr
+from stream_media_viewer.render.enhance import enhance_bgr, next_enhance_level
 from stream_media_viewer.safety.output_gate import OutputGate
 from stream_media_viewer.settings import AppSettings, load_settings, remember_folder, save_settings
 from stream_media_viewer.ui.geometry import geometry_hex, restore_saved_geometry
@@ -56,7 +56,7 @@ class ProtectThread(QThread):
             marks=self._marks,
             strength=self._settings.blur_strength,
         )
-        out = enhance_bgr(out, enabled=self._settings.auto_enhance)
+        out = enhance_bgr(out, level=self._settings.enhance_level)
         self.done.emit(out, faces, texts)
 
 
@@ -109,7 +109,7 @@ class StreamMediaViewerApp:
         op.standby_requested.connect(self._pick_standby)
         op.prepare_requested.connect(self._start_preload)
         op.prepare_folder_requested.connect(self._prepare_folder)
-        op.clear_cache_requested.connect(self._clear_cache)
+        op.enhance_cycle_requested.connect(self._cycle_enhance)
         op.timeline.sliderReleased.connect(self._apply_in_out)
         op.timeline_out.sliderReleased.connect(self._apply_in_out)
 
@@ -118,7 +118,7 @@ class StreamMediaViewerApp:
         op.chk_face.setChecked(self.settings.face_blur)
         op.chk_text.setChecked(self.settings.text_blur)
         op.chk_audio.setChecked(self.settings.video_audio)
-        op.chk_enhance.setChecked(self.settings.auto_enhance)
+        self.operator.set_enhance_level(self.settings.enhance_level)
         if self.settings.operator_geometry:
             self.operator.restoreGeometry(bytes.fromhex(self.settings.operator_geometry))
         restore_saved_geometry(self.output, self.settings.output_pos)
@@ -128,13 +128,18 @@ class StreamMediaViewerApp:
         self.settings.face_blur = self.operator.chk_face.isChecked()
         self.settings.text_blur = self.operator.chk_text.isChecked()
         self.settings.video_audio = self.operator.chk_audio.isChecked()
-        self.settings.auto_enhance = self.operator.chk_enhance.isChecked()
+        self.settings.enhance_level = self.operator.enhance_level
         if prev_face and not self.settings.face_blur:
             self.settings.blur_off_confirmed = False
         item = self._current()
         if item:
             self.settings.note_for(str(item.path)).loop = self.operator.chk_loop.isChecked()
         self._refresh_list()
+        self._reload_current()
+
+    def _cycle_enhance(self) -> None:
+        self.settings.enhance_level = next_enhance_level(self.settings.enhance_level)
+        self.operator.set_enhance_level(self.settings.enhance_level)
         self._reload_current()
 
     def _on_folder_button(self) -> None:
@@ -372,7 +377,7 @@ class StreamMediaViewerApp:
             marks=marks,
             strength=self.settings.blur_strength,
         )
-        out = enhance_bgr(out, enabled=self.settings.auto_enhance)
+        out = enhance_bgr(out, level=self.settings.enhance_level)
         return fit_letterbox(out)
 
     def _on_video_frame(self, frame: np.ndarray) -> None:
@@ -462,7 +467,7 @@ class StreamMediaViewerApp:
             text_blur=self.settings.text_blur,
             strength=self.settings.blur_strength,
             marks=note.marks,
-            auto_enhance=self.settings.auto_enhance,
+            enhance_level=self.settings.enhance_level,
         )
 
     def _folder_id(self) -> str:

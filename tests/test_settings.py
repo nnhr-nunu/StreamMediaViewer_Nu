@@ -18,3 +18,12 @@ def test_missing_settings_file_returns_defaults(tmp_path: Path) -> None:
     loaded = load_settings(tmp_path / "missing.json")
     assert loaded.last_folder == ""
     assert loaded.blur_strength == 25
+    assert loaded.enhance_level == "weak"
+
+
+def test_old_auto_enhance_true_becomes_weak(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text('{"auto_enhance": false}', encoding="utf-8")
+    assert load_settings(path).enhance_level == "off"
+    path.write_text('{"auto_enhance": true}', encoding="utf-8")
+    assert load_settings(path).enhance_level == "weak"
