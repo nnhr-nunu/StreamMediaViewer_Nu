@@ -192,3 +192,50 @@ def test_preview_click_toggles_play_on_video(qtbot) -> None:
     canvas.clicked.connect(lambda: clicked.append(True))
     qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(120, 90))
     assert clicked
+
+
+def test_operator_ux_labels_and_overlays(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    op = app.operator
+    assert not hasattr(op, "btn_standby")
+    assert "絞り込み" in op.filter_box.title()
+    assert op.btn_star.isCheckable()
+    assert "手動ぼかし" in op.btn_brush.text()
+    assert "全部下準備" in op.btn_folder_prep.text()
+    assert "下準備だけ消す" in op.btn_clear_cache.text()
+    assert op.btn_undo.isHidden()
+    assert op.slider_brush.isHidden()
+    assert op.btn_clear_marks.isHidden()
+    op._mode("stroke")
+    assert not op.btn_undo.isHidden()
+    assert not op.slider_brush.isHidden()
+    assert not op.btn_clear_marks.isHidden()
+    op.show_guide("読み込み中…", done=1, total=4)
+    assert not op.scan_progress.isHidden()
+    assert op.scan_count.text() == "1 / 4"
+
+
+def test_folder_dates_span_oldest_to_newest(qtbot) -> None:
+    from datetime import datetime
+
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    app._items = [
+        MediaItem(path=Path("a.jpg"), kind="image", captured_at=datetime(2024, 1, 2), has_gps=False),
+        MediaItem(path=Path("b.jpg"), kind="image", captured_at=datetime(2024, 5, 9), has_gps=False),
+        MediaItem(path=Path("c.jpg"), kind="image", captured_at=None, has_gps=False),
+    ]
+    app._apply_folder_dates()
+    assert app.operator.date_from.date().toString("yyyy-MM-dd") == "2024-01-02"
+    assert app.operator.date_to.date().toString("yyyy-MM-dd") == "2024-05-09"
+    assert app.operator.chk_dates.isChecked() is False
+
+
+def test_row_label_says_has_face_not_warning(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    item = MediaItem(path=Path("face.jpg"), kind="image", captured_at=None, has_gps=False, has_face=True)
+    label = app._row_label(item)
+    assert "顔あり" in label
+    assert "⚠" not in label

@@ -9,13 +9,14 @@ from pathlib import Path
 from typing import Any
 
 from stream_media_viewer.config import SETTINGS_FILENAME, user_config_dir
+from stream_media_viewer.detect.blur import DEFAULT_BRUSH_WIDTH, MAX_BRUSH_WIDTH, MIN_BRUSH_WIDTH
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.render.enhance import parse_enhance_level
 
 RECENT_FOLDER_LIMIT = 8
-DEFAULT_BLUR_STRENGTH = 25
+DEFAULT_BLUR_STRENGTH = 81
 MIN_BLUR_STRENGTH = 5
-MAX_BLUR_STRENGTH = 51
+MAX_BLUR_STRENGTH = 99
 
 
 def clamp_blur_strength(raw: Any) -> int:
@@ -25,6 +26,14 @@ def clamp_blur_strength(raw: Any) -> int:
         return DEFAULT_BLUR_STRENGTH
     value = max(MIN_BLUR_STRENGTH, min(MAX_BLUR_STRENGTH, value))
     return value
+
+
+def clamp_brush_width(raw: Any) -> int:
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_BRUSH_WIDTH
+    return max(MIN_BRUSH_WIDTH, min(MAX_BRUSH_WIDTH, value))
 
 
 def remember_folder(recent: list[str], path: str, *, limit: int = RECENT_FOLDER_LIMIT) -> list[str]:
@@ -59,6 +68,7 @@ class AppSettings:
     blur_off_confirmed: bool = False
     recent_folders: list[str] = field(default_factory=list)
     include_subfolders: bool = True
+    brush_width: int = DEFAULT_BRUSH_WIDTH
 
     def note_for(self, path: str) -> FileNote:
         note = self.notes.get(path)
@@ -85,6 +95,7 @@ class AppSettings:
             "blur_off_confirmed": self.blur_off_confirmed,
             "recent_folders": list(self.recent_folders),
             "include_subfolders": self.include_subfolders,
+            "brush_width": self.brush_width,
             "notes": {key: note.to_dict() for key, note in self.notes.items()},
         }
 
@@ -125,6 +136,7 @@ class AppSettings:
             blur_off_confirmed=bool(data.get("blur_off_confirmed", False)),
             recent_folders=recent_folders,
             include_subfolders=bool(data.get("include_subfolders", True)),
+            brush_width=clamp_brush_width(data.get("brush_width", DEFAULT_BRUSH_WIDTH)),
         )
 
 

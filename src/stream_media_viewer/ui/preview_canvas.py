@@ -18,6 +18,7 @@ class PreviewCanvas(QLabel):
         self.setMinimumSize(480, 270)
         self.mode = "rect"
         self.click_toggles_play = False
+        self.brush_width = 88
         self._origin: QPoint | None = None
         self._current: QRect | None = None
         self._stroke: list[tuple[float, float]] = []
@@ -101,7 +102,14 @@ class PreviewCanvas(QLabel):
             if nw > 0.01 and nh > 0.01:
                 self.mark_added.emit({"kind": "rect", "x": nx, "y": ny, "w": nw, "h": nh})
         elif self.mode == "stroke" and len(self._stroke) >= 2:
-            self.mark_added.emit({"kind": "stroke", "points": self._stroke})
+            pix_w = max(1, pix.width())
+            self.mark_added.emit(
+                {
+                    "kind": "stroke",
+                    "points": self._stroke,
+                    "width": self.brush_width / pix_w,
+                }
+            )
         self._origin = None
         self._current = None
         self._stroke = []
@@ -119,6 +127,7 @@ class PreviewCanvas(QLabel):
             if pix:
                 x0 = (self.width() - pix.width()) // 2
                 y0 = (self.height() - pix.height()) // 2
+                painter.setPen(QPen(Qt.GlobalColor.magenta, max(8, self.brush_width // 8)))
                 for x, y in self._stroke:
                     pts.append(QPoint(int(x0 + x * pix.width()), int(y0 + y * pix.height())))
                 for a, b in zip(pts, pts[1:], strict=False):

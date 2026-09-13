@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -65,22 +66,35 @@ def _iter_files(folder: Path, *, recursive: bool):
     yield from folder.iterdir()
 
 
-def scan_folder(folder: Path, *, recursive: bool = True) -> list[MediaItem]:
+def scan_folder(
+    folder: Path,
+    *,
+    recursive: bool = True,
+    progress: Callable[[int, int], None] | None = None,
+) -> list[MediaItem]:
     if not folder.is_dir():
         return []
     items: list[MediaItem] = []
     suffixes = SUPPORTED_IMAGE_SUFFIXES | SUPPORTED_VIDEO_SUFFIXES
+    paths: list[Path] = []
     for path in _iter_files(folder, recursive=recursive):
         if not path.is_file() or _hidden_part(path, folder):
             continue
         suffix = path.suffix.lower()
         if suffix not in suffixes:
             continue
-        kind = "video" if suffix in SUPPORTED_VIDEO_SUFFIXES else "image"
         if not _file_has_bytes(path):
             continue
+        kind = "video" if suffix in SUPPORTED_VIDEO_SUFFIXES else "image"
         if kind == "image" and not _image_header_ok(path):
             continue
+        paths.append(path)
+    total = len(paths)
+    if progress:
+        progress(0, total)
+    for index, path in enumerate(paths, start=1):
+        suffix = path.suffix.lower()
+        kind = "video" if suffix in SUPPORTED_VIDEO_SUFFIXES else "image"
         if kind == "image":
             captured, has_gps, place_name = image_capture_meta(path)
         else:
@@ -98,6 +112,8 @@ def scan_folder(folder: Path, *, recursive: bool = True) -> list[MediaItem]:
                 relative_folder=relative_folder(folder, path),
             )
         )
+        if progress:
+            progress(index, total)
     items.sort(
         key=lambda it: (
             it.captured_at is None,

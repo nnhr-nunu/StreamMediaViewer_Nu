@@ -9,8 +9,12 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QPushButton,
     QSlider,
     QVBoxLayout,
     QWidget,
@@ -37,6 +41,8 @@ class SettingsDraft:
     enhance_level: str
     language: str
     include_subfolders: bool = True
+    standby_path: str = ""
+    use_standby: bool = False
 
 
 class SettingsDialog(QDialog):
@@ -86,6 +92,18 @@ class SettingsDialog(QDialog):
         form.addRow("", self.lbl_strength)
         form.addRow(t(self._lang, "language_choice"), self.cmb_lang)
 
+        self.chk_standby = QCheckBox(t(self._lang, "standby"))
+        self.chk_standby.setChecked(draft.use_standby)
+        self.edit_standby = QLineEdit(draft.standby_path)
+        self.edit_standby.setReadOnly(True)
+        self.btn_standby = QPushButton(t(self._lang, "standby_pick"))
+        self.btn_standby.clicked.connect(self._pick_standby)
+        standby_row = QHBoxLayout()
+        standby_row.addWidget(self.edit_standby, stretch=1)
+        standby_row.addWidget(self.btn_standby)
+        form.addRow(self.chk_standby)
+        form.addRow(standby_row)
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -100,7 +118,16 @@ class SettingsDialog(QDialog):
         self.version_label.setObjectName("meta")
         root.addWidget(self.version_label)
         root.addWidget(buttons)
-        self.resize(420, 380)
+        self.resize(460, 460)
+
+    def _pick_standby(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, t(self._lang, "standby"))
+        if not path:
+            self.chk_standby.setChecked(False)
+            self.edit_standby.setText("")
+            return
+        self.edit_standby.setText(path)
+        self.chk_standby.setChecked(True)
 
     def _sync_strength_label(self) -> None:
         self.lbl_strength.setText(str(self.slider.value()))
@@ -116,4 +143,6 @@ class SettingsDialog(QDialog):
             enhance_level=parse_enhance_level(enhance),
             language=lang if lang in {"ja", "en"} else "ja",
             include_subfolders=self.chk_subfolders.isChecked(),
+            standby_path=self.edit_standby.text().strip(),
+            use_standby=self.chk_standby.isChecked() and bool(self.edit_standby.text().strip()),
         )

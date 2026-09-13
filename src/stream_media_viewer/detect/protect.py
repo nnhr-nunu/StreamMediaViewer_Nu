@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from stream_media_viewer.detect.blur import apply_marks, gaussian_region
+from stream_media_viewer.detect.blur import apply_marks, gaussian_oval, gaussian_region
 from stream_media_viewer.detect.faces import detect_face_boxes
 from stream_media_viewer.detect.text_regions import detect_text_boxes
 from stream_media_viewer.errors import log_exception
@@ -19,7 +19,9 @@ def protect_frame(
     out = bgr.copy()
     faces = detect_face_boxes(out) if face_blur else []
     texts = detect_text_boxes(out) if text_blur else []
-    for box in faces + texts:
+    for box in faces:
+        gaussian_oval(out, box, strength)
+    for box in texts:
         gaussian_region(out, box, strength)
     apply_marks(out, marks, strength)
     return out, bool(faces), bool(texts)
