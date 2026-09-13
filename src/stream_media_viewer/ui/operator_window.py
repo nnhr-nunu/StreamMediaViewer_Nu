@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from stream_media_viewer import OPERATOR_WINDOW_TITLE
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.item import MediaItem
+from stream_media_viewer.render.enhance import parse_enhance_level
 from stream_media_viewer.safety.output_gate import OutputGate, OutputReason
 from stream_media_viewer.ui.preview_canvas import PreviewCanvas
 from stream_media_viewer.ui.styles import DARK_QSS
@@ -51,6 +52,7 @@ class OperatorWindow(QMainWindow):
     prepare_requested = Signal()
     prepare_folder_requested = Signal()
     clear_cache_requested = Signal()
+    enhance_cycle_requested = Signal()
 
     def __init__(self, gate: OutputGate) -> None:
         super().__init__()
@@ -70,8 +72,8 @@ class OperatorWindow(QMainWindow):
         self.chk_face.setChecked(True)
         self.chk_text = QCheckBox()
         self.chk_audio = QCheckBox()
-        self.chk_enhance = QCheckBox()
-        self.chk_enhance.setChecked(True)
+        self.btn_enhance = _icon_button("✨弱", "")
+        self.enhance_level = "weak"
         self.btn_standby = _icon_button("🖼", "")
         self.btn_folder_prep = _icon_button("📂⏳", "")
         self.btn_clear_cache = _icon_button("🗑", "")
@@ -81,7 +83,7 @@ class OperatorWindow(QMainWindow):
         top.addWidget(self.chk_face)
         top.addWidget(self.chk_text)
         top.addWidget(self.chk_audio)
-        top.addWidget(self.chk_enhance)
+        top.addWidget(self.btn_enhance)
         top.addWidget(self.btn_standby)
         top.addWidget(self.btn_folder_prep)
         top.addWidget(self.btn_clear_cache)
@@ -197,6 +199,7 @@ class OperatorWindow(QMainWindow):
         self.btn_prep.clicked.connect(self.prepare_requested.emit)
         self.btn_folder_prep.clicked.connect(self.prepare_folder_requested.emit)
         self.btn_clear_cache.clicked.connect(self.clear_cache_requested.emit)
+        self.btn_enhance.clicked.connect(self.enhance_cycle_requested.emit)
         self.list.currentRowChanged.connect(self.item_selected.emit)
         self.preview.mark_added.connect(self.mark_added.emit)
         self.btn_rect.clicked.connect(lambda: self._mode("rect"))
@@ -205,7 +208,6 @@ class OperatorWindow(QMainWindow):
             self.chk_face,
             self.chk_text,
             self.chk_audio,
-            self.chk_enhance,
             self.chk_star_only,
             self.chk_photos,
             self.chk_videos,
@@ -249,8 +251,7 @@ class OperatorWindow(QMainWindow):
         self.chk_text.setText(t(lang, "text_blur"))
         self.chk_audio.setText(t(lang, "audio"))
         self.chk_audio.setToolTip(t(lang, "audio_hint"))
-        self.chk_enhance.setText(t(lang, "auto_enhance"))
-        self.chk_enhance.setToolTip(t(lang, "auto_enhance_hint"))
+        self.set_enhance_level(self.enhance_level)
         self.chk_loop.setText(t(lang, "loop"))
         self.chk_star_only.setText("⭐ " + t(lang, "filter_star"))
         self.chk_photos.setText(t(lang, "filter_photo"))
@@ -269,6 +270,12 @@ class OperatorWindow(QMainWindow):
         self.lbl_out.setText(t(lang, "range_out"))
         self.timeline.setToolTip(t(lang, "range_in"))
         self.timeline_out.setToolTip(t(lang, "range_out"))
+
+    def set_enhance_level(self, level: str) -> None:
+        self.enhance_level = parse_enhance_level(level)
+        lang = self.lang
+        self.btn_enhance.setText(t(lang, f"enhance_{level}"))
+        self.btn_enhance.setToolTip(t(lang, "enhance_hint"))
 
     def set_range_visible(self, visible: bool) -> None:
         for widget in (self.lbl_in, self.timeline, self.lbl_out, self.timeline_out, self.chk_loop):
