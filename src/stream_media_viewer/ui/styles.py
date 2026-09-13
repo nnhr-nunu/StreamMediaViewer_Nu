@@ -72,19 +72,20 @@ QComboBox, QDateEdit {
   color: #e8e8e8;
   border: 1px solid #555;
   border-radius: 8px;
-  padding: 4px 18px 4px 8px;
+  padding: 4px 26px 4px 8px;
   min-height: 32px;
 }
 QDateEdit {
-  min-width: 92px;
-  max-width: 104px;
+  min-width: 118px;
+  max-width: 132px;
 }
 QComboBox::drop-down, QDateEdit::drop-down {
-  subcontrol-origin: padding;
+  subcontrol-origin: border;
   subcontrol-position: center right;
-  width: 16px;
+  width: 22px;
   border: none;
   background: transparent;
+  margin: 3px 4px 3px 0;
 }
 QComboBox::down-arrow, QDateEdit::down-arrow {
   image: none;
