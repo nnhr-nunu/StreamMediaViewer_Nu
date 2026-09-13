@@ -217,6 +217,7 @@ class OperatorWindow(QMainWindow):
         self.chk_face.setText(t(lang, "face_blur"))
         self.chk_text.setText(t(lang, "text_blur"))
         self.chk_audio.setText(t(lang, "audio"))
+        self.chk_audio.setToolTip(t(lang, "audio_hint"))
         self.chk_loop.setText(t(lang, "loop"))
         self.chk_star_only.setText("⭐ " + t(lang, "filter_star"))
         self.chk_photos.setText(t(lang, "filter_photo"))

@@ -283,6 +283,7 @@ class StreamMediaViewerApp:
             self._video.in_ms = note.in_ms
             self._video.out_ms = note.out_ms
             self._video.set_protect(lambda frame: self._protect_sync(frame, note.marks))
+            self._video.audio_enabled = self.settings.video_audio
             self._playing_to_output = True
             self._video.seek_ms(note.in_ms)
             self._video.play()
@@ -322,6 +323,7 @@ class StreamMediaViewerApp:
         self._playing_to_output = bool(
             item and self._live_path == str(item.path) and not self.gate.masked
         )
+        self._video.audio_enabled = self._playing_to_output and self.settings.video_audio
         self._video.seek_ms(note.in_ms)
         self._video.play()
 

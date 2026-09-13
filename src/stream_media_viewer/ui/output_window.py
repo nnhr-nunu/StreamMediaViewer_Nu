@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import numpy as np
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
 
 from stream_media_viewer import OUTPUT_WINDOW_TITLE
 from stream_media_viewer.render.canvas import OUTPUT_HEIGHT, OUTPUT_WIDTH
 from stream_media_viewer.safety.output_gate import OutputGate
 from stream_media_viewer.ui.pixmaps import bgr_to_pixmap
+
+# 隠しているときタイトルを変える。OBS が「窓なし」と判定し、最後の絵を保持しにくくする。
+IDLE_WINDOW_TITLE = "StreamMediaViewer(ぬ) - idle"
 
 
 class OutputWindow(QMainWindow):
@@ -36,6 +40,11 @@ class OutputWindow(QMainWindow):
     def refresh(self) -> None:
         self.canvas.setText("")
         if self._gate.window_visible:
+            self.setWindowTitle(OUTPUT_WINDOW_TITLE)
+            self.setFixedSize(OUTPUT_WIDTH, OUTPUT_HEIGHT)
             self.show()
-        else:
-            self.hide()
+            return
+        self.canvas.clear()
+        self.canvas.setPixmap(QPixmap())
+        self.setWindowTitle(IDLE_WINDOW_TITLE)
+        self.hide()

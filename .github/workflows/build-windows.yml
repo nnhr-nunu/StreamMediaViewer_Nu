@@ -1,9 +1,12 @@
-name: Build Windows exe
+name: Build and release
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   windows:
@@ -16,12 +19,33 @@ jobs:
       - run: python -m pip install -U pip
       - run: pip install -e ".[dev]"
       - run: pytest -q
-      - run: >
+      - name: Build exe
+        run: >
           pyinstaller --noconfirm --clean --windowed --name StreamMediaViewer
           --collect-all mediapipe --collect-all PySide6
+          --hidden-import PySide6.QtMultimedia
           --add-data "src/stream_media_viewer/assets;stream_media_viewer/assets"
           src/stream_media_viewer/__main__.py
+      - name: Add run notes
+        run: Copy-Item packaging/HOW_TO_RUN.txt dist/StreamMediaViewer/使いかた.txt
+      - name: Zip
+        run: Compress-Archive -Path dist/StreamMediaViewer/* -DestinationPath StreamMediaViewer.zip -Force
       - uses: actions/upload-artifact@v4
         with:
           name: StreamMediaViewer-windows
-          path: dist/StreamMediaViewer
+          path: StreamMediaViewer.zip
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: 最新版（展開して exe をダブルクリック）
+          body: |
+            ## 使い方
+            1. 下の **StreamMediaViewer.zip** をダウンロード
+            2. 展開して `StreamMediaViewer.exe` をダブルクリック
+            3. 📁 でフォルダを開き、確認してから ⬆ で送る
+            4. OBS のウィンドウキャプチャで `StreamMediaViewer(ぬ) - 配信出力` を選ぶ
+
+            Python のインストールは不要です。
+          files: StreamMediaViewer.zip
+          make_latest: true
