@@ -22,7 +22,7 @@
 - 配信ソフトは **OBS Studio** が無難です（ほかでも、「特定の窓だけ取り込む」ができれば使えます）
 - 写真・動画は SSD に置いた方が速いです
 - 開けるもの: 写真は JPEG / PNG / WebP / BMP / iPhone の HEIC。動画は MP4 / MOV / MKV / WebM / AVI
-- ゲーム配信でパソコンが常に重いときは、下の「配信前にまとめて処理」を使ってください
+- ゲーム配信でパソコンが常に重いときは、下の「配信前の下準備」を使ってください
 
 ## 使い方（3分）
 
@@ -31,7 +31,7 @@
 3. 左の一覧で写真を選ぶ。これは自分の確認用です。この時点では配信に乗りません
 4. 顔がぼけているか目で見る。足りなければ ▢（四角）や 🖌（筆）で足す
 5. ⬆ または Enter で送る。ここで初めて、横長フルHD（1920×1080）の窓が出ます
-6. OBS で「ウィンドウの取り込み」を追加し、名前が `StreamMediaViewer(ぬ) - 配信出力` のものを選ぶ。この取り込みの**下**に、ゲームやカメラを置いてください（写真を出していないときは、下の画面が見えます）
+6. OBS で「ウィンドウの取り込み」を追加し、名前が `StreamMediaViewer(ぬ) - 配信出力` のものを選ぶ。この取り込みの**下**に、ゲームやカメラを置いてください（写真を出していないときは、下の画面が見えます）。配信用の窓を 2 枚目の画面へ動かした位置は、次に起動しても同じ場所に出ます
 7. 危ないと思ったら **Esc**、またはテンキーの **0**。視聴者向けの窓が消えます。もう一度送るまで出ません
 
 画面右上の あ/A で、表示を日本語と英語で切り替えます。ボタンは絵が本体です。マウスを乗せると短い説明が出ます。
@@ -47,20 +47,20 @@
 | 動画の再生／停止 | 5 | Space | ▶ |
 | よく使う印（星） | | F | ☆ |
 | さっきのぼかしを取り消す | | Ctrl+Z（Mac では Command+Z のことがあります） | ↩ |
-| 今の動画だけ先に処理 | | | ⏳ |
-| フォルダ内をまとめて処理 | | | 📂⏳ |
-| アプリが作った処理済みの絵だけ消す（元の写真・動画は消えない） | | | 🗑 |
+| 今の動画だけ先に下準備 | | | ⏳ |
+| フォルダ内をまとめて下準備 | | | 📂⏳ |
+| 下準備だけ消して空き容量を戻す（元の写真・動画は消えない） | | | 🗑 |
 
-## 動画と、配信前のまとめ処理
+## 動画と、配信前の下準備
 
 - 自分で再生している最中は、視聴者には見えません。音も、自分で確認しているだけでは出ません
 - 送ると、決めた区間の最初から再生します。棒は2本で、**始まり**（緑）と**終わり**（オレンジ）と書いてあります。写真を見ているときは、この棒は出ません
 - 「繰返」はその1本の動画だけ、同じ区間を繰り返します
-- **⏳** は、今選んでいる動画だけ先に処理します。選んだときも、裏で同じ処理を始めます
-- **📂⏳** は、今開いているフォルダの写真と動画を、配信前にまとめて処理します。押すと、おおよその空き容量の目安が出ます。写真はあまり増えません。容量のほとんどは動画です（目安: 1分あたり数百MB になることがあります）
-- 処理結果はパソコン内に、**今開いているフォルダごと**に残ります。元の写真・動画は増えませんし、上書きもしません
-- **🗑 はゴミ箱ではありません。** フォルダの中の写真や動画は1枚も消しません。消えるのは、アプリが作った処理済みの絵だけです。確認で「このフォルダの処理済みだけ」か「処理済みの絵を全部消す」を選べます。星・再生の区間・手で足したぼかしは残ります。画面上に「処理済みの絵 ○○ / 全体 ○○」と出ます
-- 左の一覧: **⬆** はいま視聴者に出しているもの、**✓** は処理済みです
+- **⏳** は、今選んでいる動画だけ先に下準備します。選んだときも、裏で同じ作業を始めます
+- **📂⏳** は、今開いているフォルダの写真と動画を、配信前にまとめて下準備します。押すと、おおよその空き容量の目安が出ます。写真はあまり増えません。容量のほとんどは動画です（目安: 1分あたり数百MB になることがあります）
+- 下準備は、顔をぼかしたあとの控えを **写真フォルダの外** に置いておくことです。元の写真・動画は増えませんし、上書きもしません
+- **🗑 はゴミ箱ではありません。** フォルダの中の写真や動画は1枚も消しません。消えるのは下準備だけです。確認で「このフォルダの下準備だけ」か「下準備を全部消す」を選べます。星・再生の区間・手で足したぼかしは残ります。画面上に「下準備 ○○ / 全体 ○○」と出ます
+- 左の一覧: **⬆** はいま視聴者に出しているもの、**✓** は下準備できたものです
 
 ## 顔や個人情報
 
@@ -121,7 +121,7 @@ The same page is updated when we ship a new build. On Mac, if Gatekeeper blocks 
 - **OBS Studio** is the usual capture app (anything that can capture a single window works)
 - Keep media on an SSD if you can
 - Photos: JPEG / PNG / WebP / BMP / iPhone HEIC. Video: MP4 / MOV / MKV / WebM / AVI
-- If the PC is already maxed out by a game, use “prepare this folder” before going live
+- If the PC is already maxed out by a game, use folder prep before going live
 
 ## Start in 3 minutes
 
@@ -130,7 +130,7 @@ The same page is updated when we ship a new build. On Mac, if Gatekeeper blocks 
 3. Click a file on the left. That is **your** preview only
 4. Check the blur. Add more with the box or brush tools if needed
 5. Press ⬆ or Enter to send. A 1920×1080 window appears
-6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力`. Put game/camera **under** that source so they show when nothing is sent
+6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力`. Put game/camera **under** that source so they show when nothing is sent. If you move the output window to a second screen, it comes back there next time you launch
 7. Emergency: **Esc** or numpad **0**. The viewer window hides until you send again
 
 Use あ/A to switch Japanese / English. Icons are the main labels; hover for a short tip.
@@ -146,20 +146,20 @@ Use あ/A to switch Japanese / English. Icons are the main labels; hover for a s
 | Play / pause | 5 | Space | ▶ |
 | Star | | F | ☆ |
 | Undo blur | | Ctrl+Z (Command+Z on some Macs) | ↩ |
-| Prepare this video | | | ⏳ |
-| Prepare the whole folder | | | 📂⏳ |
-| Delete the app’s prepared pictures only (originals stay) | | | 🗑 |
+| Prep this video | | | ⏳ |
+| Prep the whole folder | | | 📂⏳ |
+| Remove prep copies only (originals stay) | | | 🗑 |
 
 ## Video and preparing ahead of time
 
 - Preview playback is not sent. Preview is silent
 - After Send, the chosen range plays from the start. Two sliders are labeled **Start** (green) and **End** (orange). They hide when you are looking at a photo
 - Loop applies to that file only
-- **⏳** prepares the current video (also starts in the background when you select it)
-- **📂⏳** prepares every photo and video in the open folder. You will see a rough disk estimate first. Photos are small; video is most of the size (often hundreds of MB per minute)
-- Working files are stored **per open folder**. Originals are never overwritten
-- **🗑 is not a file trash can.** It never deletes photos or videos in the folder. It only removes prepared pictures the app made. You can choose this folder’s prepared pictures or all prepared pictures. Stars, in/out range, and hand-drawn blur stay. The top shows prepared size vs all
-- In the list, **⬆** is what viewers see now, **✓** means prepared
+- **⏳** preps the current video (also starts in the background when you select it)
+- **📂⏳** preps every photo and video in the open folder. You will see a rough disk estimate first. Photos are small; video is most of the size (often hundreds of MB per minute)
+- Prep copies are blurred frames stored **outside** your photo folder. Originals are never overwritten
+- **🗑 is not a file trash can.** It never deletes photos or videos in the folder. It only removes prep copies. You can choose this folder’s prep or all prep copies. Stars, in/out range, and hand-drawn blur stay. The top shows prep size vs all
+- In the list, **⬆** is what viewers see now, **✓** means prep is ready
 
 ## Privacy
 
