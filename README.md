@@ -6,7 +6,12 @@
 
 ## 入手
 
-**[最新のファイルはここ](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/latest)**
+**[最新版のダウンロードページを開く](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/tag/latest)**
+
+1. ページ下部の **Assets** を開きます。
+2. Windowsは `StreamMediaViewer-windows.zip`、Macは `StreamMediaViewer-macOS.zip` をダウンロードします。
+3. ダウンロードしたzipを展開します。
+4. Windowsは展開したフォルダの `StreamMediaViewer.exe` を、Macは `StreamMediaViewer.app`（または `StreamMediaViewer`）を開きます。
 
 | OS | ダウンロードするファイル | 起動方法 |
 | -------- | ------------ | ---- |
@@ -65,7 +70,12 @@ A Windows/Mac app that blurs faces before showing photos and videos in OBS or an
 
 ## Download
 
-**[Latest release](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/latest)**
+**[Open the latest download page](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/tag/latest)**
+
+1. Open **Assets** near the bottom of the page.
+2. Download `StreamMediaViewer-windows.zip` for Windows or `StreamMediaViewer-macOS.zip` for Mac.
+3. Unzip the downloaded file.
+4. On Windows, open `StreamMediaViewer.exe`. On Mac, open `StreamMediaViewer.app` (or `StreamMediaViewer`).
 
 | PC | File | How to start |
 | -- | ---- | ------------ |
