@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from PySide6.QtWidgets import QLabel
 
 from stream_media_viewer import (
     OPERATOR_WINDOW_TITLE,
@@ -264,6 +265,10 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     dialog = op._shortcuts_dialog()
     qtbot.addWidget(dialog)
     assert dialog.windowTitle() == "キー説明"
+    body = dialog.findChild(QLabel, "shortcutsBody")
+    assert body is not None
+    assert "←" in body.text()
+    assert "→" in body.text()
     assert op.minimumWidth() >= 900
     assert op.minimumHeight() >= 560
     assert op.btn_false_face.isHidden()

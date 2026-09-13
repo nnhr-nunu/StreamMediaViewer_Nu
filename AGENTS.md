@@ -52,7 +52,7 @@ git status → commit → git push origin main → 報告に hash と origin 同
 ## ドキュメント
 
 - 完了タスク → `task.md` から削除（履歴は `git log`）
-- README → 開発入口のみ。製品補足 → `docs/product/`
+- README は指示がない限り更新しない。製品補足 → `docs/product/`
 - 800 行を超えるファイルは責務単位で分割する
 
 ## Cursor ルール（`.cursor/rules/`）

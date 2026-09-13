@@ -33,8 +33,8 @@ STRINGS = {
         "rot_right": "右に90度回す。元のファイルは変わりません",
         "shortcuts": "キー説明",
         "shortcuts_body": (
-            "前: A / ← / 4\n"
-            "次: D / → / 6\n"
+            "前: A / ←（左矢印） / 4\n"
+            "次: D / →（右矢印） / 6\n"
             "送る: Enter\n"
             "隠す: Esc / 0\n"
             "再生／停止: Space / 5（動画）\n"
@@ -156,8 +156,8 @@ STRINGS = {
         "rot_right": "Rotate 90° right. The original file stays unchanged",
         "shortcuts": "Keys",
         "shortcuts_body": (
-            "Previous: A / Left / 4\n"
-            "Next: D / Right / 6\n"
+            "Previous: A / ← / 4\n"
+            "Next: D / → / 6\n"
             "Send: Enter\n"
             "Hide: Esc / 0\n"
             "Play / pause: Space / 5 (videos)\n"
