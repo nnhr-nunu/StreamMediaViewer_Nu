@@ -101,6 +101,17 @@ class VideoPlayer(QObject):
     def set_protect(self, fn: Callable[[np.ndarray], np.ndarray] | None) -> None:
         self._protect = fn
 
+    def set_audio_enabled(self, enabled: bool) -> None:
+        self.audio_enabled = bool(enabled)
+        if self._audio is None or self._sink is None:
+            return
+        if self.audio_enabled and self.playing:
+            self._sync_audio_clock()
+            self._audio.play()
+            return
+        self._sink.setVolume(0.0)
+        self._audio.pause()
+
     def seek_ms(self, ms: int) -> np.ndarray | None:
         if not self._cap:
             return None

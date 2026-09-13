@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessag
 from stream_media_viewer.detect.faces import detect_face_boxes, face_box_at, remember_false_faces
 from stream_media_viewer.detect.false_faces import load_shipped_hashes, try_update_shipped_catalog
 from stream_media_viewer.detect.protect import protect_for_note, protect_frame_safe
-from stream_media_viewer.errors import install_excepthook, log_exception
+from stream_media_viewer.errors import install_excepthook, log_exception, user_error_key
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.filters import passes_filters
 from stream_media_viewer.library.item import FileNote, MediaItem
@@ -42,8 +42,10 @@ from stream_media_viewer.render.rotate import clamp_rotation, rotate_bgr, rotate
 from stream_media_viewer.safety.output_gate import OutputGate
 from stream_media_viewer.settings import (
     AppSettings,
+    clamp_blur_strength,
     clamp_brush_width,
     load_settings,
+    load_settings_with_error,
     remember_folder,
     save_settings,
 )
@@ -90,6 +92,8 @@ class ProtectThread(QThread):
                 rotation=self._rotation,
             )
             out, faces, texts = protect_for_note(self._bgr, self._settings, note)
+            if self.isInterruptionRequested():
+                return
             if out is None:
                 self.failed.emit(self.seq)
                 return
@@ -97,7 +101,8 @@ class ProtectThread(QThread):
             self.done.emit(out, faces, texts, self.seq)
         except Exception as exc:
             log_exception(exc)
-            self.failed.emit(self.seq)
+            if not self.isInterruptionRequested():
+                self.failed.emit(self.seq)
 
 
 class StreamMediaViewerApp:
@@ -157,15 +162,18 @@ class StreamMediaViewerApp:
         op.filters_changed.connect(self._on_filters_ui)
         op.loop_changed.connect(self._on_loop_ui)
         op.prepare_requested.connect(self._start_preload)
-        op.prepare_folder_requested.connect(self._prepare_folder)
+        op.prepare_photos_requested.connect(lambda: self._prepare_folder("image"))
+        op.prepare_videos_requested.connect(lambda: self._prepare_folder("video"))
         op.clear_cache_requested.connect(self._clear_cache)
         op.clear_marks_requested.connect(self._clear_marks)
         op.brush_width_changed.connect(self._on_brush_width)
         op.enhance_cycle_requested.connect(self._cycle_enhance)
         op.settings_requested.connect(self._open_settings)
         op.language_cycle_requested.connect(self._cycle_language)
-        op.false_face_requested.connect(self._correct_false_face)
         op.region_clicked.connect(self._on_preview_region)
+        op.hide_item_requested.connect(self._toggle_hidden)
+        op.audio_changed.connect(self._on_audio_ui)
+        op.btn_false_face.toggled.connect(lambda _on=False: self._sync_false_face_button())
         op.rotate_left_requested.connect(lambda: self._rotate_current(270))
         op.rotate_right_requested.connect(lambda: self._rotate_current(90))
         op.timeline.sliderReleased.connect(self._apply_in_out)
@@ -180,6 +188,9 @@ class StreamMediaViewerApp:
         op.slider_brush.blockSignals(True)
         op.slider_brush.setValue(self.settings.brush_width)
         op.slider_brush.blockSignals(False)
+        op.chk_audio.blockSignals(True)
+        op.chk_audio.setChecked(self.settings.video_audio)
+        op.chk_audio.blockSignals(False)
         op.preview.brush_width = self.settings.brush_width
         op.set_sort(self.settings.list_sort)
         op.date_from.blockSignals(True)
@@ -220,11 +231,28 @@ class StreamMediaViewerApp:
         if item:
             self.settings.note_for(str(item.path)).loop = self.operator.chk_loop.isChecked()
 
+    def _on_audio_ui(self) -> None:
+        self.settings.video_audio = self.operator.chk_audio.isChecked()
+        enabled = self._playing_to_output and self.settings.video_audio
+        self._video.set_audio_enabled(enabled)
+
     def _cycle_enhance(self) -> None:
         self.settings.enhance_level = next_enhance_level(self.settings.enhance_level)
         self.operator.set_enhance_level(self.settings.enhance_level)
         self._protect_cache.clear()
         self._reload_current()
+
+    def _tell_error(self, key: str, *, dialog: bool = False) -> None:
+        text = t(self.settings.language, key)
+        try:
+            self.operator.meta.setText(text)
+        except RuntimeError:
+            pass
+        if dialog:
+            try:
+                QMessageBox.warning(self.operator, "StreamMediaViewer(ぬ)", text)
+            except RuntimeError:
+                QMessageBox.warning(None, "StreamMediaViewer(ぬ)", text)
 
     def _open_settings(self) -> None:
         dialog = SettingsDialog(
@@ -233,7 +261,6 @@ class StreamMediaViewerApp:
                 blur_strength=self.settings.blur_strength,
                 face_blur=self.settings.face_blur,
                 text_blur=self.settings.text_blur,
-                video_audio=self.settings.video_audio,
                 enhance_level=self.settings.enhance_level,
                 language=self.settings.language,
                 include_subfolders=self.settings.include_subfolders,
@@ -244,27 +271,41 @@ class StreamMediaViewerApp:
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         applied = dialog.draft()
-        prev_sub = self.settings.include_subfolders
-        self.settings.blur_strength = applied.blur_strength
-        self.settings.video_audio = applied.video_audio
-        self.settings.include_subfolders = applied.include_subfolders
-        self.settings.standby_path = applied.standby_path
-        self.settings.use_standby = applied.use_standby
-        if applied.use_standby and applied.standby_path:
-            self.gate.enable_standby(True)
-            if self.gate.masked:
-                image = load_rgb_image(Path(applied.standby_path))
-                if image is not None:
-                    frame = fit_letterbox(rgb_to_bgr(np.array(image)))
-                    self.output.show_frame(frame)
-        else:
-            self.gate.enable_standby(False)
-        if prev_sub != applied.include_subfolders and self.settings.last_folder:
-            self._open_folder_path(self.settings.last_folder)
-            return
-        self._protect_cache.clear()
-        self._refresh_list()
-        self._reload_current()
+        previous = {
+            "blur_strength": self.settings.blur_strength,
+            "include_subfolders": self.settings.include_subfolders,
+            "standby_path": self.settings.standby_path,
+            "use_standby": self.settings.use_standby,
+        }
+        prev_sub = previous["include_subfolders"]
+        try:
+            self.settings.blur_strength = clamp_blur_strength(applied.blur_strength)
+            self.settings.include_subfolders = applied.include_subfolders
+            self.settings.standby_path = applied.standby_path
+            self.settings.use_standby = applied.use_standby
+            if applied.use_standby and applied.standby_path:
+                self.gate.enable_standby(True)
+                if self.gate.masked:
+                    image = load_rgb_image(Path(applied.standby_path))
+                    if image is not None:
+                        frame = fit_letterbox(rgb_to_bgr(np.array(image)))
+                        self.output.show_frame(frame)
+            else:
+                self.gate.enable_standby(False)
+            if prev_sub != applied.include_subfolders and self.settings.last_folder:
+                self._open_folder_path(self.settings.last_folder)
+                self._save_settings()
+                return
+            self._protect_cache.clear()
+            self._refresh_list()
+            self._reload_current()
+            self._save_settings()
+        except Exception as exc:
+            log_exception(exc)
+            for key, value in previous.items():
+                setattr(self.settings, key, value)
+            self.gate.enable_standby(bool(previous["use_standby"] and previous["standby_path"]))
+            self._tell_error(user_error_key(exc, where="settings"), dialog=True)
 
     def _cycle_language(self) -> None:
         self.settings.language = "en" if self.settings.language == "ja" else "ja"
@@ -316,8 +357,13 @@ class StreamMediaViewerApp:
     def _start_scan(self, folder: Path) -> None:
         self._scan_token += 1
         token = self._scan_token
+        self._stop_protect_worker()
+        if self._scan_worker is not None and self._scan_worker.isRunning():
+            self._scan_worker.requestInterruption()
+            self._scan_worker.wait(8000)
         if self._thumb_worker is not None and self._thumb_worker.isRunning():
             self._thumb_worker.requestInterruption()
+            self._thumb_worker.wait(8000)
         self._thumb_worker = None
         self._thumb_pix.clear()
         self._protect_cache.clear()
@@ -362,6 +408,7 @@ class StreamMediaViewerApp:
     def _start_thumbs(self) -> None:
         if self._thumb_worker is not None and self._thumb_worker.isRunning():
             self._thumb_worker.requestInterruption()
+            self._thumb_worker.wait(8000)
         images = [item.path for item in self._items if item.kind == "image"]
         videos = [item.path for item in self._items if item.kind == "video"]
         if not images and not videos:
@@ -390,6 +437,11 @@ class StreamMediaViewerApp:
                 break
 
     def _on_operator_gone(self, *_args: object) -> None:
+        self._stop_protect_worker(timeout_ms=1500)
+        self._stop_preload()
+        if self._scan_worker is not None and self._scan_worker.isRunning():
+            self._scan_worker.requestInterruption()
+            self._scan_worker.wait(1500)
         if self._thumb_worker is None:
             return
         try:
@@ -398,6 +450,7 @@ class StreamMediaViewerApp:
             pass
         if self._thumb_worker.isRunning():
             self._thumb_worker.requestInterruption()
+            self._thumb_worker.wait(1500)
 
     def _apply_folder_dates(self) -> None:
         dates = [item.captured_at.date() for item in self._items if item.captured_at]
@@ -447,6 +500,8 @@ class StreamMediaViewerApp:
             date_to=op.date_to.date().toPython(),
             folder=op.selected_folder(),
             relative_folder=item.relative_folder,
+            hidden=note.hidden,
+            show_hidden=op.chk_hidden.isChecked(),
         )
 
     def _refresh_list(self) -> None:
@@ -580,6 +635,7 @@ class StreamMediaViewerApp:
         item = self._current()
         self._video.close()
         self._playing_to_output = False
+        self.operator.set_playing(False)
         self.gate.begin_load()
         if item is None:
             self.operator.set_media_kind(None)
@@ -594,6 +650,7 @@ class StreamMediaViewerApp:
         self.operator.chk_loop.blockSignals(True)
         self.operator.chk_loop.setChecked(note.loop)
         self.operator.chk_loop.blockSignals(False)
+        self.operator._set_manual(bool(note.marks))
         self.operator.btn_star.setChecked(note.favorite)
         self.operator.meta.setText(self._item_meta_text(item))
         self.operator.meta.setToolTip(str(item.path))
@@ -649,6 +706,7 @@ class StreamMediaViewerApp:
     def _start_protect(self, bgr: np.ndarray, marks: list[dict]) -> None:
         self._protect_seq += 1
         seq = self._protect_seq
+        self._stop_protect_worker()
         item = self._current()
         skip = bool(item and self.settings.note_for(str(item.path)).skip_faces)
         rotation = 0
@@ -660,8 +718,6 @@ class StreamMediaViewerApp:
                 return
         prefix = self._item_meta_text(item) if item else ""
         self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'processing')}")
-        if self._worker and self._worker.isRunning():
-            self._worker.requestInterruption()
         self._worker = ProtectThread(
             bgr,
             self.settings,
@@ -674,11 +730,25 @@ class StreamMediaViewerApp:
         self._worker.failed.connect(self._on_protect_failed)
         self._worker.start()
 
+    def _stop_protect_worker(self, timeout_ms: int = 8000) -> None:
+        worker = self._worker
+        if worker is None:
+            return
+        try:
+            worker.done.disconnect(self._on_protected)
+            worker.failed.disconnect(self._on_protect_failed)
+        except (TypeError, RuntimeError):
+            pass
+        if worker.isRunning():
+            worker.requestInterruption()
+            worker.wait(timeout_ms)
+        self._worker = None
+
     def _on_protect_failed(self, seq: int) -> None:
         if seq != self._protect_seq:
             return
         self._preview = None
-        self.operator.meta.setText(t(self.settings.language, "protect_failed"))
+        self._tell_error("protect_failed")
         self.operator.refresh_status()
 
     def _on_protected(self, bgr: np.ndarray, has_face: bool, has_text: bool, seq: int) -> None:
@@ -699,7 +769,13 @@ class StreamMediaViewerApp:
         fitted = fit_letterbox(bgr)
         self._preview = fitted
         self.operator.reveal_preview()
-        self.operator.preview.set_frame(bgr_to_pixmap(bgr))
+        try:
+            self.operator.preview.set_frame(bgr_to_pixmap(bgr))
+        except Exception as exc:
+            log_exception(exc)
+            self._preview = None
+            self._tell_error("protect_failed")
+            return
         self.gate.mark_processed()
         self.operator.refresh_status()
         self._relabel_current_row()
@@ -732,13 +808,14 @@ class StreamMediaViewerApp:
             self._video.in_ms = note.in_ms
             self._video.out_ms = note.out_ms
             self._video.set_protect(lambda frame: self._protect_sync(frame, note.marks))
-            self._video.audio_enabled = self.settings.video_audio
+            self._video.set_audio_enabled(self.settings.video_audio)
             self._playing_to_output = True
             self._bind_cache(item)
             cached = cache_is_ready(self._key_for(item), self._folder_id())
             if not cached and abs(self._video.position_ms() - note.in_ms) > 120:
                 self._video.seek_ms(note.in_ms)
             self._video.play()
+            self.operator.set_playing(True)
         self._sync_windows()
         self.operator.refresh_status()
         self._sync_live_marks()
@@ -763,7 +840,12 @@ class StreamMediaViewerApp:
         return out
 
     def _on_video_frame(self, frame: np.ndarray) -> None:
-        self.operator.preview.set_frame(bgr_to_pixmap(frame), smooth=False)
+        try:
+            self.operator.preview.set_frame(bgr_to_pixmap(frame), smooth=False)
+        except Exception as exc:
+            log_exception(exc)
+            self._tell_error("protect_failed")
+            return
         if self._playing_to_output and self.gate.window_visible:
             fitted = fit_letterbox(frame)
             self._live = fitted
@@ -771,6 +853,7 @@ class StreamMediaViewerApp:
 
     def _on_video_finished(self) -> None:
         self._playing_to_output = False
+        self.operator.set_playing(False)
 
     def _toggle_play(self) -> None:
         item = self._current()
@@ -779,21 +862,24 @@ class StreamMediaViewerApp:
         note = self.settings.note_for(str(item.path))
         if self._video.playing:
             self._video.pause()
+            self.operator.set_playing(False)
             return
         self._video.set_protect(lambda frame: self._protect_sync(frame, note.marks))
         item = self._current()
         self._playing_to_output = bool(
             item and self._live_path == str(item.path) and not self.gate.masked
         )
-        self._video.audio_enabled = self._playing_to_output and self.settings.video_audio
+        self._video.set_audio_enabled(self._playing_to_output and self.settings.video_audio)
         if item:
             self._bind_cache(item)
         self._video.seek_ms(note.in_ms)
         self._video.play()
+        self.operator.set_playing(True)
 
     def _on_panic(self) -> None:
         self._video.pause()
         self._playing_to_output = False
+        self.operator.set_playing(False)
         self._live_path = ""
         self.gate.panic()
         self._sync_windows()
@@ -820,7 +906,7 @@ class StreamMediaViewerApp:
             return
         note = self.settings.note_for(str(item.path))
         self.operator.set_false_face_visible(bool(item.has_face and not note.skip_faces))
-        if item.has_face and not note.skip_faces:
+        if item.has_face and not note.skip_faces and self.operator.btn_false_face.isChecked():
             self.operator.preview.setToolTip(t(self.settings.language, "false_face"))
         else:
             self.operator.preview.setToolTip("")
@@ -867,39 +953,19 @@ class StreamMediaViewerApp:
         self._relabel_current_row()
         self._sync_false_face_button()
 
-    def _correct_false_face(self) -> None:
-        item = self._current()
-        if item is None or not item.has_face:
+    def _toggle_hidden(self, row: int) -> None:
+        if row < 0 or row >= len(self._visible):
             return
+        item = self._items[self._visible[row]]
         note = self.settings.note_for(str(item.path))
-        source = self._source_bgr
-        if source is None and item.kind == "image":
-            image = load_rgb_image(item.path)
-            if image is not None:
-                source = rgb_to_bgr(np.array(image))
-                self._source_bgr = source
-        if source is not None:
-            oriented = rotate_bgr(source, note.rotation)
-            boxes = detect_face_boxes(oriented)
-            learned = remember_false_faces(
-                self.settings.all_false_face_hashes(), oriented, boxes
-            )
-            try_update_shipped_catalog(learned)
-            bundled = set(load_shipped_hashes())
-            self.settings.false_face_hashes = [item for item in learned if item not in bundled]
-        note.skip_faces = True
-        note.has_face = False
-        note.marks = []
-        item.has_face = False
-        self._undo = []
-        self._protect_cache.clear()
-        self._reprotect_current()
-        self._save_settings()
+        note.hidden = not note.hidden
+        self._refresh_list()
+        self._reload_current()
 
     def _on_preview_region(self, nx: float, ny: float) -> None:
         if self.operator.preview.mode != "off":
             return
-        if self._reject_false_at(nx, ny):
+        if self.operator.btn_false_face.isChecked() and self._reject_false_at(nx, ny):
             return
         self._toggle_play()
 
@@ -1100,13 +1166,15 @@ class StreamMediaViewerApp:
             return
         self._start_preload_for(self._folder_queue[0])
 
-    def _prepare_folder(self) -> None:
+    def _prepare_folder(self, kind: str) -> None:
         if not self._items:
             return
         lang = self.settings.language
         pending: list[MediaItem] = []
         total_bytes = 0
         for item in self._items:
+            if item.kind != kind:
+                continue
             if cache_is_ready(self._key_for(item), self._folder_id()):
                 continue
             pending.append(item)
@@ -1133,7 +1201,8 @@ class StreamMediaViewerApp:
             )
             self._refresh_cache_label()
             return
-        ask = t(lang, "prepare_folder_ask").format(size=format_bytes(total_bytes))
+        ask_key = "prepare_photos_ask" if kind == "image" else "prepare_videos_ask"
+        ask = t(lang, ask_key).format(size=format_bytes(total_bytes))
         if QMessageBox.question(self.operator, "", ask) != QMessageBox.StandardButton.Yes:
             return
         self._stop_preload()
@@ -1194,6 +1263,7 @@ class StreamMediaViewerApp:
             save_settings(self.settings)
         except OSError as exc:
             log_exception(exc)
+            self._tell_error(user_error_key(exc, where="save"))
 
 
 def run() -> int:
@@ -1201,12 +1271,15 @@ def run() -> int:
     try:
         qt_app = QApplication.instance() or QApplication(sys.argv)
         qt_app.setApplicationName("StreamMediaViewer")
-        app = StreamMediaViewerApp()
+        settings, load_error = load_settings_with_error()
+        app = StreamMediaViewerApp(settings)
         qt_app.aboutToQuit.connect(app.persist)
         app.show()
+        if load_error:
+            app._tell_error(load_error, dialog=True)
         return qt_app.exec()
     except Exception as exc:
         log_exception(exc)
         qt_app = QApplication.instance() or QApplication(sys.argv)
-        QMessageBox.critical(None, "StreamMediaViewer(ぬ)", t("ja", "startup_failed"))
+        QMessageBox.critical(None, "StreamMediaViewer(ぬ)", t("ja", user_error_key(exc, where="startup")))
         return 1

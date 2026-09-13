@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from PySide6.QtWidgets import QLabel
+from PySide6.QtWidgets import QDialog, QLabel, QMessageBox
 
 from stream_media_viewer import (
     OPERATOR_WINDOW_TITLE,
@@ -11,6 +11,7 @@ from stream_media_viewer import (
     display_version,
 )
 from stream_media_viewer.app import ProtectThread, StreamMediaViewerApp
+from stream_media_viewer.i18n import t
 from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.scan import scan_folder
 from stream_media_viewer.settings import AppSettings
@@ -52,7 +53,6 @@ def test_operator_shows_guide_version_stays_in_settings(qtbot) -> None:
             blur_strength=25,
             face_blur=True,
             text_blur=False,
-            video_audio=False,
             enhance_level="weak",
             language="ja",
         ),
@@ -74,6 +74,19 @@ def test_folder_load_applies_saved_face_marks(qtbot, tmp_path: Path) -> None:
     app._apply_saved_marks()
     app._refresh_list()
     assert app._items[0].has_face is True
+    assert len(app._visible) == 1
+
+
+def test_hidden_items_leave_the_default_list(qtbot, tmp_path: Path) -> None:
+    Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "good.jpg")
+    settings = AppSettings()
+    settings.note_for(str(tmp_path / "good.jpg")).hidden = True
+    app = StreamMediaViewerApp(settings)
+    qtbot.addWidget(app.operator)
+    app._items = scan_folder(tmp_path)
+    app._refresh_list()
+    assert app._visible == []
+    app.operator.chk_hidden.setChecked(True)
     assert len(app._visible) == 1
 
 
@@ -114,6 +127,56 @@ def test_persist_failure_does_not_raise(qtbot, monkeypatch) -> None:
 
     monkeypatch.setattr("stream_media_viewer.app.save_settings", boom)
     app.persist()
+    assert t("ja", "save_failed") in app.operator.meta.text()
+
+
+def test_second_protect_waits_for_the_first(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    frame = np.zeros((48, 48, 3), dtype=np.uint8)
+    app._start_protect(frame, [])
+    first = app._worker
+    assert first is not None
+    app._start_protect(frame, [])
+    assert app._worker is not first
+    assert not first.isRunning()
+    qtbot.waitUntil(lambda: app._worker is not None and not app._worker.isRunning(), timeout=8000)
+
+
+def test_settings_apply_error_stays_on_operator(qtbot, monkeypatch) -> None:
+    app = StreamMediaViewerApp(AppSettings(blur_strength=40))
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    shown: list[str] = []
+
+    class FakeDialog:
+        def exec(self) -> QDialog.DialogCode:
+            return QDialog.DialogCode.Accepted
+
+        def draft(self) -> SettingsDraft:
+            return SettingsDraft(
+                blur_strength=200,
+                face_blur=True,
+                text_blur=False,
+                enhance_level="weak",
+                language="ja",
+            )
+
+    monkeypatch.setattr("stream_media_viewer.app.SettingsDialog", lambda *_a, **_k: FakeDialog())
+    monkeypatch.setattr(
+        app,
+        "_reload_current",
+        lambda: (_ for _ in ()).throw(RuntimeError("apply boom")),
+    )
+    monkeypatch.setattr(
+        QMessageBox, "warning", lambda *a, **k: shown.append(a[2] if len(a) > 2 else k.get("text", ""))
+    )
+    app._open_settings()
+    assert app.settings.blur_strength == 40
+    assert t("ja", "settings_apply_failed") in app.operator.meta.text()
+    assert shown
+    assert t("ja", "settings_apply_failed") in shown[0]
 
 
 def test_photo_and_video_show_different_controls(qtbot) -> None:
@@ -124,11 +187,14 @@ def test_photo_and_video_show_different_controls(qtbot) -> None:
     assert app.operator.btn_prep.isHidden()
     assert app.operator.timeline.isHidden()
     assert app.operator.chk_loop.isHidden()
+    assert app.operator.chk_audio.isHidden()
     app.operator.set_media_kind("video")
     assert not app.operator.btn_play.isHidden()
     assert not app.operator.btn_prep.isHidden()
     assert not app.operator.timeline.isHidden()
     assert not app.operator.chk_loop.isHidden()
+    assert not app.operator.chk_audio.isHidden()
+    assert app.operator.chk_audio.isChecked()
     bar = app.operator.btn_prev.parentWidget().layout()
     assert bar.indexOf(app.operator.btn_next) < bar.indexOf(app.operator.btn_send)
     assert bar.indexOf(app.operator.btn_manual) < bar.indexOf(app.operator.btn_rot_left)
@@ -242,12 +308,20 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert not hasattr(op, "chk_gps")
     assert op.chk_filter_face.text() == "😊"
     lay = op.filter_box.layout()
-    assert lay.indexOf(op.chk_videos) == lay.indexOf(op.chk_filter_face) - 1
+    assert lay.indexOf(op.chk_star_only) < lay.indexOf(op.chk_filter_face)
+    assert lay.indexOf(op.chk_filter_face) < lay.indexOf(op.chk_photos)
+    assert lay.indexOf(op.chk_photos) < lay.indexOf(op.chk_videos)
+    assert lay.indexOf(op.date_group) < lay.indexOf(op.chk_hidden)
+    assert op.lbl_date_range.text() == "～"
+    assert op.chk_hidden.text() == "非表示"
     assert op.date_from.maximumWidth() <= 128
     assert op.filter_box.layout().indexOf(op.combo_sort) == -1
     assert op.sort_box.layout().indexOf(op.combo_sort) >= 0
     assert op.combo_sort.count() == 3
-    assert "事前処理" in op.btn_folder_prep.text()
+    assert "写真" in op.btn_prep_photos.text()
+    assert "動画" in op.btn_prep_videos.text()
+    assert "自動補正" in op.btn_enhance.text()
+    assert "標準" in op.btn_enhance.text()
     assert "事前処理データ" in op.btn_clear_cache.text()
     assert op.chk_star_only.text() == "⭐"
     assert op.manual_tools.isHidden()
@@ -272,12 +346,21 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert body is not None
     assert "←" in body.text()
     assert "→" in body.text()
+    assert "非表示にする" in body.text()
     assert op.minimumWidth() >= 900
     assert op.minimumHeight() >= 560
     assert op.btn_false_face.isHidden()
     op.set_false_face_visible(True)
     assert not op.btn_false_face.isHidden()
+    assert op.btn_false_face.isCheckable()
     assert "誤検出修正" in op.btn_false_face.text()
+    assert "OFF" in op.btn_false_face.text()
+    op.btn_false_face.setChecked(True)
+    assert "ON" in op.btn_false_face.text()
+    op.set_playing(True)
+    assert "停止" in op.btn_play.text()
+    op.set_playing(False)
+    assert "再生" in op.btn_play.text()
     assert "左90" in op.btn_rot_left.text()
     assert "右90" in op.btn_rot_right.text()
     op.show_guide("読み込み中…", done=1, total=4)
@@ -341,9 +424,13 @@ def test_hide_keeps_send_enabled_when_ready(qtbot) -> None:
 def test_date_checkbox_sits_left_of_date_fields(qtbot) -> None:
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
-    lay = app.operator.filter_box.layout()
+    lay = app.operator.date_group.layout()
     assert lay.indexOf(app.operator.chk_dates) == lay.indexOf(app.operator.date_from) - 1
-    assert lay.indexOf(app.operator.date_from) == lay.indexOf(app.operator.date_to) - 1
+    assert lay.indexOf(app.operator.date_from) == lay.indexOf(app.operator.lbl_date_range) - 1
+    assert lay.indexOf(app.operator.lbl_date_range) == lay.indexOf(app.operator.date_to) - 1
+    assert app.operator.filter_box.layout().indexOf(app.operator.date_group) < (
+        app.operator.filter_box.layout().indexOf(app.operator.chk_hidden)
+    )
 
 
 def test_list_grows_to_two_thumbs_when_wide(qtbot) -> None:

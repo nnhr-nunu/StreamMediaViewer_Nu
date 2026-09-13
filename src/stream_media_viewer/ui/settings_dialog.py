@@ -36,7 +36,6 @@ class SettingsDraft:
     blur_strength: int
     face_blur: bool
     text_blur: bool
-    video_audio: bool
     enhance_level: str
     language: str
     include_subfolders: bool = True
@@ -54,9 +53,6 @@ class SettingsDialog(QDialog):
         self._enhance_level = parse_enhance_level(draft.enhance_level)
         self.setWindowTitle(t(self._lang, "settings"))
 
-        self.chk_audio = QCheckBox(t(self._lang, "audio"))
-        self.chk_audio.setChecked(draft.video_audio)
-        self.chk_audio.setToolTip(t(self._lang, "audio_hint"))
         self.chk_subfolders = QCheckBox(t(self._lang, "include_subfolders"))
         self.chk_subfolders.setChecked(draft.include_subfolders)
 
@@ -69,7 +65,6 @@ class SettingsDialog(QDialog):
         self.slider.valueChanged.connect(self._sync_strength_label)
 
         form = QFormLayout()
-        form.addRow(self.chk_audio)
         form.addRow(self.chk_subfolders)
         form.addRow(t(self._lang, "blur_strength"), self.slider)
         form.addRow("", self.lbl_strength)
@@ -119,7 +114,6 @@ class SettingsDialog(QDialog):
             blur_strength=clamp_blur_strength(self.slider.value()),
             face_blur=self._face_blur,
             text_blur=self._text_blur,
-            video_audio=self.chk_audio.isChecked(),
             enhance_level=self._enhance_level,
             language=self._lang,
             include_subfolders=self.chk_subfolders.isChecked(),

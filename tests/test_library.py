@@ -47,11 +47,25 @@ def test_file_note_keeps_detection_flags() -> None:
     assert restored.has_text_region is True
 
 
+def test_file_note_keeps_hidden() -> None:
+    note = FileNote(hidden=True)
+    restored = FileNote.from_dict(note.to_dict())
+    assert restored.hidden is True
+    assert FileNote.from_dict({}).hidden is False
+
+
 def test_file_note_keeps_rotation() -> None:
     note = FileNote(rotation=270)
     restored = FileNote.from_dict(note.to_dict())
     assert restored.rotation == 270
     assert FileNote.from_dict({"rotation": 45}).rotation == 0
+
+
+def test_file_note_bad_timings_fall_back() -> None:
+    note = FileNote.from_dict({"in_ms": "nope", "out_ms": "x", "rotation": "turn"})
+    assert note.in_ms == 0
+    assert note.out_ms is None
+    assert note.rotation == 0
 
 
 def test_scan_skips_empty_and_corrupt_images(tmp_path: Path) -> None:

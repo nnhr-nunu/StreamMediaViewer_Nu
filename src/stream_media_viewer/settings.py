@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from stream_media_viewer.config import SETTINGS_FILENAME, user_config_dir
+from stream_media_viewer.errors import log_exception
 from stream_media_viewer.detect.blur import (
     DEFAULT_BLUR_STRENGTH,
     DEFAULT_BRUSH_WIDTH,
@@ -62,7 +63,7 @@ class AppSettings:
     language: str = "ja"
     face_blur: bool = True
     text_blur: bool = False
-    video_audio: bool = False
+    video_audio: bool = True
     enhance_level: str = "weak"
     standby_path: str = ""
     use_standby: bool = False
@@ -118,8 +119,12 @@ class AppSettings:
         notes: dict[str, FileNote] = {}
         if isinstance(raw_notes, dict):
             for key, value in raw_notes.items():
-                if isinstance(value, dict):
+                if not isinstance(value, dict):
+                    continue
+                try:
                     notes[str(key)] = FileNote.from_dict(value)
+                except (TypeError, ValueError):
+                    continue
         raw_recent = data.get("recent_folders") or []
         recent_folders: list[str] = []
         if isinstance(raw_recent, list):
@@ -137,7 +142,7 @@ class AppSettings:
             language=str(data.get("language") or "ja"),
             face_blur=bool(data.get("face_blur", True)),
             text_blur=bool(data.get("text_blur", False)),
-            video_audio=bool(data.get("video_audio", False)),
+            video_audio=bool(data.get("video_audio", True)),
             enhance_level=parse_enhance_level(
                 data["enhance_level"]
                 if "enhance_level" in data
@@ -167,17 +172,27 @@ def settings_path() -> Path:
     return directory / SETTINGS_FILENAME
 
 
-def load_settings(path: Path | None = None) -> AppSettings:
+def load_settings_with_error(path: Path | None = None) -> tuple[AppSettings, str | None]:
     target = path or settings_path()
     if not target.is_file():
-        return AppSettings()
+        return AppSettings(), None
     try:
         raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return AppSettings()
+    except (OSError, json.JSONDecodeError) as exc:
+        log_exception(exc)
+        return AppSettings(), "settings_load_failed"
     if not isinstance(raw, dict):
-        return AppSettings()
-    return AppSettings.from_dict(raw)
+        return AppSettings(), "settings_load_failed"
+    try:
+        return AppSettings.from_dict(raw), None
+    except Exception as exc:
+        log_exception(exc)
+        return AppSettings(), "settings_load_failed"
+
+
+def load_settings(path: Path | None = None) -> AppSettings:
+    settings, _error = load_settings_with_error(path)
+    return settings
 
 
 def save_settings(settings: AppSettings, path: Path | None = None) -> Path:
