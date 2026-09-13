@@ -45,6 +45,19 @@ QSlider#rangeOut::handle:horizontal {
   background: #e8a070;
 }
 QCheckBox { spacing: 8px; }
+QComboBox, QDateEdit, QDialog {
+  background: #1b1b1b;
+  color: #e8e8e8;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 4px 8px;
+  min-height: 32px;
+}
+QComboBox QAbstractItemView {
+  background: #1b1b1b;
+  color: #e8e8e8;
+  selection-background-color: #3d2a4f;
+}
 QLabel#meta { color: #bdbdbd; }
 QLabel#preview {
   background: #000;

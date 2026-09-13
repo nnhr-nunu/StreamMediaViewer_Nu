@@ -4,10 +4,10 @@ from datetime import datetime
 from pathlib import Path
 
 from PIL import Image, ImageOps
-from PIL.ExifTags import GPSTAGS, TAGS
 
 from stream_media_viewer.config import SUPPORTED_IMAGE_SUFFIXES, SUPPORTED_VIDEO_SUFFIXES
 from stream_media_viewer.library.item import MediaItem
+from stream_media_viewer.library.meta import image_capture_meta, video_captured_at
 
 try:
     from pillow_heif import register_heif_opener
@@ -15,34 +15,6 @@ try:
     register_heif_opener()
 except ImportError:
     pass
-
-
-def _exif_datetime_and_gps(path: Path) -> tuple[datetime | None, bool]:
-    if path.suffix.lower() not in SUPPORTED_IMAGE_SUFFIXES | {".heic", ".heif"}:
-        return None, False
-    try:
-        with Image.open(path) as img:
-            raw = img.getexif()
-    except OSError:
-        return None, False
-    if not raw:
-        return None, False
-    captured: datetime | None = None
-    has_gps = False
-    named = {TAGS.get(k, k): v for k, v in raw.items()}
-    for key in ("DateTimeOriginal", "DateTimeDigitized", "DateTime"):
-        value = named.get(key)
-        if isinstance(value, str):
-            try:
-                captured = datetime.strptime(value.strip().split(".")[0], "%Y:%m:%d %H:%M:%S")
-                break
-            except ValueError:
-                continue
-    gps_ifd = raw.get_ifd(0x8825) if hasattr(raw, "get_ifd") else None
-    if gps_ifd:
-        labels = {GPSTAGS.get(k, k): v for k, v in gps_ifd.items()}
-        has_gps = bool(labels.get("GPSLatitude") and labels.get("GPSLongitude"))
-    return captured, has_gps
 
 
 def _file_has_bytes(path: Path) -> bool:
@@ -79,9 +51,21 @@ def scan_folder(folder: Path) -> list[MediaItem]:
             continue
         if kind == "video" and not _file_has_bytes(path):
             continue
-        captured, has_gps = _exif_datetime_and_gps(path)
+        if kind == "image":
+            captured, has_gps, place_name = image_capture_meta(path)
+        else:
+            captured = video_captured_at(path)
+            has_gps = False
+            place_name = ""
         items.append(
-            MediaItem(path=path, kind=kind, captured_at=captured, has_gps=has_gps, readable=True)
+            MediaItem(
+                path=path,
+                kind=kind,
+                captured_at=captured,
+                has_gps=has_gps,
+                readable=True,
+                place_name=place_name,
+            )
         )
     items.sort(
         key=lambda it: (

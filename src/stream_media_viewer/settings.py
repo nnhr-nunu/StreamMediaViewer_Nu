@@ -13,6 +13,18 @@ from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.render.enhance import parse_enhance_level
 
 RECENT_FOLDER_LIMIT = 8
+DEFAULT_BLUR_STRENGTH = 25
+MIN_BLUR_STRENGTH = 5
+MAX_BLUR_STRENGTH = 51
+
+
+def clamp_blur_strength(raw: Any) -> int:
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_BLUR_STRENGTH
+    value = max(MIN_BLUR_STRENGTH, min(MAX_BLUR_STRENGTH, value))
+    return value
 
 
 def remember_folder(recent: list[str], path: str, *, limit: int = RECENT_FOLDER_LIMIT) -> list[str]:
@@ -31,7 +43,7 @@ def remember_folder(recent: list[str], path: str, *, limit: int = RECENT_FOLDER_
 @dataclass
 class AppSettings:
     last_folder: str = ""
-    blur_strength: int = 25
+    blur_strength: int = DEFAULT_BLUR_STRENGTH
     language: str = "ja"
     face_blur: bool = True
     text_blur: bool = False
@@ -91,7 +103,7 @@ class AppSettings:
             recent_folders = remember_folder(recent_folders, last_folder)
         return cls(
             last_folder=last_folder,
-            blur_strength=int(data.get("blur_strength") or 25),
+            blur_strength=clamp_blur_strength(data.get("blur_strength", DEFAULT_BLUR_STRENGTH)),
             language=str(data.get("language") or "ja"),
             face_blur=bool(data.get("face_blur", True)),
             text_blur=bool(data.get("text_blur", False)),

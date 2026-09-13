@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDateEdit,
     QHBoxLayout,
     QLabel,
@@ -53,6 +54,7 @@ class OperatorWindow(QMainWindow):
     prepare_folder_requested = Signal()
     clear_cache_requested = Signal()
     enhance_cycle_requested = Signal()
+    settings_requested = Signal()
 
     def __init__(self, gate: OutputGate) -> None:
         super().__init__()
@@ -77,6 +79,7 @@ class OperatorWindow(QMainWindow):
         self.btn_standby = _icon_button("🖼", "")
         self.btn_folder_prep = _icon_button("📂⏳", "")
         self.btn_clear_cache = _icon_button("🗑", "")
+        self.btn_settings = _icon_button("⚙", "")
         self.cache_label = QLabel()
         self.cache_label.setObjectName("meta")
         top.addWidget(self.btn_folder)
@@ -89,6 +92,7 @@ class OperatorWindow(QMainWindow):
         top.addWidget(self.btn_clear_cache)
         top.addWidget(self.cache_label)
         top.addStretch()
+        top.addWidget(self.btn_settings)
         top.addWidget(self.btn_lang)
         outer.addLayout(top)
 
@@ -98,7 +102,10 @@ class OperatorWindow(QMainWindow):
         self.chk_videos = QCheckBox()
         self.chk_faces = QCheckBox()
         self.chk_gps = QCheckBox()
+        self.chk_no_gps = QCheckBox()
         self.chk_dates = QCheckBox()
+        self.combo_place = QComboBox()
+        self.combo_place.setMinimumWidth(140)
         self.date_from = QDateEdit()
         self.date_to = QDateEdit()
         self.date_from.setCalendarPopup(True)
@@ -109,10 +116,12 @@ class OperatorWindow(QMainWindow):
             self.chk_videos,
             self.chk_faces,
             self.chk_gps,
+            self.chk_no_gps,
             self.chk_dates,
         ):
             box.setChecked(False)
             filters.addWidget(box)
+        filters.addWidget(self.combo_place)
         filters.addWidget(self.date_from)
         filters.addWidget(self.date_to)
         filters.addStretch()
@@ -200,6 +209,7 @@ class OperatorWindow(QMainWindow):
         self.btn_folder_prep.clicked.connect(self.prepare_folder_requested.emit)
         self.btn_clear_cache.clicked.connect(self.clear_cache_requested.emit)
         self.btn_enhance.clicked.connect(self.enhance_cycle_requested.emit)
+        self.btn_settings.clicked.connect(self.settings_requested.emit)
         self.list.currentRowChanged.connect(self.item_selected.emit)
         self.preview.mark_added.connect(self.mark_added.emit)
         self.btn_rect.clicked.connect(lambda: self._mode("rect"))
@@ -213,10 +223,14 @@ class OperatorWindow(QMainWindow):
             self.chk_videos,
             self.chk_faces,
             self.chk_gps,
+            self.chk_no_gps,
             self.chk_dates,
             self.chk_loop,
         ):
             box.toggled.connect(lambda _=False: self.settings_changed.emit())
+        self.combo_place.currentIndexChanged.connect(lambda _=0: self.settings_changed.emit())
+        self.date_from.dateChanged.connect(lambda _=None: self.settings_changed.emit())
+        self.date_to.dateChanged.connect(lambda _=None: self.settings_changed.emit())
         QShortcut(QKeySequence("A"), self, self.prev_requested.emit)
         QShortcut(QKeySequence("D"), self, self.next_requested.emit)
         QShortcut(QKeySequence(Qt.Key.Key_Left), self, self.prev_requested.emit)
@@ -258,8 +272,14 @@ class OperatorWindow(QMainWindow):
         self.chk_videos.setText(t(lang, "filter_video"))
         self.chk_faces.setText("⚠ " + t(lang, "filter_face"))
         self.chk_gps.setText(t(lang, "filter_gps"))
+        self.chk_no_gps.setText(t(lang, "filter_gps_no"))
         self.chk_dates.setText("📅")
+        if self.combo_place.count() == 0:
+            self.combo_place.addItem(t(lang, "filter_place_all"), "")
+        else:
+            self.combo_place.setItemText(0, t(lang, "filter_place_all"))
         self.btn_lang.setToolTip(t(lang, "language"))
+        self.btn_settings.setToolTip(t(lang, "settings"))
         self.btn_standby.setToolTip(t(lang, "standby"))
         self.btn_rect.setToolTip(t(lang, "rect"))
         self.btn_brush.setToolTip(t(lang, "brush"))
@@ -270,6 +290,20 @@ class OperatorWindow(QMainWindow):
         self.lbl_out.setText(t(lang, "range_out"))
         self.timeline.setToolTip(t(lang, "range_in"))
         self.timeline_out.setToolTip(t(lang, "range_out"))
+
+    def set_places(self, names: list[str], selected: str) -> None:
+        current = selected
+        self.combo_place.blockSignals(True)
+        self.combo_place.clear()
+        self.combo_place.addItem(t(self.lang, "filter_place_all"), "")
+        for name in names:
+            self.combo_place.addItem(name, name)
+        index = self.combo_place.findData(current)
+        self.combo_place.setCurrentIndex(index if index >= 0 else 0)
+        self.combo_place.blockSignals(False)
+
+    def selected_place(self) -> str:
+        return str(self.combo_place.currentData() or "")
 
     def set_enhance_level(self, level: str) -> None:
         self.enhance_level = parse_enhance_level(level)

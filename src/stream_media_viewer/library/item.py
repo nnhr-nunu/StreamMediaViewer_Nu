@@ -17,6 +17,7 @@ class MediaItem:
     readable: bool = True
     has_face: bool = False
     has_text_region: bool = False
+    place_name: str = ""
 
 
 @dataclass
