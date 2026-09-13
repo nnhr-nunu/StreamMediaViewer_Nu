@@ -14,7 +14,7 @@ from stream_media_viewer.library.thumbs import ensure_thumb
 
 class ScanWorker(QThread):
     finished_items = Signal(object)
-    progress = Signal(str)
+    progress = Signal(int, int)
 
     def __init__(self, folder: Path, *, recursive: bool) -> None:
         super().__init__()
@@ -23,7 +23,11 @@ class ScanWorker(QThread):
 
     def run(self) -> None:
         try:
-            items = scan_folder(self._folder, recursive=self._recursive)
+            items = scan_folder(
+                self._folder,
+                recursive=self._recursive,
+                progress=lambda done, total: self.progress.emit(done, total),
+            )
             self.finished_items.emit(items)
         except Exception as exc:
             log_exception(exc)

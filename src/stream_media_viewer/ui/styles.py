@@ -65,7 +65,42 @@ QComboBox QAbstractItemView {
   color: #e8e8e8;
   selection-background-color: #3d2a4f;
 }
-QLabel#meta { color: #bdbdbd; }
+QGroupBox {
+  border: 1px solid #333;
+  border-radius: 10px;
+  margin-top: 12px;
+  padding: 8px 8px 4px 8px;
+  color: #e8e8e8;
+}
+QGroupBox::title {
+  subcontrol-origin: margin;
+  left: 12px;
+  padding: 0 6px;
+  color: #c9a0ff;
+}
+QToolButton#starOverlay {
+  background: rgba(18, 18, 18, 170);
+  font-size: 22px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px;
+  border-radius: 24px;
+}
+QToolButton#starOverlay:hover {
+  background: rgba(60, 42, 80, 210);
+}
+QProgressBar {
+  background: #2a2a2a;
+  border: none;
+  border-radius: 6px;
+  height: 16px;
+  text-align: center;
+  color: #e8e8e8;
+}
+QProgressBar::chunk {
+  background: #6b3fa0;
+  border-radius: 6px;
+}
 QLabel#guide {
   color: #e8e8e8;
   font-size: 16px;

@@ -36,7 +36,13 @@ from stream_media_viewer.playback.video import VideoPlayer
 from stream_media_viewer.render.canvas import fit_letterbox, rgb_to_bgr
 from stream_media_viewer.render.enhance import enhance_bgr, next_enhance_level
 from stream_media_viewer.safety.output_gate import OutputGate
-from stream_media_viewer.settings import AppSettings, load_settings, remember_folder, save_settings
+from stream_media_viewer.settings import (
+    AppSettings,
+    clamp_brush_width,
+    load_settings,
+    remember_folder,
+    save_settings,
+)
 from stream_media_viewer.ui.geometry import geometry_hex, restore_saved_geometry
 from stream_media_viewer.ui.list_row import row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
@@ -132,10 +138,11 @@ class StreamMediaViewerApp:
         op.settings_changed.connect(self._on_settings_ui)
         op.filters_changed.connect(self._on_filters_ui)
         op.loop_changed.connect(self._on_loop_ui)
-        op.standby_requested.connect(self._pick_standby)
         op.prepare_requested.connect(self._start_preload)
         op.prepare_folder_requested.connect(self._prepare_folder)
         op.clear_cache_requested.connect(self._clear_cache)
+        op.clear_marks_requested.connect(self._clear_marks)
+        op.brush_width_changed.connect(self._on_brush_width)
         op.enhance_cycle_requested.connect(self._cycle_enhance)
         op.settings_requested.connect(self._open_settings)
         op.timeline.sliderReleased.connect(self._apply_in_out)
@@ -147,6 +154,10 @@ class StreamMediaViewerApp:
         op.chk_face.setChecked(self.settings.face_blur)
         op.chk_text.setChecked(self.settings.text_blur)
         self.operator.set_enhance_level(self.settings.enhance_level)
+        op.slider_brush.blockSignals(True)
+        op.slider_brush.setValue(self.settings.brush_width)
+        op.slider_brush.blockSignals(False)
+        op.preview.brush_width = self.settings.brush_width
         op.date_from.blockSignals(True)
         op.date_to.blockSignals(True)
         if self.settings.date_from:
@@ -200,6 +211,8 @@ class StreamMediaViewerApp:
                 enhance_level=self.settings.enhance_level,
                 language=self.settings.language,
                 include_subfolders=self.settings.include_subfolders,
+                standby_path=self.settings.standby_path,
+                use_standby=self.settings.use_standby,
             ),
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -214,6 +227,17 @@ class StreamMediaViewerApp:
         self.settings.enhance_level = applied.enhance_level
         self.settings.language = applied.language
         self.settings.include_subfolders = applied.include_subfolders
+        self.settings.standby_path = applied.standby_path
+        self.settings.use_standby = applied.use_standby
+        if applied.use_standby and applied.standby_path:
+            self.gate.enable_standby(True)
+            if self.gate.masked:
+                image = load_rgb_image(Path(applied.standby_path))
+                if image is not None:
+                    frame = fit_letterbox(rgb_to_bgr(np.array(image)))
+                    self.output.show_frame(frame)
+        else:
+            self.gate.enable_standby(False)
         if prev_face and not self.settings.face_blur:
             self.settings.blur_off_confirmed = False
         op = self.operator
@@ -269,24 +293,6 @@ class StreamMediaViewerApp:
         self.settings.recent_folders = remember_folder(self.settings.recent_folders, path)
         self._start_scan(Path(path))
 
-    def _pick_standby(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self.operator, t(self.settings.language, "standby"))
-        if not path:
-            self.settings.use_standby = False
-            self.settings.standby_path = ""
-            self.gate.enable_standby(False)
-            self._sync_windows()
-            return
-        self.settings.standby_path = path
-        self.settings.use_standby = True
-        if self.gate.masked:
-            self.gate.enable_standby(True)
-            image = load_rgb_image(Path(path))
-            if image is not None:
-                frame = fit_letterbox(rgb_to_bgr(np.array(image)))
-                self.output.show_frame(frame)
-        self._sync_windows()
-
     def _start_scan(self, folder: Path) -> None:
         self._scan_token += 1
         token = self._scan_token
@@ -300,18 +306,29 @@ class StreamMediaViewerApp:
         self._index = 0
         self.operator.set_items([], [])
         self.operator.set_media_kind(None)
-        self.operator.show_guide(t(self.settings.language, "scanning"))
-        self.operator.meta.setText(t(self.settings.language, "scanning").split("\n")[0])
+        lang = self.settings.language
+        self.operator.show_guide(
+            f"{t(lang, 'scanning')}\n{t(lang, 'scanning_hint')}", done=0, total=0
+        )
+        self.operator.meta.setText(t(lang, "scanning"))
         worker = ScanWorker(folder, recursive=self.settings.include_subfolders)
+        worker.progress.connect(lambda done, total, tok=token: self._on_scan_progress(done, total, tok))
         worker.finished_items.connect(lambda items, tok=token: self._on_scan_done(items, tok))
         worker.start()
         self._scan_worker = worker
+
+    def _on_scan_progress(self, done: int, total: int, token: int) -> None:
+        if token != self._scan_token:
+            return
+        self.operator.set_scan_progress(done, total)
+        self.operator.meta.setText(f"{t(self.settings.language, 'scanning')}  {done} / {total}")
 
     def _on_scan_done(self, items: object, token: int) -> None:
         if token != self._scan_token:
             return
         self._items = list(items) if isinstance(items, list) else []
         self._apply_saved_marks()
+        self._apply_folder_dates()
         self._index = 0
         self._refresh_list()
         if self._visible:
@@ -363,6 +380,25 @@ class StreamMediaViewerApp:
             pass
         if self._thumb_worker.isRunning():
             self._thumb_worker.requestInterruption()
+
+    def _apply_folder_dates(self) -> None:
+        dates = [item.captured_at.date() for item in self._items if item.captured_at]
+        if not dates:
+            return
+        start, end = min(dates), max(dates)
+        qmin = QDate(start.year, start.month, start.day)
+        qmax = QDate(end.year, end.month, end.day)
+        op = self.operator
+        op.date_from.blockSignals(True)
+        op.date_to.blockSignals(True)
+        op.date_from.setDateRange(qmin, qmax)
+        op.date_to.setDateRange(qmin, qmax)
+        op.date_from.setDate(qmin)
+        op.date_to.setDate(qmax)
+        op.date_from.blockSignals(False)
+        op.date_to.blockSignals(False)
+        self.settings.date_from = qmin.toString("yyyy-MM-dd")
+        self.settings.date_to = qmax.toString("yyyy-MM-dd")
 
     def _apply_saved_marks(self) -> None:
         for item in self._items:
@@ -438,11 +474,22 @@ class StreamMediaViewerApp:
             live=self._live_path == str(item.path) and not self.gate.masked,
             ready=cache_is_ready(self._key_for(item), self._folder_id()),
         )
-        warn = "⚠" if item.has_face or (self.settings.text_blur and item.has_text_region) else ""
+        warn = (
+            t(self.settings.language, "list_face")
+            if item.has_face or (self.settings.text_blur and item.has_text_region)
+            else ""
+        )
         when = item.captured_at.strftime("%m/%d") if item.captured_at else ""
         place = item.place_name
         lines = [part for part in (f"{marks} {warn}".strip(), when, place) if part]
         return "\n".join(lines)
+
+    def _item_meta_text(self, item: MediaItem | None) -> str:
+        if item is None:
+            return ""
+        when = item.captured_at.strftime("%Y-%m-%d %H:%M") if item.captured_at else ""
+        place = item.place_name
+        return f"{when}  {place}".strip() or item.path.name
 
     def _row_tooltip(self, item: MediaItem) -> str:
         when = item.captured_at.strftime("%Y-%m-%d %H:%M") if item.captured_at else ""
@@ -513,9 +560,7 @@ class StreamMediaViewerApp:
         self.operator.chk_loop.setChecked(note.loop)
         self.operator.chk_loop.blockSignals(False)
         self.operator.btn_star.setChecked(note.favorite)
-        when = item.captured_at.strftime("%Y-%m-%d %H:%M") if item.captured_at else ""
-        place = item.place_name
-        self.operator.meta.setText(f"{when}  {place}".strip() or item.path.name)
+        self.operator.meta.setText(self._item_meta_text(item))
         self.operator.meta.setToolTip(str(item.path))
         self.operator.set_media_kind(item.kind)
         if item.kind == "image":
@@ -567,7 +612,7 @@ class StreamMediaViewerApp:
             if cached is not None:
                 self._on_protected(*cached, seq)
                 return
-        prefix = self.operator.meta.text().split(" · ")[0]
+        prefix = self._item_meta_text(item) if item else ""
         self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'processing')}")
         if self._worker and self._worker.isRunning():
             self._worker.requestInterruption()
@@ -594,6 +639,7 @@ class StreamMediaViewerApp:
             note.has_face = has_face
             note.has_text_region = has_text
             self._protect_cache.put(self._key_for(item), bgr, has_face, has_text)
+            self.operator.meta.setText(self._item_meta_text(item))
         fitted = fit_letterbox(bgr)
         self._preview = fitted
         self.operator.reveal_preview()
@@ -722,6 +768,22 @@ class StreamMediaViewerApp:
             return
         self.settings.note_for(str(item.path)).marks = self._undo.pop()
         self._reload_current()
+
+    def _clear_marks(self) -> None:
+        item = self._current()
+        if not item:
+            return
+        note = self.settings.note_for(str(item.path))
+        if not note.marks:
+            return
+        self._undo.append(list(note.marks))
+        self._undo = self._undo[-10:]
+        note.marks = []
+        self._reload_current()
+
+    def _on_brush_width(self, value: int) -> None:
+        self.settings.brush_width = clamp_brush_width(value)
+        self.operator.preview.brush_width = self.settings.brush_width
 
     def _apply_in_out(self) -> None:
         item = self._current()

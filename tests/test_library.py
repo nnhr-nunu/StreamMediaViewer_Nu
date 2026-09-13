@@ -17,6 +17,16 @@ def test_scan_sorts_by_name_when_no_exif(tmp_path: Path) -> None:
     assert all(it.kind == "image" for it in items)
 
 
+def test_scan_reports_progress(tmp_path: Path) -> None:
+    for name in ("b.jpg", "a.jpg"):
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / name)
+    seen: list[tuple[int, int]] = []
+    items = scan_folder(tmp_path, progress=lambda done, total: seen.append((done, total)))
+    assert len(items) == 2
+    assert seen[0] == (0, 2)
+    assert seen[-1] == (2, 2)
+
+
 def test_scan_reads_nested_folders_when_recursive(tmp_path: Path) -> None:
     Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "root.jpg")
     nested = tmp_path / "day1"

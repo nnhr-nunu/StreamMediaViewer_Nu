@@ -8,12 +8,15 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDateEdit,
+    QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QListView,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QProgressBar,
     QSlider,
     QStackedLayout,
     QToolButton,
@@ -22,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from stream_media_viewer import OPERATOR_WINDOW_TITLE
+from stream_media_viewer.detect.blur import DEFAULT_BRUSH_WIDTH, MAX_BRUSH_WIDTH, MIN_BRUSH_WIDTH
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.render.enhance import parse_enhance_level
@@ -60,12 +64,13 @@ class OperatorWindow(QMainWindow):
     settings_changed = Signal()
     filters_changed = Signal()
     loop_changed = Signal()
-    standby_requested = Signal()
     prepare_requested = Signal()
     prepare_folder_requested = Signal()
     clear_cache_requested = Signal()
+    clear_marks_requested = Signal()
     enhance_cycle_requested = Signal()
     settings_requested = Signal()
+    brush_width_changed = Signal(int)
 
     def __init__(self, gate: OutputGate) -> None:
         super().__init__()
@@ -85,7 +90,6 @@ class OperatorWindow(QMainWindow):
         self.chk_text = QCheckBox()
         self.btn_enhance = _bar_button()
         self.enhance_level = "weak"
-        self.btn_standby = _bar_button()
         self.btn_folder_prep = _bar_button()
         self.btn_clear_cache = _bar_button()
         self.btn_settings = _bar_button()
@@ -95,7 +99,6 @@ class OperatorWindow(QMainWindow):
         top.addWidget(self.chk_face)
         top.addWidget(self.chk_text)
         top.addWidget(self.btn_enhance)
-        top.addWidget(self.btn_standby)
         top.addWidget(self.btn_folder_prep)
         top.addWidget(self.btn_clear_cache)
         top.addWidget(self.cache_label)
@@ -103,7 +106,8 @@ class OperatorWindow(QMainWindow):
         top.addWidget(self.btn_settings)
         outer.addLayout(top)
 
-        filters = QHBoxLayout()
+        self.filter_box = QGroupBox()
+        filters = QHBoxLayout(self.filter_box)
         self.chk_star_only = QCheckBox()
         self.chk_photos = QCheckBox()
         self.chk_videos = QCheckBox()
@@ -135,7 +139,7 @@ class OperatorWindow(QMainWindow):
         filters.addWidget(self.date_from)
         filters.addWidget(self.date_to)
         filters.addStretch()
-        outer.addLayout(filters)
+        outer.addWidget(self.filter_box)
 
         body = QHBoxLayout()
         self.list = QListWidget()
@@ -157,17 +161,47 @@ class OperatorWindow(QMainWindow):
         preview_col = QVBoxLayout()
         self.meta = QLabel()
         self.meta.setObjectName("meta")
+        preview_stage = QWidget()
         preview_host = QWidget()
         self._preview_stack = QStackedLayout(preview_host)
         self.preview = PreviewCanvas()
+        self.guide_page = QWidget()
+        guide_col = QVBoxLayout(self.guide_page)
         self.guide = QLabel()
         self.guide.setObjectName("guide")
         self.guide.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.guide.setWordWrap(True)
+        self.scan_count = QLabel()
+        self.scan_count.setObjectName("meta")
+        self.scan_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.scan_progress = QProgressBar()
+        self.scan_progress.setTextVisible(True)
+        self.scan_progress.setFormat("%v / %m")
+        self.scan_progress.setMinimumHeight(18)
+        self.scan_progress.setMaximumWidth(420)
+        self.scan_progress.setVisible(False)
+        self.scan_count.setVisible(False)
+        guide_col.addStretch()
+        guide_col.addWidget(self.guide)
+        guide_col.addWidget(self.scan_count)
+        guide_col.addWidget(self.scan_progress)
+        guide_col.addStretch()
         self._preview_stack.addWidget(self.preview)
-        self._preview_stack.addWidget(self.guide)
+        self._preview_stack.addWidget(self.guide_page)
+        overlay = QGridLayout(preview_stage)
+        overlay.setContentsMargins(0, 0, 0, 0)
+        overlay.addWidget(preview_host, 0, 0)
+        self.btn_star = QToolButton()
+        self.btn_star.setObjectName("starOverlay")
+        self.btn_star.setCheckable(True)
+        self.btn_star.setFixedSize(48, 48)
+        self.btn_star.setAutoRaise(True)
+        overlay.addWidget(
+            self.btn_star, 0, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight
+        )
+        self.btn_star.raise_()
         preview_col.addWidget(self.meta)
-        preview_col.addWidget(preview_host, stretch=1)
+        preview_col.addWidget(preview_stage, stretch=1)
         self.lbl_in = QLabel()
         self.lbl_in.setObjectName("meta")
         self.timeline = QSlider(Qt.Orientation.Horizontal)
@@ -196,27 +230,38 @@ class OperatorWindow(QMainWindow):
         self.btn_next = _bar_button()
         self.btn_send = _bar_button()
         self.btn_panic = _bar_button()
-        self.btn_star = _bar_button()
         self.btn_undo = _bar_button()
         self.btn_rect = _bar_button()
         self.btn_brush = _bar_button()
+        self.btn_clear_marks = _bar_button()
+        self.lbl_brush = QLabel()
+        self.lbl_brush.setObjectName("meta")
+        self.slider_brush = QSlider(Qt.Orientation.Horizontal)
+        self.slider_brush.setRange(MIN_BRUSH_WIDTH, MAX_BRUSH_WIDTH)
+        self.slider_brush.setValue(DEFAULT_BRUSH_WIDTH)
+        self.slider_brush.setMinimumWidth(100)
+        self.slider_brush.setMaximumWidth(160)
+        self.btn_brush.setMinimumWidth(88)
+        self.btn_folder_prep.setMinimumWidth(88)
+        self.btn_clear_cache.setMinimumWidth(88)
         self.btn_play = _bar_button()
         self.btn_prep = _bar_button()
         self.btn_rect.setCheckable(True)
         self.btn_brush.setCheckable(True)
         self.btn_rect.setChecked(True)
-        self.btn_star.setCheckable(True)
         for widget in (
             self.btn_prev,
             self.btn_next,
             self.btn_send,
             self.btn_panic,
-            self.btn_star,
-            self.btn_undo,
             self.btn_rect,
             self.btn_brush,
         ):
             bar.addWidget(widget)
+        bar.addWidget(self.btn_undo)
+        bar.addWidget(self.lbl_brush)
+        bar.addWidget(self.slider_brush)
+        bar.addWidget(self.btn_clear_marks)
         bar.addStretch()
         bar.addWidget(self.btn_play)
         bar.addWidget(self.btn_prep)
@@ -225,6 +270,7 @@ class OperatorWindow(QMainWindow):
         self.setCentralWidget(root)
         self._bind()
         self.set_media_kind(None)
+        self._mode("rect")
         self.retranslate()
         self.show_guide(t("ja", "empty_guide"))
 
@@ -237,10 +283,12 @@ class OperatorWindow(QMainWindow):
         self.btn_play.clicked.connect(self.play_requested.emit)
         self.btn_star.clicked.connect(self.star_requested.emit)
         self.btn_undo.clicked.connect(self.undo_requested.emit)
-        self.btn_standby.clicked.connect(self.standby_requested.emit)
         self.btn_prep.clicked.connect(self.prepare_requested.emit)
         self.btn_folder_prep.clicked.connect(self.prepare_folder_requested.emit)
         self.btn_clear_cache.clicked.connect(self.clear_cache_requested.emit)
+        self.btn_clear_marks.clicked.connect(self.clear_marks_requested.emit)
+        self.slider_brush.valueChanged.connect(self._on_brush_width)
+        self.btn_star.toggled.connect(self._on_star_toggled)
         self.btn_enhance.clicked.connect(self.enhance_cycle_requested.emit)
         self.btn_settings.clicked.connect(self.settings_requested.emit)
         self.list.currentRowChanged.connect(self.item_selected.emit)
@@ -284,6 +332,17 @@ class OperatorWindow(QMainWindow):
         self.preview.mode = mode
         self.btn_rect.setChecked(mode == "rect")
         self.btn_brush.setChecked(mode == "stroke")
+        manual = mode == "stroke"
+        for widget in (self.btn_undo, self.lbl_brush, self.slider_brush, self.btn_clear_marks):
+            widget.setVisible(manual)
+
+    def _on_brush_width(self, value: int) -> None:
+        self.preview.brush_width = value
+        self.brush_width_changed.emit(value)
+
+    def _on_star_toggled(self, on: bool) -> None:
+        self.btn_star.setText("⭐" if on else "☆")
+        self.btn_star.setToolTip(t(self.lang, "star"))
 
     def retranslate(self) -> None:
         lang = self.lang
@@ -293,15 +352,18 @@ class OperatorWindow(QMainWindow):
         _caption(self.btn_prev, "◀", t(lang, "btn_prev"), t(lang, "prev"))
         _caption(self.btn_next, "▶", t(lang, "btn_next"), t(lang, "next"))
         _caption(self.btn_play, "⏯", t(lang, "btn_play"), t(lang, "play"))
-        _caption(self.btn_star, "☆", t(lang, "btn_star"), t(lang, "star"))
+        self.btn_star.setText("⭐" if self.btn_star.isChecked() else "☆")
+        self.btn_star.setToolTip(t(lang, "star"))
         _caption(self.btn_undo, "↩", t(lang, "btn_undo"), t(lang, "undo"))
         _caption(self.btn_rect, "▢", t(lang, "btn_rect"), t(lang, "rect"))
         _caption(self.btn_brush, "🖌", t(lang, "btn_brush"), t(lang, "brush"))
+        _caption(self.btn_clear_marks, "✕", t(lang, "btn_clear_marks"), t(lang, "clear_marks"))
+        self.lbl_brush.setText(t(lang, "brush_width"))
         _caption(self.btn_prep, "⏳", t(lang, "btn_prep"), t(lang, "prepare"))
-        _caption(self.btn_standby, "🖼", t(lang, "btn_standby"), t(lang, "standby"))
         _caption(self.btn_folder_prep, "📂", t(lang, "btn_folder_prep"), t(lang, "prepare_folder"))
-        _caption(self.btn_clear_cache, "🗑", t(lang, "btn_clear"), t(lang, "clear_cache"))
+        _caption(self.btn_clear_cache, "🧹", t(lang, "btn_clear"), t(lang, "clear_cache"))
         _caption(self.btn_settings, "⚙", t(lang, "btn_settings"), t(lang, "settings"))
+        self.filter_box.setTitle("🔍 " + t(lang, "filters_title"))
         self.chk_face.setText(t(lang, "face_blur"))
         self.chk_text.setText(t(lang, "text_blur"))
         self.set_enhance_level(self.enhance_level)
@@ -309,7 +371,7 @@ class OperatorWindow(QMainWindow):
         self.chk_star_only.setText("⭐ " + t(lang, "filter_star"))
         self.chk_photos.setText(t(lang, "filter_photo"))
         self.chk_videos.setText(t(lang, "filter_video"))
-        self.chk_faces.setText("⚠ " + t(lang, "filter_face"))
+        self.chk_faces.setText(t(lang, "filter_face"))
         self.chk_gps.setText(t(lang, "filter_gps"))
         self.chk_no_gps.setText(t(lang, "filter_gps_no"))
         self.chk_dates.setText(t(lang, "filter_dates"))
@@ -319,7 +381,7 @@ class OperatorWindow(QMainWindow):
         self.lbl_out.setText(t(lang, "range_out"))
         self.timeline.setToolTip(t(lang, "range_in"))
         self.timeline_out.setToolTip(t(lang, "range_out"))
-        if self._preview_stack.currentWidget() is self.guide and not self.list.count():
+        if self._preview_stack.currentWidget() is self.guide_page and not self.list.count():
             self.show_guide(t(lang, "empty_guide"))
 
     def _set_combo_all(self, combo: QComboBox, key: str) -> None:
@@ -376,12 +438,30 @@ class OperatorWindow(QMainWindow):
     def set_range_visible(self, visible: bool) -> None:
         self.set_media_kind("video" if visible else "image")
 
-    def show_guide(self, text: str) -> None:
+    def show_guide(self, text: str, *, done: int | None = None, total: int | None = None) -> None:
         self.guide.setText(text)
-        self._preview_stack.setCurrentWidget(self.guide)
+        scanning = done is not None and total is not None
+        self.scan_progress.setVisible(scanning)
+        self.scan_count.setVisible(scanning)
+        if scanning:
+            self.scan_progress.setMaximum(max(1, total or 1))
+            self.scan_progress.setValue(max(0, done or 0))
+            self.scan_count.setText(f"{done} / {total}")
+        self._preview_stack.setCurrentWidget(self.guide_page)
+        self.btn_star.setVisible(False)
+
+    def set_scan_progress(self, done: int, total: int) -> None:
+        if self._preview_stack.currentWidget() is not self.guide_page:
+            return
+        self.scan_progress.setVisible(True)
+        self.scan_count.setVisible(True)
+        self.scan_progress.setMaximum(max(1, total))
+        self.scan_progress.setValue(max(0, done))
+        self.scan_count.setText(f"{done} / {total}")
 
     def reveal_preview(self) -> None:
         self._preview_stack.setCurrentWidget(self.preview)
+        self.btn_star.setVisible(True)
 
     def set_items(
         self,
