@@ -20,7 +20,8 @@ def test_missing_settings_file_returns_defaults(tmp_path: Path) -> None:
     assert loaded.blur_strength == 81
     assert loaded.enhance_level == "weak"
     assert loaded.include_subfolders is True
-    assert loaded.brush_width == 88
+    assert loaded.brush_width == 128
+    assert loaded.list_sort == "date_asc"
 
 
 def test_settings_roundtrip_keeps_detection_flags(tmp_path: Path) -> None:

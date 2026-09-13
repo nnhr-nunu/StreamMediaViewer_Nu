@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-DEFAULT_BRUSH_WIDTH = 88
+DEFAULT_BRUSH_WIDTH = 128
 MIN_BRUSH_WIDTH = 28
 MAX_BRUSH_WIDTH = 160
 

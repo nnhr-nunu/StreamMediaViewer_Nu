@@ -25,8 +25,8 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 1. 「フォルダ」から写真や動画のフォルダを選びます。最近使ったフォルダも選べます。最初は下の階層のフォルダも読みます（⚙でオフにできます）。
 2. 左の大きな縮小画からファイルを選び、操作用ウィンドウで確認します。ファイル名は一覧に出ません。配信用ウィンドウにはまだ表示されません。
 3. 写真のときは再生ボタンは出ません。動画のときだけ、右側に再生と下準備が出ます。動画の画面をクリックしても再生／停止できます。開始位置・終了位置も動画のときだけ出ます。
-4. 必要に応じて「手動ぼかし」で足します。ONのとき戻す・太さ・クリアが出ます。
-5. ✨でコントラストと彩度の自動補正を切り替えます。押すたびに「オフ → 弱 → 強」と変わります。ぼかしの強さ・言語・下のフォルダを読むか・待機画像は⚙から変えられます。
+4. 必要に応じて「手動ぼかし」をオンにします。筆と四角が出ます（初期は筆）。戻す・クリアも出ます。太さは筆のときだけです。
+5. ✨でコントラストと彩度の自動補正を切り替えます。押すたびに「オフ → 弱 → 強」と変わります。ぼかしの強さ・言語・下のフォルダを読むか・待機画像は⚙から変えられます。絞り込みの「並び」で古い順／新しい順／名前順を変えられます。
 6. 「送る」または Enterキーで、確認中の写真や動画を配信用ウィンドウに表示します。
 7. OBSで「ウィンドウの取り込み」を追加し、`StreamMediaViewer(ぬ) - 配信出力` を選びます。
 8. 「隠す」、Escキー、またはテンキーの 0 で配信用ウィンドウを非表示にします。再び表示するには「送る」または Enterキーを押します。
@@ -94,8 +94,8 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 1. Use **Folder** to open today’s photos and videos. Recent folders are available too. Subfolders are included at first (turn this off in ⚙).
 2. Pick a large thumbnail on the left and review it in the operator window. Filenames stay in the tooltip. It is not shown in the output window yet.
 3. Play controls appear only for videos, on the right. Click the video preview to play or pause. They stay hidden for still photos.
-4. Add **Manual blur** where needed. Undo, thickness, and Clear appear while it is on.
-5. Click ✨ to cycle contrast and saturation enhancement: Off → Soft → Strong. Use ⚙ for blur strength, language, subfolders, and the standby image.
+4. Turn on **Manual blur** when needed. Brush and box appear (brush is the default). Undo and Clear appear too. Thickness is shown for the brush.
+5. Click ✨ to cycle contrast and saturation enhancement: Off → Soft → Strong. Use ⚙ for blur strength, language, subfolders, and the standby image. Use **Oldest first / Newest first / By name** in Filters to change the list order.
 6. Press **Send** or Enter to display the selected photo or video in the output window.
 7. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力`.
 8. Press **Hide**, Esc, or numpad 0 to hide the output window. Press Send or Enter to display it again.

@@ -28,13 +28,15 @@ from stream_media_viewer import OPERATOR_WINDOW_TITLE
 from stream_media_viewer.detect.blur import DEFAULT_BRUSH_WIDTH, MAX_BRUSH_WIDTH, MIN_BRUSH_WIDTH
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.item import MediaItem
+from stream_media_viewer.library.sort import parse_list_sort
 from stream_media_viewer.render.enhance import parse_enhance_level
 from stream_media_viewer.safety.output_gate import OutputGate, OutputReason
+from stream_media_viewer.ui.list_thumb import with_video_mark
 from stream_media_viewer.ui.preview_canvas import PreviewCanvas
 from stream_media_viewer.ui.styles import DARK_QSS
 
-_LIST_ICON = QSize(168, 168)
-_LIST_GRID = QSize(200, 214)
+_LIST_ICON = QSize(240, 240)
+_LIST_GRID = QSize(280, 318)
 
 
 def _bar_button() -> QToolButton:
@@ -108,12 +110,12 @@ class OperatorWindow(QMainWindow):
 
         self.filter_box = QGroupBox()
         filters = QHBoxLayout(self.filter_box)
+        self.combo_sort = QComboBox()
+        self.combo_sort.setMinimumWidth(128)
         self.chk_star_only = QCheckBox()
         self.chk_photos = QCheckBox()
         self.chk_videos = QCheckBox()
         self.chk_faces = QCheckBox()
-        self.chk_gps = QCheckBox()
-        self.chk_no_gps = QCheckBox()
         self.chk_dates = QCheckBox()
         self.combo_place = QComboBox()
         self.combo_place.setMinimumWidth(140)
@@ -123,19 +125,24 @@ class OperatorWindow(QMainWindow):
         self.date_to = QDateEdit()
         self.date_from.setCalendarPopup(True)
         self.date_to.setCalendarPopup(True)
+        self.date_from.setDisplayFormat("yyyy/MM/dd")
+        self.date_to.setDisplayFormat("yyyy/MM/dd")
+        self.date_from.setMinimumWidth(158)
+        self.date_to.setMinimumWidth(158)
         for box in (
             self.chk_star_only,
             self.chk_photos,
             self.chk_videos,
             self.chk_faces,
-            self.chk_gps,
-            self.chk_no_gps,
             self.chk_dates,
         ):
             box.setChecked(False)
+        filters.addWidget(self.combo_sort)
+        for box in (self.chk_star_only, self.chk_photos, self.chk_videos, self.chk_faces):
             filters.addWidget(box)
         filters.addWidget(self.combo_folder)
         filters.addWidget(self.combo_place)
+        filters.addWidget(self.chk_dates)
         filters.addWidget(self.date_from)
         filters.addWidget(self.date_to)
         filters.addStretch()
@@ -144,16 +151,16 @@ class OperatorWindow(QMainWindow):
         body = QHBoxLayout()
         self.list = QListWidget()
         self.list.setViewMode(QListView.ViewMode.IconMode)
-        self.list.setFlow(QListView.Flow.TopToBottom)
-        self.list.setWrapping(False)
+        self.list.setFlow(QListView.Flow.LeftToRight)
+        self.list.setWrapping(True)
         self.list.setMovement(QListView.Movement.Static)
         self.list.setResizeMode(QListView.ResizeMode.Adjust)
         self.list.setUniformItemSizes(True)
         self.list.setIconSize(_LIST_ICON)
         self.list.setGridSize(_LIST_GRID)
-        self.list.setSpacing(8)
-        self.list.setMinimumWidth(220)
-        self.list.setMaximumWidth(280)
+        self.list.setSpacing(10)
+        self.list.setMinimumWidth(310)
+        self.list.setMaximumWidth(340)
         self.list.setWordWrap(True)
         self.list.setTextElideMode(Qt.TextElideMode.ElideRight)
         body.addWidget(self.list)
@@ -178,13 +185,13 @@ class OperatorWindow(QMainWindow):
         self.scan_progress.setTextVisible(True)
         self.scan_progress.setFormat("%v / %m")
         self.scan_progress.setMinimumHeight(18)
-        self.scan_progress.setMaximumWidth(420)
+        self.scan_progress.setFixedWidth(360)
         self.scan_progress.setVisible(False)
         self.scan_count.setVisible(False)
         guide_col.addStretch()
-        guide_col.addWidget(self.guide)
-        guide_col.addWidget(self.scan_count)
-        guide_col.addWidget(self.scan_progress)
+        guide_col.addWidget(self.guide, alignment=Qt.AlignmentFlag.AlignHCenter)
+        guide_col.addWidget(self.scan_count, alignment=Qt.AlignmentFlag.AlignHCenter)
+        guide_col.addWidget(self.scan_progress, alignment=Qt.AlignmentFlag.AlignHCenter)
         guide_col.addStretch()
         self._preview_stack.addWidget(self.preview)
         self._preview_stack.addWidget(self.guide_page)
@@ -230,6 +237,7 @@ class OperatorWindow(QMainWindow):
         self.btn_next = _bar_button()
         self.btn_send = _bar_button()
         self.btn_panic = _bar_button()
+        self.btn_manual = _bar_button()
         self.btn_undo = _bar_button()
         self.btn_rect = _bar_button()
         self.btn_brush = _bar_button()
@@ -241,23 +249,24 @@ class OperatorWindow(QMainWindow):
         self.slider_brush.setValue(DEFAULT_BRUSH_WIDTH)
         self.slider_brush.setMinimumWidth(100)
         self.slider_brush.setMaximumWidth(160)
-        self.btn_brush.setMinimumWidth(88)
+        self.btn_manual.setMinimumWidth(88)
         self.btn_folder_prep.setMinimumWidth(88)
         self.btn_clear_cache.setMinimumWidth(88)
         self.btn_play = _bar_button()
         self.btn_prep = _bar_button()
+        self.btn_manual.setCheckable(True)
         self.btn_rect.setCheckable(True)
         self.btn_brush.setCheckable(True)
-        self.btn_rect.setChecked(True)
         for widget in (
             self.btn_prev,
             self.btn_next,
             self.btn_send,
             self.btn_panic,
-            self.btn_rect,
-            self.btn_brush,
+            self.btn_manual,
         ):
             bar.addWidget(widget)
+        bar.addWidget(self.btn_brush)
+        bar.addWidget(self.btn_rect)
         bar.addWidget(self.btn_undo)
         bar.addWidget(self.lbl_brush)
         bar.addWidget(self.slider_brush)
@@ -270,7 +279,7 @@ class OperatorWindow(QMainWindow):
         self.setCentralWidget(root)
         self._bind()
         self.set_media_kind(None)
-        self._mode("rect")
+        self._set_manual(False)
         self.retranslate()
         self.show_guide(t("ja", "empty_guide"))
 
@@ -294,8 +303,9 @@ class OperatorWindow(QMainWindow):
         self.list.currentRowChanged.connect(self.item_selected.emit)
         self.preview.mark_added.connect(self.mark_added.emit)
         self.preview.clicked.connect(self.play_requested.emit)
-        self.btn_rect.clicked.connect(lambda: self._mode("rect"))
-        self.btn_brush.clicked.connect(lambda: self._mode("stroke"))
+        self.btn_manual.clicked.connect(lambda: self._set_manual(self.btn_manual.isChecked()))
+        self.btn_rect.clicked.connect(lambda: self._tool("rect"))
+        self.btn_brush.clicked.connect(lambda: self._tool("stroke"))
         self.chk_face.toggled.connect(lambda _=False: self.settings_changed.emit())
         self.chk_text.toggled.connect(lambda _=False: self.settings_changed.emit())
         self.chk_loop.toggled.connect(lambda _=False: self.loop_changed.emit())
@@ -304,13 +314,12 @@ class OperatorWindow(QMainWindow):
             self.chk_photos,
             self.chk_videos,
             self.chk_faces,
-            self.chk_gps,
-            self.chk_no_gps,
             self.chk_dates,
         ):
             box.toggled.connect(lambda _=False: self.filters_changed.emit())
         self.combo_place.currentIndexChanged.connect(lambda _=0: self.filters_changed.emit())
         self.combo_folder.currentIndexChanged.connect(lambda _=0: self.filters_changed.emit())
+        self.combo_sort.currentIndexChanged.connect(lambda _=0: self.filters_changed.emit())
         self.date_from.dateChanged.connect(lambda _=None: self.filters_changed.emit())
         self.date_to.dateChanged.connect(lambda _=None: self.filters_changed.emit())
         QShortcut(QKeySequence("A"), self, self.prev_requested.emit)
@@ -328,13 +337,36 @@ class OperatorWindow(QMainWindow):
         QShortcut(QKeySequence("F"), self, self.star_requested.emit)
         QShortcut(QKeySequence("Ctrl+Z"), self, self.undo_requested.emit)
 
-    def _mode(self, mode: str) -> None:
+    def _set_manual(self, on: bool) -> None:
+        self.btn_manual.setChecked(on)
+        if on:
+            if self.preview.mode not in {"rect", "stroke"}:
+                self._tool("stroke")
+                return
+        else:
+            self.preview.mode = "off"
+        self._sync_manual_extras()
+
+    def _tool(self, mode: str) -> None:
+        self.btn_manual.setChecked(True)
         self.preview.mode = mode
-        self.btn_rect.setChecked(mode == "rect")
-        self.btn_brush.setChecked(mode == "stroke")
-        manual = mode == "stroke"
-        for widget in (self.btn_undo, self.lbl_brush, self.slider_brush, self.btn_clear_marks):
-            widget.setVisible(manual)
+        self._sync_manual_extras()
+
+    def _sync_manual_extras(self) -> None:
+        on = self.btn_manual.isChecked()
+        stroke = on and self.preview.mode == "stroke"
+        self.btn_brush.setChecked(on and self.preview.mode == "stroke")
+        self.btn_rect.setChecked(on and self.preview.mode == "rect")
+        for widget in (self.btn_brush, self.btn_rect, self.btn_undo, self.btn_clear_marks):
+            widget.setVisible(on)
+        self.lbl_brush.setVisible(stroke)
+        self.slider_brush.setVisible(stroke)
+
+    def _mode(self, mode: str) -> None:
+        if mode in {"rect", "stroke"}:
+            self._tool(mode)
+            return
+        self._set_manual(False)
 
     def _on_brush_width(self, value: int) -> None:
         self.preview.brush_width = value
@@ -355,6 +387,7 @@ class OperatorWindow(QMainWindow):
         self.btn_star.setText("⭐" if self.btn_star.isChecked() else "☆")
         self.btn_star.setToolTip(t(lang, "star"))
         _caption(self.btn_undo, "↩", t(lang, "btn_undo"), t(lang, "undo"))
+        _caption(self.btn_manual, "🖌", t(lang, "btn_manual"), t(lang, "manual"))
         _caption(self.btn_rect, "▢", t(lang, "btn_rect"), t(lang, "rect"))
         _caption(self.btn_brush, "🖌", t(lang, "btn_brush"), t(lang, "brush"))
         _caption(self.btn_clear_marks, "✕", t(lang, "btn_clear_marks"), t(lang, "clear_marks"))
@@ -372,9 +405,8 @@ class OperatorWindow(QMainWindow):
         self.chk_photos.setText(t(lang, "filter_photo"))
         self.chk_videos.setText(t(lang, "filter_video"))
         self.chk_faces.setText(t(lang, "filter_face"))
-        self.chk_gps.setText(t(lang, "filter_gps"))
-        self.chk_no_gps.setText(t(lang, "filter_gps_no"))
         self.chk_dates.setText(t(lang, "filter_dates"))
+        self._fill_sort()
         self._set_combo_all(self.combo_place, "filter_place_all")
         self._set_combo_all(self.combo_folder, "filter_folder_all")
         self.lbl_in.setText(t(lang, "range_in"))
@@ -411,6 +443,29 @@ class OperatorWindow(QMainWindow):
 
     def selected_folder(self) -> str:
         return str(self.combo_folder.currentData() or "")
+
+    def selected_sort(self) -> str:
+        return parse_list_sort(self.combo_sort.currentData())
+
+    def set_sort(self, mode: str) -> None:
+        wanted = parse_list_sort(mode)
+        index = self.combo_sort.findData(wanted)
+        if index < 0:
+            return
+        self.combo_sort.blockSignals(True)
+        self.combo_sort.setCurrentIndex(index)
+        self.combo_sort.blockSignals(False)
+
+    def _fill_sort(self) -> None:
+        current = self.selected_sort() if self.combo_sort.count() else "date_asc"
+        self.combo_sort.blockSignals(True)
+        self.combo_sort.clear()
+        self.combo_sort.addItem(t(self.lang, "sort_date_asc"), "date_asc")
+        self.combo_sort.addItem(t(self.lang, "sort_date_desc"), "date_desc")
+        self.combo_sort.addItem(t(self.lang, "sort_name"), "name")
+        index = self.combo_sort.findData(current)
+        self.combo_sort.setCurrentIndex(index if index >= 0 else 0)
+        self.combo_sort.blockSignals(False)
 
     def set_enhance_level(self, level: str) -> None:
         self.enhance_level = parse_enhance_level(level)
@@ -475,6 +530,8 @@ class OperatorWindow(QMainWindow):
         for index, label in enumerate(labels):
             row = QListWidgetItem(label)
             pixmap = icons[index] if icons and index < len(icons) else None
+            if index < len(items) and items[index].kind == "video":
+                pixmap = with_video_mark(pixmap, _LIST_ICON.width())
             if pixmap is not None and not pixmap.isNull():
                 row.setIcon(QIcon(pixmap))
             if tips and index < len(tips):
@@ -484,13 +541,16 @@ class OperatorWindow(QMainWindow):
             self.list.addItem(row)
         self.list.blockSignals(False)
 
-    def set_row_icon(self, row: int, pixmap: QPixmap) -> None:
+    def set_row_icon(self, row: int, pixmap: QPixmap, *, video: bool = False) -> None:
         item = self.list.item(row)
-        if item is None or pixmap.isNull():
+        if item is None:
             return
-        item.setIcon(QIcon(pixmap))
+        shown = with_video_mark(pixmap, _LIST_ICON.width()) if video else pixmap
+        if shown.isNull():
+            return
+        item.setIcon(QIcon(shown))
 
     def refresh_status(self) -> None:
         live = self._gate.reason is OutputReason.LIVE
-        self.btn_send.setEnabled(self._gate.ready and self._gate.reason is not OutputReason.PANIC)
+        self.btn_send.setEnabled(self._gate.ready)
         self.btn_send.setStyleSheet("background:#6b3fa0;" if live else "")

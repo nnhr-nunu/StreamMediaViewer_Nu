@@ -16,9 +16,9 @@ class PreviewCanvas(QLabel):
         self.setObjectName("preview")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(480, 270)
-        self.mode = "rect"
+        self.mode = "off"
         self.click_toggles_play = False
-        self.brush_width = 88
+        self.brush_width = 128
         self._origin: QPoint | None = None
         self._current: QRect | None = None
         self._stroke: list[tuple[float, float]] = []
@@ -69,7 +69,7 @@ class PreviewCanvas(QLabel):
         if self.mode == "rect":
             self._current = QRect(self._origin, pos).normalized()
             self.update()
-        else:
+        elif self.mode == "stroke":
             pt = self._norm(pos)
             if pt:
                 self._stroke.append(pt)

@@ -60,6 +60,9 @@ QComboBox, QDateEdit, QDialog {
   padding: 4px 8px;
   min-height: 32px;
 }
+QDateEdit {
+  min-width: 150px;
+}
 QComboBox QAbstractItemView {
   background: #1b1b1b;
   color: #e8e8e8;
