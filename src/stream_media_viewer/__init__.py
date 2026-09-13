@@ -1,0 +1,5 @@
+"""StreamMediaViewer(ぬ) — 配信者向け安全メディアビューワー。"""
+
+__version__ = "0.1.0"
+OUTPUT_WINDOW_TITLE = "StreamMediaViewer(ぬ) - 配信出力"
+OPERATOR_WINDOW_TITLE = "StreamMediaViewer(ぬ)"

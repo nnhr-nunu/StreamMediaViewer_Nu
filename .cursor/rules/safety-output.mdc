@@ -1,0 +1,25 @@
+---
+description: 配信出力に未承認・未処理メディアを出さない
+alwaysApply: true
+---
+
+# 配信出力の安全
+
+配信側に画素を出す判定の正本は `OutputGate` だけ。UI から OpenCV / QLabel へ直書きしない。
+
+```
+# NG — ゲートを通さず出力キャンバスを更新
+self.output.canvas.setPixmap(preview_pixmap)
+
+# OK — 送信成功時だけ出力を更新
+if self.gate.send_to_output():
+    self.output.show_frame(safe_frame)
+```
+
+守ること:
+
+- 新しいメディア選択時は、ロードとぼかし完了まで出力をマスク
+- 手元プレビューは見てよい。配信へは「送信」まで出さない
+- パニック（Space / Esc）は最優先で黒マスク。解除後も再送信までマスク
+- 配信窓にファイル名・パス・デバッグ文字列を出さない
+- 出力画像からは位置情報など Exif を載せない（内部で破棄）

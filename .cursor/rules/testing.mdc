@@ -1,0 +1,12 @@
+---
+description: pytest と安全ゲートの契約
+globs: tests/**
+alwaysApply: false
+---
+
+# テスト
+
+- 自明なモックだけのテストは足さない
+- `OutputGate` の契約（起動マスク、送信必須、ロードで再マスク、パニック後は再送信）を壊す変更には `tests/test_output_gate.py` を更新する
+- Qt ウィンドウの E2E は必要になってから。まずはゲートと設定の単体
+- commit 前: `pytest`

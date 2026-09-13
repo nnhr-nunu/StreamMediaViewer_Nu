@@ -1,0 +1,54 @@
+# StreamMediaViewer(ぬ)
+
+配信者が手元で写真・動画を確認し、顔や個人情報が乗らない状態だけを OBS へ出すための **Windows デスクトップアプリ**です。
+
+この README はセットアップと起動の入口です。製品の概要は [docs/product/overview.md](./docs/product/overview.md)、未完了タスクは [task.md](./task.md)、エージェント向け導線は [AGENTS.md](./AGENTS.md) を見てください。
+
+## 必要環境
+
+- Windows 10/11
+- Python **3.10 以上、3.13 未満**（MediaPipe の対応範囲。このマシンは 3.10.6 を想定）
+- Git
+
+## 初回セットアップ
+
+```powershell
+cd D:\Dev\StreamMediaViewer_Nu
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+pip install -e ".[dev]"
+```
+
+Cursor / VS Code は `.venv` をインタープリタにしてください。
+
+## 起動
+
+```powershell
+python -m stream_media_viewer
+```
+
+起動すると次の 2 窓が開きます。
+
+| 窓 | タイトル | 用途 |
+| -- | -------- | ---- |
+| 手元操作 | `StreamMediaViewer(ぬ)` | プレビュー・送信・緊急マスク |
+| 配信出力 | `StreamMediaViewer(ぬ) - 配信出力` | OBS のウィンドウキャプチャ対象。既定は黒画面 |
+
+OBS 側は「ウィンドウキャプチャ」で配信出力ウィンドウを選ぶだけで取り込めます（プラグイン不要）。
+
+## テスト
+
+```powershell
+pytest
+```
+
+`.py` を変えたあとは commit 前に `pytest` を実行します。
+
+## 配布（Phase 4）
+
+PyInstaller で単一 `.exe` 化する想定です。いまは開発起動のみです。
+
+## 設定ファイル
+
+開発時は `%LOCALAPPDATA%\StreamMediaViewer_Nu\settings.json` に保存します。exe 化後は実行ファイルと同じフォルダの `settings.json` を使います。
