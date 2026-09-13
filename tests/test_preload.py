@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from stream_media_viewer.playback.preload import cache_key
+from stream_media_viewer.playback.preload import cache_key, estimate_item_bytes, format_bytes
 
 
 def test_cache_key_changes_when_marks_or_range_change(tmp_path: Path) -> None:
@@ -20,3 +20,11 @@ def test_cache_key_changes_when_marks_or_range_change(tmp_path: Path) -> None:
     assert first != shifted
     assert first != marked
     assert first == cache_key(path, **base)
+
+
+def test_estimate_photos_are_small_videos_scale_with_time() -> None:
+    photo = estimate_item_bytes("image", 0)
+    minute = estimate_item_bytes("video", 60_000, 30.0)
+    assert photo < 200_000
+    assert minute > 50_000_000
+    assert "MB" in format_bytes(minute) or "GB" in format_bytes(minute)

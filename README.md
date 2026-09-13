@@ -1,79 +1,84 @@
 # StreamMediaViewer(ぬ)
 
-YouTube などで写真・動画を紹介するとき、**顔をぼかしてから**配信ソフト（OBS）に出すためのアプリです。確認用の画面と、配信に出す画面が分かれています。送るまで配信側には出ません。
+配信で旅行の写真や動画を見せるときに、**顔がそのまま映らないようにしてから**出すアプリです。
 
-Python を入れなくても使えます。
+自分が見る画面と、視聴者に出す画面は別です。あなたが「送る」を押すまで、視聴者側には出ません。パソコンに Python を入れる必要はありません。
 
-## ダウンロード
+## 入手
 
-**[最新版はここ](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/latest)**
+**[最新のファイルはここ](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/latest)**
 
-| 使うPC | ファイル | 起動 |
-| ------ | -------- | ---- |
+| パソコン | 取るファイル | 起動 |
+| -------- | ------------ | ---- |
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | 展開して `StreamMediaViewer.exe` をダブルクリック |
 | Mac | `StreamMediaViewer-macOS.zip` | 展開して `StreamMediaViewer`（または `.app`）を開く |
 
-同じリンクが、更新のたびに新しい zip に差し替わります。Mac で「開発元が未確認」と出たら、右クリック → 開く、で起動できます。
+更新のたびに、同じページのファイルが新しいものに入れ替わります。Mac で「開発元が未確認」と出たら、ファイルを右クリックして「開く」を選んでください。
 
-## 推奨環境
+## どんなパソコンが向いているか
 
-- **Windows 10 以降** または **macOS 12 以降**
-- 画面が 2 枚あると楽（操作用と、OBS 取り込み用）
-- CPU に余裕があること（顔の処理と OBS の配信を同じPCで行うため）
-- OBS Studio（ウィンドウキャプチャができれば他の配信ソフトでも可）
-- 写真・動画は SSD 上のフォルダが速い
-- 対応ファイル: JPEG / PNG / WebP / BMP / HEIC、動画は MP4 / MOV / MKV / WebM / AVI
-
-ゲーム配信でCPUが常にフルのPCでは、動画の顔処理が追いつきません。そのときは下の「動画の準備」を使ってください。
+- Windows 10 以降、または macOS 12 以降
+- 画面が2枚あると操作しやすい（自分用と、配信ソフト用）
+- 配信ソフトは **OBS Studio** が無難です（ほかでも、「特定の窓だけ取り込む」ができれば使えます）
+- 写真・動画は SSD に置いた方が速いです
+- 開けるもの: 写真は JPEG / PNG / WebP / BMP / iPhone の HEIC。動画は MP4 / MOV / MKV / WebM / AVI
+- ゲーム配信でパソコンが常に重いときは、下の「配信前にまとめて処理」を使ってください
 
 ## 使い方（3分）
 
-1. アプリを起動する（送るまでは配信用の窓は出ません）
-2. 📁 で **今日使うフォルダを1つ** 開く
-3. 左の一覧で写真を選ぶ。ここでの表示は確認用で、配信には乗りません
-4. 顔のぼかしを目で見る。足りなければ ▢（四角）や 🖌（筆）で足す
-5. ⬆ または **Enter** で送る → 1920×1080 の配信用の窓が出る
-6. OBS の「ウィンドウキャプチャ」で `StreamMediaViewer(ぬ) - 配信出力` を選ぶ。このソースの下にゲームやカメラを置いてください
-7. 危ないと思ったら **Esc** またはテンキー **0**（窓が消えます。もう一度送るまで出ません）
+1. アプリを起動する。最初は視聴者向けの窓は出ていません
+2. 📁 で、**今日使うフォルダを1つ**開く
+3. 左の一覧で写真を選ぶ。これは自分の確認用です。この時点では配信に乗りません
+4. 顔がぼけているか目で見る。足りなければ ▢（四角）や 🖌（筆）で足す
+5. ⬆ または Enter で送る。ここで初めて、横長フルHD（1920×1080）の窓が出ます
+6. OBS で「ウィンドウの取り込み」を追加し、名前が `StreamMediaViewer(ぬ) - 配信出力` のものを選ぶ。この取り込みの**下**に、ゲームやカメラを置いてください（写真を出していないときは、下の画面が見えます）
+7. 危ないと思ったら **Esc**、またはテンキーの **0**。視聴者向けの窓が消えます。もう一度送るまで出ません
 
-あ/A で日本語と英語を切り替えます。ボタンはアイコンが本体です。カーソルを乗せると短い説明が出ます。
+画面右上の あ/A で、表示を日本語と英語で切り替えます。ボタンは絵が本体です。マウスを乗せると短い説明が出ます。
 
-## キー
+## よく使うキー
 
-| 操作 | テンキー | キーボード | マウス |
-| ---- | -------- | ---------- | ------ |
+| やりたいこと | テンキー | キーボード | 画面のボタン |
+| ------------ | -------- | ---------- | ------------ |
 | 前のファイル | 4 | A | ◀ |
 | 次のファイル | 6 | D | ▶▶ |
-| 送る | Enter | Enter | ⬆ |
-| 緊急で隠す | 0 | Esc | ⬛ |
-| 再生／停止 | 5 | Space | ▶ |
-| 星 | | F | ☆ |
-| やり直し | | Ctrl+Z（Mac は Command+Z になる場合あり） | ↩ |
-| 動画を先に準備 | | | ⏳ |
+| 視聴者に出す | Enter | Enter | ⬆ |
+| 今すぐ消す | 0 | Esc | ⬛ |
+| 動画の再生／停止 | 5 | Space | ▶ |
+| よく使う印（星） | | F | ☆ |
+| さっきのぼかしを取り消す | | Ctrl+Z（Mac では Command+Z のことがあります） | ↩ |
+| 今の動画だけ先に処理 | | | ⏳ |
+| フォルダ内をまとめて処理 | | | 📂⏳ |
+| 処理用のデータを消して空き容量を戻す | | | 🗑 |
 
-## 動画
+## 動画と、配信前のまとめ処理
 
-- 確認中の再生は配信に乗りません。音も確認中は出ません
-- 送ると、決めた区間の先頭から再生します。上と下のスライダーが区間の始まりと終わりです
-- 「繰返」はその動画だけ繰り返します
-- **⏳** で、選んでいる区間をあらかじめ処理します。選んだ時点でも裏で準備を始めます。準備が終わってから送ると、配信中に映像が遅れにくくなります。元のファイルは書き換えません（PC内の作業用フォルダに保存）
+- 自分で再生している最中は、視聴者には見えません。音も、自分で確認しているだけでは出ません
+- 送ると、決めた区間の最初から再生します。棒が2本あります。上が始まり、下が終わりです
+- 「繰返」はその1本の動画だけ、同じ区間を繰り返します
+- **⏳** は、今選んでいる動画だけ先に処理します。選んだときも、裏で同じ処理を始めます
+- **📂⏳** は、今開いているフォルダの写真と動画を、配信前にまとめて処理します。押すと、おおよその空き容量の目安が出ます。写真はあまり増えません。容量のほとんどは動画です（目安: 1分あたり数百MB になることがあります）
+- 処理結果はパソコン内の作業用フォルダに残ります。元の写真・動画は増えませんし、上書きもしません
+- 配信が終わったら **🗑** で作業用データを消せます。画面上に「作業用 ○○ MB」と出ます
 
-## 安全について
+## 顔や個人情報
 
-- 顔の自動ぼかしは最初オンです。オフにすると、オフにしたあと最初の送信だけ確認が出ます
-- 車の番号・名札の自動は最初オフです。オンでも外れることがあるので、目視と手動を優先してください
-- 配信に出す絵から、撮影場所の埋め込み情報は外します。操作画面では日時や「場所あり」は使えます
-- 元の写真・動画はそのままです
+- 顔をぼかす機能は、最初からオンです。オフにしたあと、最初に送るときだけ「このまま出しますか？」と聞きます
+- 車の番号や名札を探す機能は、最初はオフです。オンにしても見落とすことがあるので、自分の目と、四角・筆を優先してください
+- 視聴者に出す絵からは、撮影場所の情報を外します。自分の画面では、日付や「場所あり」は使えます
+- 元のファイルはそのまま残ります
 
-## OBS で古い絵が残るとき
+## 視聴者側に前の絵が残るとき
 
-1. キャプチャ方法を **Windows 10 (1903 以降)** にする（Mac はデフォルトのまま試す）
-2. 「ウィンドウが見つからないときは何も出さない／ソースを隠す」があればオン
-3. それでも残るときは、ソースを一度オフにしてからオン
+OBS が、窓が消えたあとも前の絵を覚えていることがあります。
 
-## 開発者
+1. 取り込み方を「Windows 10 (1903 以降)」にする（Mac は初期設定のままで試す）
+2. 「窓が見つからないときは何も出さない」があればオンにする
+3. それでも残るときは、その取り込みを一度オフにして、もう一度オンにする
 
-Python 3.10〜3.12。
+## 開発者向け
+
+Python 3.10〜3.12。[docs/product/spec.md](./docs/product/spec.md) が動きの正本です。
 
 ```powershell
 git clone https://github.com/nnhr-nunu/StreamMediaViewer_Nu.git
@@ -89,6 +94,84 @@ python -m stream_media_viewer
 pytest
 ```
 
-Windows の exe 作成: `.\scripts\build.ps1`
+Windows で配布用ファイルを作る: `.\scripts\build.ps1`
 
-動きの正本: [docs/product/spec.md](./docs/product/spec.md)
+---
+
+# StreamMediaViewer (Nu) — English
+
+A Windows/Mac app for showing travel photos and videos on stream **after faces are blurred**. You get a private preview. Viewers only see a clip after you press Send. No Python install needed.
+
+## Download
+
+**[Latest release](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/latest)**
+
+| PC | File | How to start |
+| -- | ---- | ------------ |
+| Windows 10 / 11 | `StreamMediaViewer-windows.zip` | Unzip and double-click `StreamMediaViewer.exe` |
+| Mac | `StreamMediaViewer-macOS.zip` | Unzip and open `StreamMediaViewer` (or the `.app`) |
+
+The same page is updated when we ship a new build. On Mac, if Gatekeeper blocks it, right-click the app → Open.
+
+## What you need
+
+- Windows 10+ or macOS 12+
+- Two monitors help (one for you, one for the stream capture)
+- **OBS Studio** is the usual capture app (anything that can capture a single window works)
+- Keep media on an SSD if you can
+- Photos: JPEG / PNG / WebP / BMP / iPhone HEIC. Video: MP4 / MOV / MKV / WebM / AVI
+- If the PC is already maxed out by a game, use “prepare this folder” before going live
+
+## Start in 3 minutes
+
+1. Launch the app. The viewer window stays hidden at first
+2. Click 📁 and pick **one folder for today’s stream**
+3. Click a file on the left. That is **your** preview only
+4. Check the blur. Add more with the box or brush tools if needed
+5. Press ⬆ or Enter to send. A 1920×1080 window appears
+6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力`. Put game/camera **under** that source so they show when nothing is sent
+7. Emergency: **Esc** or numpad **0**. The viewer window hides until you send again
+
+Use あ/A to switch Japanese / English. Icons are the main labels; hover for a short tip.
+
+## Keys
+
+| Action | Numpad | Keys | Button |
+| ------ | ------ | ---- | ------ |
+| Previous | 4 | A | ◀ |
+| Next | 6 | D | ▶▶ |
+| Send to viewers | Enter | Enter | ⬆ |
+| Hide now | 0 | Esc | ⬛ |
+| Play / pause | 5 | Space | ▶ |
+| Star | | F | ☆ |
+| Undo blur | | Ctrl+Z (Command+Z on some Macs) | ↩ |
+| Prepare this video | | | ⏳ |
+| Prepare the whole folder | | | 📂⏳ |
+| Delete working files (free disk) | | | 🗑 |
+
+## Video and preparing ahead of time
+
+- Preview playback is not sent. Preview is silent
+- After Send, the chosen in/out range plays from the start (two sliders)
+- Loop applies to that file only
+- **⏳** prepares the current video (also starts in the background when you select it)
+- **📂⏳** prepares every photo and video in the open folder. You will see a rough disk estimate first. Photos are small; video is most of the size (often hundreds of MB per minute)
+- Working files are stored on your PC. Originals are never overwritten
+- After the stream, **🗑** deletes working files. The top of the window shows how much space they use
+
+## Privacy
+
+- Face blur is on by default. If you turn it off, the first Send asks you to confirm
+- Plate / name-tag detection is off by default and can miss. Trust your eyes and the box/brush tools
+- Location data is stripped from what viewers see. Your preview can still show date and “has place”
+- Original files stay as they are
+
+## If OBS keeps showing the last picture
+
+1. Set capture method to Windows 10 (1903+) when available
+2. Enable “show nothing when the window is missing” if you have that option
+3. Toggle the source off and on
+
+## For developers
+
+Python 3.10–3.12. Behaviour spec: [docs/product/spec.md](./docs/product/spec.md). Setup commands are in the Japanese section above.
