@@ -4,6 +4,8 @@ from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QMouseEvent, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QLabel
 
+from stream_media_viewer.detect.blur import DEFAULT_BRUSH_WIDTH
+
 _CLICK_PX = 8
 
 
@@ -19,7 +21,7 @@ class PreviewCanvas(QLabel):
         self.setContentsMargins(0, 0, 0, 0)
         self.mode = "off"
         self.click_toggles_play = False
-        self.brush_width = 128
+        self.brush_width = DEFAULT_BRUSH_WIDTH
         self._origin: QPoint | None = None
         self._current: QRect | None = None
         self._stroke: list[tuple[float, float]] = []
@@ -133,7 +135,15 @@ class PreviewCanvas(QLabel):
             painter.drawRect(self._current)
         if len(self._stroke) >= 2 and box.width() > 0:
             pts = []
-            painter.setPen(QPen(Qt.GlobalColor.magenta, max(8, self.brush_width // 8)))
+            painter.setPen(
+                QPen(
+                    Qt.GlobalColor.magenta,
+                    max(1, self.brush_width),
+                    Qt.PenStyle.SolidLine,
+                    Qt.PenCapStyle.RoundCap,
+                    Qt.PenJoinStyle.RoundJoin,
+                )
+            )
             for x, y in self._stroke:
                 pts.append(QPoint(int(box.x() + x * box.width()), int(box.y() + y * box.height())))
             for a, b in zip(pts, pts[1:], strict=False):

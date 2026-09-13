@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -50,47 +49,30 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setStyleSheet(DARK_QSS)
         self._lang = draft.language if draft.language in {"ja", "en"} else "ja"
+        self._face_blur = draft.face_blur
+        self._text_blur = draft.text_blur
+        self._enhance_level = parse_enhance_level(draft.enhance_level)
         self.setWindowTitle(t(self._lang, "settings"))
 
-        self.chk_face = QCheckBox(t(self._lang, "face_blur"))
-        self.chk_face.setChecked(draft.face_blur)
-        self.chk_text = QCheckBox(t(self._lang, "text_blur"))
-        self.chk_text.setChecked(draft.text_blur)
         self.chk_audio = QCheckBox(t(self._lang, "audio"))
         self.chk_audio.setChecked(draft.video_audio)
         self.chk_audio.setToolTip(t(self._lang, "audio_hint"))
         self.chk_subfolders = QCheckBox(t(self._lang, "include_subfolders"))
         self.chk_subfolders.setChecked(draft.include_subfolders)
 
-        self.cmb_enhance = QComboBox()
-        self.cmb_enhance.addItem(t(self._lang, "enhance_off"), "off")
-        self.cmb_enhance.addItem(t(self._lang, "enhance_weak"), "weak")
-        self.cmb_enhance.addItem(t(self._lang, "enhance_strong"), "strong")
-        level = parse_enhance_level(draft.enhance_level)
-        index = max(0, self.cmb_enhance.findData(level))
-        self.cmb_enhance.setCurrentIndex(index)
-
-        self.cmb_lang = QComboBox()
-        self.cmb_lang.addItem("日本語", "ja")
-        self.cmb_lang.addItem("English", "en")
-        self.cmb_lang.setCurrentIndex(0 if self._lang == "ja" else 1)
-
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(MIN_BLUR_STRENGTH, MAX_BLUR_STRENGTH)
         self.slider.setValue(clamp_blur_strength(draft.blur_strength))
         self.lbl_strength = QLabel()
+        self.lbl_strength.setObjectName("meta")
         self._sync_strength_label()
         self.slider.valueChanged.connect(self._sync_strength_label)
 
         form = QFormLayout()
-        form.addRow(self.chk_face)
-        form.addRow(self.chk_text)
         form.addRow(self.chk_audio)
         form.addRow(self.chk_subfolders)
-        form.addRow(t(self._lang, "enhance_hint_short"), self.cmb_enhance)
         form.addRow(t(self._lang, "blur_strength"), self.slider)
         form.addRow("", self.lbl_strength)
-        form.addRow(t(self._lang, "language_choice"), self.cmb_lang)
 
         self.chk_standby = QCheckBox(t(self._lang, "standby"))
         self.chk_standby.setChecked(draft.use_standby)
@@ -118,7 +100,7 @@ class SettingsDialog(QDialog):
         self.version_label.setObjectName("meta")
         root.addWidget(self.version_label)
         root.addWidget(buttons)
-        self.resize(460, 460)
+        self.resize(460, 320)
 
     def _pick_standby(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, t(self._lang, "standby"))
@@ -133,15 +115,13 @@ class SettingsDialog(QDialog):
         self.lbl_strength.setText(str(self.slider.value()))
 
     def draft(self) -> SettingsDraft:
-        lang = str(self.cmb_lang.currentData() or "ja")
-        enhance = str(self.cmb_enhance.currentData() or "weak")
         return SettingsDraft(
             blur_strength=clamp_blur_strength(self.slider.value()),
-            face_blur=self.chk_face.isChecked(),
-            text_blur=self.chk_text.isChecked(),
+            face_blur=self._face_blur,
+            text_blur=self._text_blur,
             video_audio=self.chk_audio.isChecked(),
-            enhance_level=parse_enhance_level(enhance),
-            language=lang if lang in {"ja", "en"} else "ja",
+            enhance_level=self._enhance_level,
+            language=self._lang,
             include_subfolders=self.chk_subfolders.isChecked(),
             standby_path=self.edit_standby.text().strip(),
             use_standby=self.chk_standby.isChecked() and bool(self.edit_standby.text().strip()),

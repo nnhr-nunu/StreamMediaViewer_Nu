@@ -17,10 +17,10 @@ def test_settings_roundtrip(tmp_path: Path) -> None:
 def test_missing_settings_file_returns_defaults(tmp_path: Path) -> None:
     loaded = load_settings(tmp_path / "missing.json")
     assert loaded.last_folder == ""
-    assert loaded.blur_strength == 81
+    assert loaded.blur_strength == 150
     assert loaded.enhance_level == "weak"
     assert loaded.include_subfolders is True
-    assert loaded.brush_width == 128
+    assert loaded.brush_width == 160
     assert loaded.list_sort == "date_asc"
 
 
@@ -40,7 +40,7 @@ def test_settings_roundtrip_keeps_detection_flags(tmp_path: Path) -> None:
 def test_blur_strength_is_clamped_to_odd_range(tmp_path: Path) -> None:
     path = tmp_path / "settings.json"
     path.write_text('{"blur_strength": 999}', encoding="utf-8")
-    assert load_settings(path).blur_strength == 99
+    assert load_settings(path).blur_strength == 300
     path.write_text('{"blur_strength": 1}', encoding="utf-8")
     assert load_settings(path).blur_strength == 5
     path.write_text('{"blur_strength": 26}', encoding="utf-8")

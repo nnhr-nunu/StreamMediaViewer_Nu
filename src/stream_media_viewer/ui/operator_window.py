@@ -7,7 +7,8 @@ from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QDateEdit,
+    QDialog,
+    QDialogButtonBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -17,7 +18,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
-    QMessageBox,
     QProgressBar,
     QSlider,
     QStackedLayout,
@@ -34,12 +34,15 @@ from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.sort import parse_list_sort
 from stream_media_viewer.render.enhance import parse_enhance_level
 from stream_media_viewer.safety.output_gate import OutputGate, OutputReason
+from stream_media_viewer.ui.drop_hint import CalendarDateEdit, DropHintCombo
 from stream_media_viewer.ui.list_thumb import with_video_mark
 from stream_media_viewer.ui.preview_canvas import PreviewCanvas
 from stream_media_viewer.ui.styles import DARK_QSS
 
-_LIST_ICON = QSize(240, 240)
-_LIST_GRID = QSize(280, 318)
+_LIST_ICON = QSize(220, 220)
+_LIST_GRID = QSize(236, 246)
+_PREVIEW_MIN = 520
+_TWO_COL_MIN = 420
 
 
 def _bar_button() -> QToolButton:
@@ -75,6 +78,7 @@ class OperatorWindow(QMainWindow):
     clear_marks_requested = Signal()
     enhance_cycle_requested = Signal()
     settings_requested = Signal()
+    language_cycle_requested = Signal()
     brush_width_changed = Signal(int)
 
     def __init__(self, gate: OutputGate) -> None:
@@ -119,18 +123,14 @@ class OperatorWindow(QMainWindow):
         self.chk_photos = QCheckBox()
         self.chk_videos = QCheckBox()
         self.chk_dates = QCheckBox()
-        self.combo_place = QComboBox()
+        self.combo_place = DropHintCombo()
         self.combo_place.setMinimumWidth(150)
-        self.combo_folder = QComboBox()
+        self.combo_folder = DropHintCombo()
         self.combo_folder.setMinimumWidth(150)
-        self.date_from = QDateEdit()
-        self.date_to = QDateEdit()
-        self.date_from.setCalendarPopup(True)
-        self.date_to.setCalendarPopup(True)
-        self.date_from.setDisplayFormat("yyyy/MM/dd")
-        self.date_to.setDisplayFormat("yyyy/MM/dd")
-        self.date_from.setMinimumWidth(158)
-        self.date_to.setMinimumWidth(158)
+        self.date_from = CalendarDateEdit()
+        self.date_to = CalendarDateEdit()
+        self.date_from.setMinimumWidth(168)
+        self.date_to.setMinimumWidth(168)
         for box in (self.chk_star_only, self.chk_photos, self.chk_videos, self.chk_dates):
             box.setChecked(False)
         for box in (self.chk_star_only, self.chk_photos, self.chk_videos):
@@ -142,7 +142,7 @@ class OperatorWindow(QMainWindow):
         filters.addWidget(self.date_to)
         filters.addStretch()
         self.sort_box = QGroupBox()
-        self.combo_sort = QComboBox()
+        self.combo_sort = DropHintCombo()
         self.combo_sort.setMinimumWidth(128)
         sort_lay = QHBoxLayout(self.sort_box)
         sort_lay.setContentsMargins(10, 8, 10, 8)
@@ -163,9 +163,9 @@ class OperatorWindow(QMainWindow):
         self.list.setUniformItemSizes(True)
         self.list.setIconSize(_LIST_ICON)
         self.list.setGridSize(_LIST_GRID)
-        self.list.setSpacing(10)
-        self.list.setMinimumWidth(310)
-        self.list.setWordWrap(True)
+        self.list.setSpacing(6)
+        self.list.setMinimumWidth(220)
+        self.list.setWordWrap(False)
         self.list.setTextElideMode(Qt.TextElideMode.ElideRight)
         body.addWidget(self.list)
 
@@ -252,18 +252,21 @@ class OperatorWindow(QMainWindow):
         self.slider_brush = QSlider(Qt.Orientation.Horizontal)
         self.slider_brush.setRange(MIN_BRUSH_WIDTH, MAX_BRUSH_WIDTH)
         self.slider_brush.setValue(DEFAULT_BRUSH_WIDTH)
-        self.slider_brush.setMinimumWidth(100)
-        self.slider_brush.setMaximumWidth(160)
+        self.slider_brush.setMinimumWidth(120)
+        self.slider_brush.setMaximumWidth(200)
         self.btn_manual.setMinimumWidth(88)
         self.btn_folder_prep.setMinimumWidth(120)
         self.btn_clear_cache.setMinimumWidth(120)
         self.btn_play = _bar_button()
         self.btn_prep = _bar_button()
+        self.btn_lang = _bar_button()
+        self.btn_lang.setMinimumWidth(56)
         self.btn_help = _bar_button()
-        self.btn_help.setMinimumWidth(52)
+        self.btn_help.setMinimumWidth(56)
         self.btn_manual.setCheckable(True)
         self.btn_rect.setCheckable(True)
         self.btn_brush.setCheckable(True)
+        self.btn_rect.setMinimumWidth(108)
         self.manual_tools = QFrame()
         self.manual_tools.setObjectName("manualTools")
         tools = QHBoxLayout(self.manual_tools)
@@ -278,11 +281,11 @@ class OperatorWindow(QMainWindow):
         ):
             bar.addWidget(widget)
         for widget in (
-            self.btn_brush,
             self.btn_rect,
-            self.btn_undo,
+            self.btn_brush,
             self.lbl_brush,
             self.slider_brush,
+            self.btn_undo,
             self.btn_clear_marks,
         ):
             tools.addWidget(widget)
@@ -290,6 +293,7 @@ class OperatorWindow(QMainWindow):
         bar.addStretch()
         bar.addWidget(self.btn_play)
         bar.addWidget(self.btn_prep)
+        bar.addWidget(self.btn_lang)
         bar.addWidget(self.btn_help)
         outer.addWidget(bar_host)
 
@@ -322,6 +326,7 @@ class OperatorWindow(QMainWindow):
         self.preview.mark_added.connect(self.mark_added.emit)
         self.preview.clicked.connect(self.play_requested.emit)
         self.btn_help.clicked.connect(self._show_shortcuts)
+        self.btn_lang.clicked.connect(self.language_cycle_requested.emit)
         self.btn_manual.clicked.connect(lambda: self._set_manual(self.btn_manual.isChecked()))
         self.btn_rect.clicked.connect(lambda: self._tool("rect"))
         self.btn_brush.clicked.connect(lambda: self._tool("stroke"))
@@ -359,7 +364,7 @@ class OperatorWindow(QMainWindow):
         self.btn_manual.setChecked(on)
         if on:
             if self.preview.mode not in {"rect", "stroke"}:
-                self._tool("stroke")
+                self._tool("rect")
                 return
         else:
             self.preview.mode = "off"
@@ -404,7 +409,7 @@ class OperatorWindow(QMainWindow):
         self.btn_star.setText("⭐" if self.btn_star.isChecked() else "☆")
         self.btn_star.setToolTip(t(lang, "star"))
         _caption(self.btn_undo, "↩", t(lang, "btn_undo"), t(lang, "undo"))
-        _caption(self.btn_manual, "🖌", t(lang, "btn_manual"), t(lang, "manual"))
+        _caption(self.btn_manual, "💧", t(lang, "btn_manual"), t(lang, "manual"))
         _caption(self.btn_rect, "▢", t(lang, "btn_rect"), t(lang, "rect"))
         _caption(self.btn_brush, "🖌", t(lang, "btn_brush"), t(lang, "brush"))
         _caption(self.btn_clear_marks, "✕", t(lang, "btn_clear_marks"), t(lang, "clear_marks"))
@@ -413,6 +418,7 @@ class OperatorWindow(QMainWindow):
         _caption(self.btn_folder_prep, "📂", t(lang, "btn_folder_prep"), t(lang, "prepare_folder"))
         _caption(self.btn_clear_cache, "🧹", t(lang, "btn_clear"), t(lang, "clear_cache"))
         _caption(self.btn_settings, "⚙", t(lang, "btn_settings"), t(lang, "settings"))
+        _caption(self.btn_lang, "あ/A", t(lang, "btn_lang"), t(lang, "language"))
         _caption(self.btn_help, "?", t(lang, "btn_help"), t(lang, "shortcuts"))
         self.filter_box.setTitle("🔍 " + t(lang, "filters_title"))
         self.sort_box.setTitle(t(lang, "sort_title"))
@@ -585,23 +591,42 @@ class OperatorWindow(QMainWindow):
         self._relayout_list()
 
     def _relayout_list(self) -> None:
-        two = self.width() >= 1420
-        extra = min(80, max(0, (self.width() - 1420) // 4)) if two else 0
-        icon = 240 + extra
-        cell_w = icon + 40
-        cell_h = icon + 56
+        body = max(640, self.width() - 24)
+        list_w = max(220, min(body - _PREVIEW_MIN, int(body * 0.42)))
+        two = list_w >= _TWO_COL_MIN
+        cols = 2 if two else 1
+        inner = max(160, list_w - 22)
+        cell_w = inner // cols
+        icon = max(140, cell_w - 12)
+        cell_h = icon + 28
         self.list.setIconSize(QSize(icon, icon))
         self.list.setGridSize(QSize(cell_w, cell_h))
-        width = cell_w * (2 if two else 1) + 28
-        self.list.setMinimumWidth(width)
-        self.list.setMaximumWidth(width)
+        self.list.setMinimumWidth(list_w)
+        self.list.setMaximumWidth(list_w)
         for row in range(self.list.count()):
             item = self.list.item(row)
             if item is not None:
                 item.setSizeHint(QSize(cell_w, cell_h))
 
+    def _shortcuts_dialog(self) -> QDialog:
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t(self.lang, "shortcuts"))
+        dialog.setStyleSheet(DARK_QSS)
+        body = QLabel(t(self.lang, "shortcuts_body"))
+        body.setObjectName("shortcutsBody")
+        body.setWordWrap(True)
+        body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(t(self.lang, "ok"))
+        buttons.accepted.connect(dialog.accept)
+        root = QVBoxLayout(dialog)
+        root.addWidget(body)
+        root.addWidget(buttons)
+        dialog.resize(360, 280)
+        return dialog
+
     def _show_shortcuts(self) -> None:
-        QMessageBox.information(self, t(self.lang, "shortcuts"), t(self.lang, "shortcuts_body"))
+        self._shortcuts_dialog().exec()
 
     def refresh_status(self) -> None:
         live = self._gate.reason is OutputReason.LIVE

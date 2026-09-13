@@ -151,6 +151,7 @@ class StreamMediaViewerApp:
         op.brush_width_changed.connect(self._on_brush_width)
         op.enhance_cycle_requested.connect(self._cycle_enhance)
         op.settings_requested.connect(self._open_settings)
+        op.language_cycle_requested.connect(self._cycle_language)
         op.timeline.sliderReleased.connect(self._apply_in_out)
         op.timeline_out.sliderReleased.connect(self._apply_in_out)
         op.destroyed.connect(self._on_operator_gone)
@@ -226,14 +227,9 @@ class StreamMediaViewerApp:
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         applied = dialog.draft()
-        prev_face = self.settings.face_blur
         prev_sub = self.settings.include_subfolders
         self.settings.blur_strength = applied.blur_strength
-        self.settings.face_blur = applied.face_blur
-        self.settings.text_blur = applied.text_blur
         self.settings.video_audio = applied.video_audio
-        self.settings.enhance_level = applied.enhance_level
-        self.settings.language = applied.language
         self.settings.include_subfolders = applied.include_subfolders
         self.settings.standby_path = applied.standby_path
         self.settings.use_standby = applied.use_standby
@@ -246,24 +242,23 @@ class StreamMediaViewerApp:
                     self.output.show_frame(frame)
         else:
             self.gate.enable_standby(False)
-        if prev_face and not self.settings.face_blur:
-            self.settings.blur_off_confirmed = False
-        op = self.operator
-        op.chk_face.blockSignals(True)
-        op.chk_text.blockSignals(True)
-        op.chk_face.setChecked(applied.face_blur)
-        op.chk_text.setChecked(applied.text_blur)
-        op.chk_face.blockSignals(False)
-        op.chk_text.blockSignals(False)
-        op.lang = applied.language
-        op.set_enhance_level(applied.enhance_level)
-        op.retranslate()
-        self._protect_cache.clear()
         if prev_sub != applied.include_subfolders and self.settings.last_folder:
             self._open_folder_path(self.settings.last_folder)
             return
+        self._protect_cache.clear()
         self._refresh_list()
         self._reload_current()
+
+    def _cycle_language(self) -> None:
+        self.settings.language = "en" if self.settings.language == "ja" else "ja"
+        self.operator.lang = self.settings.language
+        self.operator.retranslate()
+        self._refresh_list()
+        item = self._current()
+        if item is not None:
+            self.operator.meta.setText(self._item_meta_text(item))
+        elif not self._items:
+            self.operator.show_guide(t(self.settings.language, "empty_guide"))
 
     def _on_folder_button(self) -> None:
         lang = self.settings.language
@@ -488,9 +483,8 @@ class StreamMediaViewerApp:
         )
         when = item.captured_at.strftime("%m/%d") if item.captured_at else ""
         place = item.place_name
-        detail = "  ".join(part for part in (when, place, warn) if part)
-        lines = [part for part in (marks, detail) if part]
-        return "\n".join(lines)
+        detail = "  ".join(part for part in (marks, when, place, warn) if part)
+        return detail
 
     def _item_meta_text(self, item: MediaItem | None, *, duration_ms: int | None = None) -> str:
         if item is None:
@@ -504,7 +498,8 @@ class StreamMediaViewerApp:
         parts.append(item.path.name)
         if item.relative_folder:
             parts.append(item.relative_folder)
-        parts.append(t(lang, "filter_video" if item.kind == "video" else "filter_photo"))
+        if item.kind == "video":
+            parts.append(t(lang, "filter_video"))
         if duration_ms and duration_ms > 0:
             parts.append(_format_duration(duration_ms))
         if item.has_face:

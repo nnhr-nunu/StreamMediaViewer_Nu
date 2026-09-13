@@ -132,7 +132,8 @@ def test_photo_and_video_show_different_controls(qtbot) -> None:
     assert bar.indexOf(app.operator.btn_next) < bar.indexOf(app.operator.btn_send)
     assert bar.indexOf(app.operator.btn_manual) < bar.indexOf(app.operator.btn_play)
     assert bar.indexOf(app.operator.btn_play) < bar.indexOf(app.operator.btn_prep)
-    assert bar.indexOf(app.operator.btn_prep) < bar.indexOf(app.operator.btn_help)
+    assert bar.indexOf(app.operator.btn_prep) < bar.indexOf(app.operator.btn_lang)
+    assert bar.indexOf(app.operator.btn_lang) < bar.indexOf(app.operator.btn_help)
 
 
 def test_common_buttons_stay_put_when_video_controls_appear(qtbot) -> None:
@@ -174,6 +175,9 @@ def test_list_caption_omits_filename_and_shows_place(qtbot) -> None:
     meta = app._item_meta_text(item)
     assert "DSC01234" in meta
     assert "京都" in meta
+    assert "写真" not in meta
+    video = MediaItem(path=Path("C:/secret/clip.mp4"), kind="video", captured_at=None, has_gps=False)
+    assert "動画" in app._item_meta_text(video)
     tip = app._row_tooltip(item)
     assert "DSC01234" in tip
     assert "京都" in tip
@@ -230,6 +234,7 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert "絞り込み" in op.filter_box.title()
     assert op.btn_star.isCheckable()
     assert "手動ぼかし" in op.btn_manual.text()
+    assert "💧" in op.btn_manual.text()
     assert not hasattr(op, "chk_gps")
     assert not hasattr(op, "chk_faces")
     assert op.filter_box.layout().indexOf(op.combo_sort) == -1
@@ -241,11 +246,22 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert op.manual_tools.isHidden()
     op._set_manual(True)
     assert not op.manual_tools.isHidden()
-    assert op.preview.mode == "stroke"
-    op._tool("rect")
     assert op.preview.mode == "rect"
+    tools = op.manual_tools.layout()
+    assert tools.indexOf(op.btn_rect) < tools.indexOf(op.btn_brush)
+    assert tools.indexOf(op.btn_brush) < tools.indexOf(op.lbl_brush)
+    assert tools.indexOf(op.lbl_brush) < tools.indexOf(op.slider_brush)
+    assert tools.indexOf(op.slider_brush) < tools.indexOf(op.btn_undo)
     assert op.slider_brush.isHidden()
-    assert "?" in op.btn_help.text()
+    op._tool("stroke")
+    assert op.preview.mode == "stroke"
+    assert not op.slider_brush.isHidden()
+    assert "キー説明" in op.btn_help.text()
+    assert "あ/A" in op.btn_lang.text()
+    dialog = op._shortcuts_dialog()
+    qtbot.addWidget(dialog)
+    assert dialog.windowTitle() == "キー説明"
+    assert op.date_from.calendarPopup() is True
     op.show_guide("読み込み中…", done=1, total=4)
     assert not op.scan_progress.isHidden()
     assert op.scan_count.text() == "1 / 4"
@@ -307,12 +323,16 @@ def test_list_grows_to_two_thumbs_when_wide(qtbot) -> None:
     qtbot.addWidget(app.operator)
     op = app.operator
     op.resize(1280, 800)
+    op.show()
+    qtbot.waitExposed(op)
     op._relayout_list()
     assert op.list.isWrapping() is True
-    assert op.list.maximumWidth() < 420
-    op.resize(1600, 900)
+    grid = op.list.gridSize().width()
+    assert op.list.maximumWidth() >= grid * 2
+    icon_1280 = op.list.iconSize().width()
+    op.resize(1920, 900)
     op._relayout_list()
-    assert op.list.maximumWidth() >= 500
+    assert op.list.iconSize().width() > icon_1280
     badge = with_video_mark(None, 80)
     assert badge.width() == 80
     assert not badge.isNull()

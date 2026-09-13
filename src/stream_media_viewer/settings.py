@@ -9,15 +9,19 @@ from pathlib import Path
 from typing import Any
 
 from stream_media_viewer.config import SETTINGS_FILENAME, user_config_dir
-from stream_media_viewer.detect.blur import DEFAULT_BRUSH_WIDTH, MAX_BRUSH_WIDTH, MIN_BRUSH_WIDTH
+from stream_media_viewer.detect.blur import (
+    DEFAULT_BLUR_STRENGTH,
+    DEFAULT_BRUSH_WIDTH,
+    MAX_BLUR_STRENGTH,
+    MAX_BRUSH_WIDTH,
+    MIN_BLUR_STRENGTH,
+    MIN_BRUSH_WIDTH,
+)
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.library.sort import parse_list_sort
 from stream_media_viewer.render.enhance import parse_enhance_level
 
 RECENT_FOLDER_LIMIT = 8
-DEFAULT_BLUR_STRENGTH = 81
-MIN_BLUR_STRENGTH = 5
-MAX_BLUR_STRENGTH = 99
 
 
 def clamp_blur_strength(raw: Any) -> int:

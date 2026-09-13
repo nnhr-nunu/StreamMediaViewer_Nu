@@ -16,13 +16,17 @@ def test_settings_dialog_keeps_blur_strength(qtbot) -> None:
     )
     qtbot.addWidget(dialog)
     dialog.slider.setValue(41)
-    dialog.chk_text.setChecked(True)
-    dialog.cmb_lang.setCurrentIndex(1)
     dialog.chk_subfolders.setChecked(False)
     draft = dialog.draft()
     assert draft.blur_strength == 41
-    assert draft.text_blur is True
-    assert draft.language == "en"
+    assert draft.face_blur is True
+    assert draft.text_blur is False
+    assert draft.enhance_level == "weak"
+    assert draft.language == "ja"
     assert draft.include_subfolders is False
     assert display_version() in dialog.version_label.text()
     assert dialog.chk_standby.isChecked() is False
+    assert not hasattr(dialog, "chk_face")
+    assert not hasattr(dialog, "chk_text")
+    assert not hasattr(dialog, "cmb_enhance")
+    assert not hasattr(dialog, "cmb_lang")
