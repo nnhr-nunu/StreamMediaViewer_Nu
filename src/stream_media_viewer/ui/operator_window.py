@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from stream_media_viewer import OPERATOR_WINDOW_TITLE
+from stream_media_viewer import OPERATOR_WINDOW_TITLE, display_version
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.render.enhance import parse_enhance_level
@@ -92,6 +92,9 @@ class OperatorWindow(QMainWindow):
         top.addWidget(self.btn_clear_cache)
         top.addWidget(self.cache_label)
         top.addStretch()
+        self.version_label = QLabel(display_version())
+        self.version_label.setObjectName("meta")
+        top.addWidget(self.version_label)
         top.addWidget(self.btn_settings)
         top.addWidget(self.btn_lang)
         outer.addLayout(top)

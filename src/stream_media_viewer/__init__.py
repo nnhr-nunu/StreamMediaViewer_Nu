@@ -3,3 +3,7 @@
 __version__ = "0.1.0"
 OUTPUT_WINDOW_TITLE = "StreamMediaViewer(ぬ) - 配信出力"
 OPERATOR_WINDOW_TITLE = "StreamMediaViewer(ぬ)"
+
+
+def display_version() -> str:
+    return f"v{__version__}"

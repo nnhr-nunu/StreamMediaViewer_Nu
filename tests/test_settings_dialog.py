@@ -21,3 +21,6 @@ def test_settings_dialog_keeps_blur_strength(qtbot) -> None:
     assert draft.blur_strength == 41
     assert draft.text_blur is True
     assert draft.language == "en"
+    from stream_media_viewer import display_version
+
+    assert display_version() in dialog.version_label.text()
