@@ -155,7 +155,8 @@ class StreamMediaViewerApp:
             action.setData(path)
         menu.addSeparator()
         browse = menu.addAction(t(lang, "browse_folder"))
-        chosen = menu.exec(self.operator.btn_folder.mapToGlobal(self.operator.btn_folder.rect().bottomLeft()))
+        anchor = self.operator.btn_folder.rect().bottomLeft()
+        chosen = menu.exec(self.operator.btn_folder.mapToGlobal(anchor))
         if chosen is None:
             return
         if chosen is browse:

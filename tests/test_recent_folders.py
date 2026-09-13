@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from stream_media_viewer.settings import remember_folder
 
 
