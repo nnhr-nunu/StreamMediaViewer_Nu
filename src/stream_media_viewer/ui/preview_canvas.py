@@ -17,7 +17,7 @@ class PreviewCanvas(QLabel):
         super().__init__()
         self.setObjectName("preview")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumSize(480, 270)
+        self.setMinimumSize(560, 315)
         self.setContentsMargins(0, 0, 0, 0)
         self.mode = "off"
         self.click_toggles_play = False

@@ -23,9 +23,9 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 ## 使い方
 
 1. 「フォルダ」から写真や動画のフォルダを選びます。最近使ったフォルダも選べます。最初は下の階層のフォルダも読みます（⚙でオフにできます）。
-2. 左の大きな縮小画からファイルを選び、操作用ウィンドウで確認します。確認欄の上に日時・場所・ファイル名が出ます。顔ありのときは「誤検出修正」も出ます。配信用ウィンドウにはまだ表示されません。
+2. 左の大きな縮小画からファイルを選び、操作用ウィンドウで確認します。確認欄の上に日時・場所・ファイル名が出ます。顔ありのときは右下・言語ボタンの左に「誤検出修正」が出ます。配信用ウィンドウにはまだ表示されません。
 3. 写真のときは再生ボタンは出ません。動画のときだけ、右側に再生と下準備が出ます。動画の画面をクリックしても再生／停止できます。開始位置・終了位置も動画のときだけ出ます。
-4. 必要に応じて「手動ぼかし」（💧）をオンにします。右の枠にドラッグ指定・筆・戻す・クリアが出ます（初期はドラッグ指定）。太さは筆のとき、筆の隣に出ます。
+4. 必要に応じて「手動ぼかし」（💧）をオンにします。右の枠にドラッグ指定・筆・戻す・クリアが出ます（初期はドラッグ指定）。太さは筆のとき、筆の隣に出ます。向きは手動ぼかしの右の「左90°」「右90°」で変えます（元のファイルは変わりません）。
 5. ✨でコントラストと彩度の自動補正を切り替えます。押すたびに「オフ → 弱 → 強」と変わります。ぼかしの強さ・下のフォルダを読むか・待機画像は⚙から変えられます。言語は右下のあ/Aです。右端の「ソート」で古い順／新しい順／名前順を変えられます。
 6. 「送る」または Enterキーで、確認中の写真や動画を配信用ウィンドウに表示します。
 7. OBSで「ウィンドウの取り込み」を追加し、`StreamMediaViewer(ぬ) - 配信出力` を選びます。
@@ -49,7 +49,7 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 - 顔のぼかしは初期設定で有効です。強さの初期は約 150 です。すでに弱い強さで保存してある場合は⚙で上げてください。
 - 車の番号や名札の自動ぼかし機能は、必要に応じてONにしてください。外れやすいので、配信前に手元で確認し、足りなければドラッグ指定や手動ぼかしで足してください。
 - 開けないファイルは一覧に出しません。操作画面に「このファイルは開けません」と出ます。
-- 顔がありそうな印は、一度確認したあと残ります。顔がないのに付いているときは「❗️誤検出修正」で消せます。消した特徴は手元に残り、似た誤検出を次からぼかしにくくします。
+- 顔がありそうな印は、一度確認したあと残ります。顔がないのに付いているときは右下の「❗️誤検出修正」で消せます。消した特徴は手元に残り、似た誤検出を次からぼかしにくくします。
 
 ## よくある質問
 
@@ -97,9 +97,9 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 ## Start in 3 minutes
 
 1. Use **Folder** to open today’s photos and videos. Recent folders are available too. Subfolders are included at first (turn this off in ⚙).
-2. Pick a large thumbnail on the left and review it in the operator window. Date, place, and filename appear above the preview. Filenames stay out of the list. If it says it has a face but it does not, use **Not a face**. It is not shown in the output window yet.
+2. Pick a large thumbnail on the left and review it in the operator window. Date, place, and filename appear above the preview. Filenames stay out of the list. If it says it has a face but it does not, use **Not a face** (bottom right, left of language). It is not shown in the output window yet.
 3. Play controls appear only for videos, on the right. Click the video preview to play or pause. They stay hidden for still photos.
-4. Turn on **Manual blur** (💧) when needed. Drag box, brush, undo, and clear appear (drag box is the default). Thickness is shown next to the brush.
+4. Turn on **Manual blur** (💧) when needed. Drag box, brush, undo, and clear appear (drag box is the default). Thickness is shown next to the brush. Rotate with **Left 90°** / **Right 90°** to the right of Manual blur. Original files stay unchanged.
 5. Click ✨ to cycle contrast and saturation enhancement: Off → Soft → Strong. Use ⚙ for blur strength, subfolders, and the standby image. Language is **あ/A** at the bottom right. Use **Sort** on the right for oldest / newest / name.
 6. Press **Send** or Enter to display the selected photo or video in the output window.
 7. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力`.
@@ -123,7 +123,7 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 - Face blur is on by default. Strength starts around 150. If an older settings file kept a weaker value, raise it in ⚙.
 - Turn on automatic plate / name-tag blur when needed. It can miss; review in the operator window and add a drag box or manual blur before sending.
 - Files that cannot be opened are skipped in the list. The operator window shows “Can't open this file”.
-- The “has faces” mark stays after you have reviewed a file. If there is no face, use **Not a face** to clear blur and remember similar false detections. Those records stay on this PC, and when the app is run from source they are also added to the bundled list that the next GitHub Release ships.
+- The “has faces” mark stays after you have reviewed a file. If there is no face, use **Not a face** at the bottom right to clear blur and remember similar false detections. Those records stay on this PC, and when the app is run from source they are also added to the bundled list that the next GitHub Release ships.
 
 ## FAQ
 

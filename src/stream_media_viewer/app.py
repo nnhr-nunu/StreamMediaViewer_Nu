@@ -17,7 +17,7 @@ from stream_media_viewer.detect.protect import protect_for_note, protect_frame_s
 from stream_media_viewer.errors import install_excepthook, log_exception
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.filters import passes_filters
-from stream_media_viewer.library.item import MediaItem
+from stream_media_viewer.library.item import FileNote, MediaItem
 from stream_media_viewer.library.protect_cache import ProtectFrameCache
 from stream_media_viewer.library.scan import load_rgb_image
 from stream_media_viewer.library.sort import sorted_items
@@ -38,6 +38,7 @@ from stream_media_viewer.playback.preload import (
 from stream_media_viewer.playback.video import VideoPlayer
 from stream_media_viewer.render.canvas import fit_letterbox, rgb_to_bgr
 from stream_media_viewer.render.enhance import enhance_bgr, next_enhance_level
+from stream_media_viewer.render.rotate import clamp_rotation, rotate_bgr, rotate_marks
 from stream_media_viewer.safety.output_gate import OutputGate
 from stream_media_viewer.settings import (
     AppSettings,
@@ -71,6 +72,7 @@ class ProtectThread(QThread):
         seq: int,
         *,
         skip_faces: bool = False,
+        rotation: int = 0,
     ) -> None:
         super().__init__()
         self._bgr = bgr
@@ -78,17 +80,16 @@ class ProtectThread(QThread):
         self._marks = marks
         self.seq = seq
         self._skip_faces = skip_faces
+        self._rotation = clamp_rotation(rotation)
 
     def run(self) -> None:
         try:
-            out, faces, texts = protect_frame_safe(
-                self._bgr,
-                face_blur=self._settings.face_blur and not self._skip_faces,
-                text_blur=self._settings.text_blur,
+            note = FileNote(
                 marks=self._marks,
-                strength=self._settings.blur_strength,
-                false_face_hashes=self._settings.all_false_face_hashes(),
+                skip_faces=self._skip_faces,
+                rotation=self._rotation,
             )
+            out, faces, texts = protect_for_note(self._bgr, self._settings, note)
             if out is None:
                 self.failed.emit(self.seq)
                 return
@@ -164,6 +165,8 @@ class StreamMediaViewerApp:
         op.settings_requested.connect(self._open_settings)
         op.language_cycle_requested.connect(self._cycle_language)
         op.false_face_requested.connect(self._correct_false_face)
+        op.rotate_left_requested.connect(lambda: self._rotate_current(270))
+        op.rotate_right_requested.connect(lambda: self._rotate_current(90))
         op.timeline.sliderReleased.connect(self._apply_in_out)
         op.timeline_out.sliderReleased.connect(self._apply_in_out)
         op.destroyed.connect(self._on_operator_gone)
@@ -462,6 +465,7 @@ class StreamMediaViewerApp:
         labels: list[str] = []
         icons: list[QPixmap | None] = []
         tips: list[str] = []
+        rotations: list[int] = []
         visible_items: list[MediaItem] = []
         for i in self._visible:
             item = self._items[i]
@@ -469,7 +473,8 @@ class StreamMediaViewerApp:
             labels.append(self._row_label(item))
             icons.append(self._thumb_pix.get(str(item.path)))
             tips.append(self._row_tooltip(item))
-        self.operator.set_items(visible_items, labels, icons, tips)
+            rotations.append(self.settings.note_for(str(item.path)).rotation)
+        self.operator.set_items(visible_items, labels, icons, tips, rotations)
         row = 0
         if current_path:
             for index, item_index in enumerate(self._visible):
@@ -604,7 +609,7 @@ class StreamMediaViewerApp:
                 return
             bgr = rgb_to_bgr(np.array(image))
             self._source_bgr = bgr
-            self._show_operator_frame(bgr)
+            self._show_operator_frame(rotate_bgr(bgr, note.rotation))
             self._start_protect(bgr, note.marks)
         else:
             fps = self._video.open(str(item.path))
@@ -621,12 +626,13 @@ class StreamMediaViewerApp:
             if frame is None:
                 self._mark_unreadable(item)
                 return
-            self._show_operator_frame(frame)
             if self._video.last_raw is not None:
                 self._source_bgr = self._video.last_raw
             else:
                 self._source_bgr = frame
-            self._start_protect(frame if self._video.last_raw is None else self._video.last_raw, note.marks)
+            raw = self._source_bgr
+            self._show_operator_frame(rotate_bgr(raw, note.rotation))
+            self._start_protect(raw, note.marks)
             _ = fps
 
     def _show_operator_frame(self, bgr: np.ndarray) -> None:
@@ -648,7 +654,9 @@ class StreamMediaViewerApp:
         seq = self._protect_seq
         item = self._current()
         skip = bool(item and self.settings.note_for(str(item.path)).skip_faces)
+        rotation = 0
         if item is not None:
+            rotation = self.settings.note_for(str(item.path)).rotation
             cached = self._protect_cache.get(self._key_for(item))
             if cached is not None:
                 self._on_protected(*cached, seq)
@@ -657,7 +665,14 @@ class StreamMediaViewerApp:
         self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'processing')}")
         if self._worker and self._worker.isRunning():
             self._worker.requestInterruption()
-        self._worker = ProtectThread(bgr, self.settings, list(marks), seq, skip_faces=skip)
+        self._worker = ProtectThread(
+            bgr,
+            self.settings,
+            list(marks),
+            seq,
+            skip_faces=skip,
+            rotation=rotation,
+        )
         self._worker.done.connect(self._on_protected)
         self._worker.failed.connect(self._on_protect_failed)
         self._worker.start()
@@ -808,6 +823,31 @@ class StreamMediaViewerApp:
         note = self.settings.note_for(str(item.path))
         self.operator.set_false_face_visible(bool(item.has_face and not note.skip_faces))
 
+    def _rotate_current(self, step: int) -> None:
+        item = self._current()
+        if item is None:
+            return
+        note = self.settings.note_for(str(item.path))
+        turn = clamp_rotation(step)
+        if turn == 0:
+            return
+        note.rotation = clamp_rotation(note.rotation + turn)
+        note.marks = rotate_marks(note.marks, turn)
+        self._protect_cache.clear()
+        self._undo = []
+        if item.kind == "video":
+            self._stop_preload()
+            self._video.set_protect(lambda frame, marks=note.marks: self._protect_sync(frame, marks))
+        source = self._source_bgr
+        if item.kind == "video" and self._video.last_raw is not None:
+            source = self._video.last_raw
+            self._source_bgr = source
+        if source is not None:
+            self._show_operator_frame(rotate_bgr(source, note.rotation))
+        self._reprotect_current()
+        self.operator.set_row_rotation(self.operator.list.currentRow(), note.rotation)
+        self._save_settings()
+
     def _reprotect_current(self) -> None:
         item = self._current()
         if item is None:
@@ -829,6 +869,7 @@ class StreamMediaViewerApp:
         item = self._current()
         if item is None or not item.has_face:
             return
+        note = self.settings.note_for(str(item.path))
         source = self._source_bgr
         if source is None and item.kind == "image":
             image = load_rgb_image(item.path)
@@ -836,14 +877,14 @@ class StreamMediaViewerApp:
                 source = rgb_to_bgr(np.array(image))
                 self._source_bgr = source
         if source is not None:
-            boxes = detect_face_boxes(source)
+            oriented = rotate_bgr(source, note.rotation)
+            boxes = detect_face_boxes(oriented)
             learned = remember_false_faces(
-                self.settings.all_false_face_hashes(), source, boxes
+                self.settings.all_false_face_hashes(), oriented, boxes
             )
             try_update_shipped_catalog(learned)
             bundled = set(load_shipped_hashes())
             self.settings.false_face_hashes = [item for item in learned if item not in bundled]
-        note = self.settings.note_for(str(item.path))
         note.skip_faces = True
         note.has_face = False
         note.marks = []
@@ -912,6 +953,7 @@ class StreamMediaViewerApp:
             enhance_level=self.settings.enhance_level,
             skip_faces=note.skip_faces,
             false_face_hashes=self.settings.all_false_face_hashes(),
+            rotation=note.rotation,
         )
 
     def _folder_id(self) -> str:

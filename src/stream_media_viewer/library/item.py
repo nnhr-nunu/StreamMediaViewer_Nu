@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from stream_media_viewer.render.rotate import clamp_rotation
+
 Kind = Literal["image", "video"]
 
 
@@ -31,6 +33,7 @@ class FileNote:
     has_face: bool = False
     has_text_region: bool = False
     skip_faces: bool = False
+    rotation: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -42,6 +45,7 @@ class FileNote:
             "has_face": self.has_face,
             "has_text_region": self.has_text_region,
             "skip_faces": self.skip_faces,
+            "rotation": clamp_rotation(self.rotation),
         }
 
     @classmethod
@@ -59,4 +63,5 @@ class FileNote:
             has_face=bool(data.get("has_face")),
             has_text_region=bool(data.get("has_text_region")),
             skip_faces=bool(data.get("skip_faces")),
+            rotation=clamp_rotation(data.get("rotation") or 0),
         )

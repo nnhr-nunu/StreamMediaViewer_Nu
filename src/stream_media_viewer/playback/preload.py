@@ -9,8 +9,9 @@ import cv2
 from PySide6.QtCore import QThread, Signal
 
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
-from stream_media_viewer.detect.protect import protect_frame_safe
+from stream_media_viewer.detect.protect import protect_for_note
 from stream_media_viewer.errors import log_exception
+from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.render.canvas import fit_letterbox
 from stream_media_viewer.render.enhance import enhance_bgr
 from stream_media_viewer.settings import AppSettings
@@ -93,6 +94,7 @@ def cache_key(
     enhance_level: str = "off",
     skip_faces: bool = False,
     false_face_hashes: list[str] | None = None,
+    rotation: int = 0,
 ) -> str:
     stat = path.stat() if path.is_file() else None
     payload = {
@@ -108,6 +110,7 @@ def cache_key(
         "enhance_level": enhance_level,
         "skip_faces": skip_faces,
         "false_face_hashes": list(false_face_hashes or []),
+        "rotation": int(rotation or 0),
     }
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()[:20]
@@ -161,6 +164,15 @@ class PreloadWorker(QThread):
         self._out_ms = out_ms
         self._folder_id = folder_id
 
+    def _protect_frame(self, bgr: Any) -> tuple[Any, bool, bool]:
+        note = self._settings.note_for(str(self._path))
+        snap = FileNote(
+            marks=self._marks,
+            skip_faces=note.skip_faces,
+            rotation=note.rotation,
+        )
+        return protect_for_note(bgr, self._settings, snap)
+
     def run(self) -> None:
         try:
             self._run()
@@ -200,15 +212,7 @@ class PreloadWorker(QThread):
             ok, frame = cap.read()
             if not ok:
                 break
-            out, faces, texts = protect_frame_safe(
-                frame,
-                face_blur=self._settings.face_blur
-                and not self._settings.note_for(str(self._path)).skip_faces,
-                text_blur=self._settings.text_blur,
-                marks=self._marks,
-                strength=self._settings.blur_strength,
-                false_face_hashes=self._settings.all_false_face_hashes(),
-            )
+            out, faces, texts = self._protect_frame(frame)
             if out is None:
                 continue
             saw_face = saw_face or faces
@@ -254,15 +258,7 @@ class PreloadWorker(QThread):
             self.finished_ok.emit(self._key)
             return
         bgr = rgb_to_bgr(np.array(image))
-        out, faces, texts = protect_frame_safe(
-            bgr,
-            face_blur=self._settings.face_blur
-            and not self._settings.note_for(str(self._path)).skip_faces,
-            text_blur=self._settings.text_blur,
-            marks=self._marks,
-            strength=self._settings.blur_strength,
-            false_face_hashes=self._settings.all_false_face_hashes(),
-        )
+        out, faces, texts = self._protect_frame(bgr)
         if out is None:
             shutil.rmtree(dest, ignore_errors=True)
             self.finished_ok.emit(self._key)

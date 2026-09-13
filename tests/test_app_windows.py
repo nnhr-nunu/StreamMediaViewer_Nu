@@ -130,9 +130,12 @@ def test_photo_and_video_show_different_controls(qtbot) -> None:
     assert not app.operator.chk_loop.isHidden()
     bar = app.operator.btn_prev.parentWidget().layout()
     assert bar.indexOf(app.operator.btn_next) < bar.indexOf(app.operator.btn_send)
-    assert bar.indexOf(app.operator.btn_manual) < bar.indexOf(app.operator.btn_play)
+    assert bar.indexOf(app.operator.btn_manual) < bar.indexOf(app.operator.btn_rot_left)
+    assert bar.indexOf(app.operator.btn_rot_left) < bar.indexOf(app.operator.btn_rot_right)
+    assert bar.indexOf(app.operator.btn_rot_right) < bar.indexOf(app.operator.btn_play)
     assert bar.indexOf(app.operator.btn_play) < bar.indexOf(app.operator.btn_prep)
-    assert bar.indexOf(app.operator.btn_prep) < bar.indexOf(app.operator.btn_lang)
+    assert bar.indexOf(app.operator.btn_prep) < bar.indexOf(app.operator.btn_false_face)
+    assert bar.indexOf(app.operator.btn_false_face) < bar.indexOf(app.operator.btn_lang)
     assert bar.indexOf(app.operator.btn_lang) < bar.indexOf(app.operator.btn_help)
 
 
@@ -267,6 +270,8 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     op.set_false_face_visible(True)
     assert not op.btn_false_face.isHidden()
     assert "誤検出修正" in op.btn_false_face.text()
+    assert "左90" in op.btn_rot_left.text()
+    assert "右90" in op.btn_rot_right.text()
     op.show_guide("読み込み中…", done=1, total=4)
     assert not op.scan_progress.isHidden()
     assert op.scan_count.text() == "1 / 4"
@@ -336,6 +341,7 @@ def test_list_grows_to_two_thumbs_when_wide(qtbot) -> None:
     assert op.list.isWrapping() is True
     grid = op.list.gridSize().width()
     assert op.list.maximumWidth() >= grid * 2
+    assert op.list.maximumWidth() <= int((op.width() - 24) * 0.42) + 8
     icon_1280 = op.list.iconSize().width()
     op.resize(1920, 900)
     op._relayout_list()
