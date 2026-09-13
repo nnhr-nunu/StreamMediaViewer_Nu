@@ -81,12 +81,7 @@ OBS が、窓が消えたあとも前の絵を覚えていることがありま�
 
 Python 3.10〜3.12。[docs/product/spec.md](./docs/product/spec.md) が動きの正本です。
 
-このリポジトリで動かす（Windows / PowerShell）。**実装の確認はこちらが速いです。**
-
-```powershell
-cd D:\Dev\StreamMediaViewer_Nu
-.\scripts\run.ps1
-```
+このリポジトリで動かす（Windows）。**いまのコードを確認するときは、フォルダ内の `起動.bat` をダブルクリック**してください。黒いコマンド窓は出さず、手元のアプリが開きます。初回だけ下の venv 作成が必要です。
 
 venv が無い・依存を入れ直すとき:
 
@@ -96,12 +91,13 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -U pip
 pip install -e ".[dev]"
-.\scripts\run.ps1
 ```
+
+そのあと `起動.bat` をダブルクリック。コマンドで起動したいときは `.\scripts\run.ps1` でも同じです。
 
 Mac では `source .venv/bin/activate` のあと `python -m stream_media_viewer`。
 
-**配信者と同じ形（exe）で見るとき**は、先に `.\scripts\build.ps1` を実行し、できた `dist\StreamMediaViewer\StreamMediaViewer.exe` をダブルクリックします。GitHub の zip と同じ種類のファイルです。日々の改修確認は exe より `.\scripts\run.ps1` の方がすぐ起動します。
+**配信者と同じ形（exe）で見るとき**は、先に `.\scripts\build.ps1` を実行し、できた `dist\StreamMediaViewer\StreamMediaViewer.exe` をダブルクリックします。GitHub の zip と同じ種類のファイルです。日々の改修は `起動.bat` の方がすぐ開きます。
 
 動作確認の見方:
 
@@ -209,4 +205,4 @@ Use あ/A to switch Japanese / English. Icons are the main labels; hover for a s
 
 ## For developers
 
-Python 3.10–3.12. Behaviour spec: [docs/product/spec.md](./docs/product/spec.md). On Windows, daily checks: `.\scripts\run.ps1`. Same app as streamers: `.\scripts\build.ps1` then `dist\StreamMediaViewer\StreamMediaViewer.exe`. Other setup is in the Japanese section above.
+Python 3.10–3.12. Behaviour spec: [docs/product/spec.md](./docs/product/spec.md). On Windows, double-click `起動.bat` in the repo. Same app as streamers: `.\scripts\build.ps1` then `dist\StreamMediaViewer\StreamMediaViewer.exe`. Other setup is in the Japanese section above.
