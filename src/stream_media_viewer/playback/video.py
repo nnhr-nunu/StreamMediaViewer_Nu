@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import cv2
 import numpy as np
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, QTimer, QUrl, Signal
+
+try:
+    from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+except ImportError:  # pragma: no cover
+    QAudioOutput = None  # type: ignore[misc, assignment]
+    QMediaPlayer = None  # type: ignore[misc, assignment]
 
 
 class VideoPlayer(QObject):
@@ -18,12 +26,22 @@ class VideoPlayer(QObject):
         self.out_ms: int | None = None
         self.loop = False
         self.playing = False
-        self._protect = None
+        self.audio_enabled = False
+        self._protect: Callable[[np.ndarray], np.ndarray] | None = None
         self._last_ok: np.ndarray | None = None
+        self._audio = None
+        self._sink = None
+        if QMediaPlayer is not None and QAudioOutput is not None:
+            self._sink = QAudioOutput(self)
+            self._audio = QMediaPlayer(self)
+            self._audio.setAudioOutput(self._sink)
+            self._sink.setVolume(0.0)
 
     def open(self, path: str) -> float:
         self.close()
         self._cap = cv2.VideoCapture(path)
+        if self._audio is not None:
+            self._audio.setSource(QUrl.fromLocalFile(path))
         fps = float(self._cap.get(cv2.CAP_PROP_FPS) or 30.0)
         return fps if fps > 1 else 30.0
 
@@ -36,13 +54,21 @@ class VideoPlayer(QObject):
             return 0
         return int(1000 * frames / fps)
 
-    def set_protect(self, fn) -> None:
+    def position_ms(self) -> int:
+        if not self._cap:
+            return 0
+        return int(self._cap.get(cv2.CAP_PROP_POS_MSEC) or 0)
+
+    def set_protect(self, fn: Callable[[np.ndarray], np.ndarray] | None) -> None:
         self._protect = fn
 
     def seek_ms(self, ms: int) -> np.ndarray | None:
         if not self._cap:
             return None
-        self._cap.set(cv2.CAP_PROP_POS_MSEC, max(0, ms))
+        target = max(0, ms)
+        self._cap.set(cv2.CAP_PROP_POS_MSEC, target)
+        if self._audio is not None:
+            self._audio.setPosition(target)
         ok, frame = self._cap.read()
         if not ok:
             return None
@@ -50,17 +76,29 @@ class VideoPlayer(QObject):
 
     def play(self) -> None:
         self.playing = True
+        self._sync_audio_clock()
+        if self._audio is not None and self.audio_enabled:
+            self._audio.play()
+        elif self._audio is not None:
+            self._audio.pause()
+            if self._sink is not None:
+                self._sink.setVolume(0.0)
         self._timer.start(1)
 
     def pause(self) -> None:
         self.playing = False
         self._timer.stop()
+        if self._audio is not None:
+            self._audio.pause()
 
     def close(self) -> None:
         self.pause()
         if self._cap is not None:
             self._cap.release()
             self._cap = None
+        if self._audio is not None:
+            self._audio.stop()
+            self._audio.setSource(QUrl())
 
     def _apply(self, frame: np.ndarray) -> np.ndarray:
         if self._protect is None:
@@ -70,24 +108,43 @@ class VideoPlayer(QObject):
         self._last_ok = protected
         return protected
 
+    def _sync_audio_clock(self) -> None:
+        if self._audio is None or self._sink is None:
+            return
+        pos = self.position_ms()
+        if self.audio_enabled:
+            self._sink.setVolume(1.0)
+            if abs(self._audio.position() - pos) > 80:
+                self._audio.setPosition(pos)
+        else:
+            self._sink.setVolume(0.0)
+            self._audio.pause()
+
     def _tick(self) -> None:
         if not self._cap or not self.playing:
             return
-        pos = int(self._cap.get(cv2.CAP_PROP_POS_MSEC) or 0)
+        pos = self.position_ms()
         if self.out_ms is not None and pos >= self.out_ms:
             if self.loop:
-                self._cap.set(cv2.CAP_PROP_POS_MSEC, self.in_ms)
-            else:
-                self.pause()
-                self.finished.emit()
+                self.seek_ms(self.in_ms)
+                self._sync_audio_clock()
+                if self._audio is not None and self.audio_enabled:
+                    self._audio.play()
                 return
+            self.pause()
+            self.finished.emit()
+            return
         ok, frame = self._cap.read()
         if not ok:
             if self.loop:
-                self._cap.set(cv2.CAP_PROP_POS_MSEC, self.in_ms)
+                self.seek_ms(self.in_ms)
+                self._sync_audio_clock()
+                if self._audio is not None and self.audio_enabled:
+                    self._audio.play()
                 return
             self.pause()
             self.finished.emit()
             return
         protected = self._apply(frame)
+        self._sync_audio_clock()
         self.frame_ready.emit(protected)

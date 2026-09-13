@@ -1,24 +1,34 @@
 # StreamMediaViewer(ぬ)
 
-旅行などの写真・動画を、顔をぼかしてから OBS に出す Windows アプリです。インストール不要の exe を想定しています。
+旅行などの写真・動画を、顔をぼかしてから OBS に出す Windows アプリです。**Python のインストールは不要**です。
 
-動きの正本は [docs/product/spec.md](./docs/product/spec.md)。未完了は [task.md](./task.md)。
+動きの正本は [docs/product/spec.md](./docs/product/spec.md)。
 
-## 3 分で使う（配信者向け）
+## いちばん簡単な入手
 
-1. GitHub の **Actions** から `StreamMediaViewer-windows` をダウンロードするか、下の「開発者」で exe を作る
-2. `StreamMediaViewer.exe` をダブルクリック
-3. 📁 で今日使うフォルダを開く
-4. 一覧で確認 → ⬆ で送る（Enter でも可）
-5. OBS の「ウィンドウキャプチャ」で `StreamMediaViewer(ぬ) - 配信出力` を選ぶ  
+1. **[最新版をダウンロード](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/latest)**（`StreamMediaViewer.zip`）
+2. 展開する
+3. `StreamMediaViewer.exe` をダブルクリック
+
+`main` に更新が入るたびに、同じリンクの zip が新しいものに差し替わります。
+
+## 3 分で配信に出す
+
+1. 📁 で今日使うフォルダを開く
+2. 一覧で確認 → ⬆ または Enter で送る
+3. OBS の「ウィンドウキャプチャ」で `StreamMediaViewer(ぬ) - 配信出力` を選ぶ  
    送るまでこの窓は隠れます。シーンの下にゲームやカメラを置いてください
-6. 危ないと思ったら **Esc** またはテンキー **0**（窓が消えます）
+4. 危ないと思ったら **Esc** またはテンキー **0**
 
-よく使うキー: **A / 4** 前、**D / 6** 次、**Enter** 送る、**Space / 5** 再生、**F** 星。
+OBS で窓が消えたあとも古い絵が残るときは:
 
-あ/A で日本語と英語を切り替えます。ボタンはアイコンが本体です。カーソルを乗せると短い説明が出ます。
+- キャプチャ方法を **Windows 10 (1903 以降)** にする
+- 「ウィンドウが見つからないときは何も出さない／ソースを隠す」があればオン
 
-窓が消えたあとも OBS に古い絵が残るときは、ウィンドウキャプチャの「キャプチャ方法」を変えるか、ソースを一度オフにしてください。
+よく使うキー: **A / 4** 前、**D / 6** 次、**Enter** 送る、**Space / 5** 再生、**F** 星。  
+動画の音は、送ったあとだけ出ます（OBS のデスクトップ音声に乗ります）。確認中の再生では音を出しません。
+
+あ/A で日本語と英語。ボタンはアイコンが本体です。
 
 ## 開発者
 
@@ -34,7 +44,5 @@ python -m stream_media_viewer
 pytest
 .\scripts\build.ps1
 ```
-
-exe は `dist\StreamMediaViewer\StreamMediaViewer.exe` です。フォルダごと渡せば、Python が無い PC でも起動できます。
 
 設定は `%LOCALAPPDATA%\StreamMediaViewer_Nu\settings.json`（exe のときは exe と同じフォルダ）。写真フォルダには書き込みません。
