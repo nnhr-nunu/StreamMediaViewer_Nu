@@ -9,7 +9,6 @@ def test_settings_dialog_keeps_blur_strength(qtbot) -> None:
             blur_strength=25,
             face_blur=True,
             text_blur=False,
-            video_audio=False,
             enhance_level="weak",
             language="ja",
         ),
@@ -30,3 +29,4 @@ def test_settings_dialog_keeps_blur_strength(qtbot) -> None:
     assert not hasattr(dialog, "chk_text")
     assert not hasattr(dialog, "cmb_enhance")
     assert not hasattr(dialog, "cmb_lang")
+    assert not hasattr(dialog, "chk_audio")

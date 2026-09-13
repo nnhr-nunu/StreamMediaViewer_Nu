@@ -42,3 +42,10 @@ def test_face_filter_keeps_only_faces() -> None:
         )
         is True
     )
+
+
+def test_hidden_filter_excludes_or_keeps_only_hidden() -> None:
+    assert passes_filters(hidden=True) is False
+    assert passes_filters(hidden=False) is True
+    assert passes_filters(hidden=True, show_hidden=True) is True
+    assert passes_filters(hidden=False, show_hidden=True) is False

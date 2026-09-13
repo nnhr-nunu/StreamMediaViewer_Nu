@@ -29,8 +29,15 @@ def passes_filters(
     dates: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
+    hidden: bool = False,
+    show_hidden: bool = False,
 ) -> bool:
     if not readable:
+        return False
+    if show_hidden:
+        if not hidden:
+            return False
+    elif hidden:
         return False
     if star_only and not favorite:
         return False

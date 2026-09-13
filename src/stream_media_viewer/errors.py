@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
+import faulthandler
 import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
 
 from stream_media_viewer.config import user_config_dir
+
+OPERATOR_ERROR_KEYS = (
+    "unreadable",
+    "protect_failed",
+    "startup_failed",
+    "save_failed",
+    "settings_load_failed",
+    "settings_apply_failed",
+    "unexpected_error",
+)
+
+_WHERE_TO_KEY = {
+    "save": "save_failed",
+    "protect": "protect_failed",
+    "settings": "settings_apply_failed",
+    "load": "settings_load_failed",
+    "startup": "startup_failed",
+}
+
+_FAULT_LOG = None
 
 
 def error_log_path() -> Path:
@@ -26,9 +47,33 @@ def log_exception(exc: BaseException, path: Path | None = None) -> Path:
     return target
 
 
+def user_error_key(_exc: BaseException, *, where: str) -> str:
+    return _WHERE_TO_KEY.get(where, "unexpected_error")
+
+
 def install_excepthook() -> None:
+    global _FAULT_LOG
+    try:
+        _FAULT_LOG = error_log_path().open("a", encoding="utf-8")
+        faulthandler.enable(file=_FAULT_LOG, all_threads=True)
+    except OSError:
+        faulthandler.enable()
+
     def _hook(exc_type: type[BaseException], exc: BaseException, tb) -> None:
         log_exception(exc)
+        try:
+            from PySide6.QtWidgets import QApplication, QMessageBox
+
+            from stream_media_viewer.i18n import t
+
+            if QApplication.instance() is not None:
+                QMessageBox.critical(
+                    None,
+                    "StreamMediaViewer(ぬ)",
+                    t("ja", "unexpected_error"),
+                )
+        except Exception:
+            pass
         sys.__excepthook__(exc_type, exc, tb)
 
     sys.excepthook = _hook

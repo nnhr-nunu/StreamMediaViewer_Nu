@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
     QProgressBar,
     QSlider,
     QStackedLayout,
@@ -79,16 +80,18 @@ class OperatorWindow(QMainWindow):
     filters_changed = Signal()
     loop_changed = Signal()
     prepare_requested = Signal()
-    prepare_folder_requested = Signal()
+    prepare_photos_requested = Signal()
+    prepare_videos_requested = Signal()
     clear_cache_requested = Signal()
     clear_marks_requested = Signal()
     enhance_cycle_requested = Signal()
     settings_requested = Signal()
     language_cycle_requested = Signal()
-    false_face_requested = Signal()
     rotate_left_requested = Signal()
     rotate_right_requested = Signal()
     region_clicked = Signal(float, float)
+    hide_item_requested = Signal(int)
+    audio_changed = Signal()
     brush_width_changed = Signal(int)
 
     def __init__(self, gate: OutputGate) -> None:
@@ -109,8 +112,11 @@ class OperatorWindow(QMainWindow):
         self.chk_face.setChecked(True)
         self.chk_text = QCheckBox()
         self.btn_enhance = _bar_button()
+        self.btn_enhance.setMinimumWidth(96)
         self.enhance_level = "weak"
-        self.btn_folder_prep = _bar_button()
+        self._playing = False
+        self.btn_prep_photos = _bar_button()
+        self.btn_prep_videos = _bar_button()
         self.btn_clear_cache = _bar_button()
         self.btn_settings = _bar_button()
         self.cache_label = QLabel()
@@ -119,7 +125,8 @@ class OperatorWindow(QMainWindow):
         top.addWidget(self.chk_face)
         top.addWidget(self.chk_text)
         top.addWidget(self.btn_enhance)
-        top.addWidget(self.btn_folder_prep)
+        top.addWidget(self.btn_prep_photos)
+        top.addWidget(self.btn_prep_videos)
         top.addWidget(self.btn_clear_cache)
         top.addWidget(self.cache_label)
         top.addStretch()
@@ -153,13 +160,24 @@ class OperatorWindow(QMainWindow):
             self.chk_dates,
         ):
             box.setChecked(False)
-        for box in (self.chk_star_only, self.chk_photos, self.chk_videos, self.chk_filter_face):
+        for box in (self.chk_star_only, self.chk_filter_face, self.chk_photos, self.chk_videos):
             filters.addWidget(box)
         filters.addWidget(self.combo_folder)
         filters.addWidget(self.combo_place)
-        filters.addWidget(self.chk_dates)
-        filters.addWidget(self.date_from)
-        filters.addWidget(self.date_to)
+        self.date_group = QWidget()
+        date_row = QHBoxLayout(self.date_group)
+        date_row.setContentsMargins(0, 0, 0, 0)
+        date_row.setSpacing(4)
+        self.lbl_date_range = QLabel("～")
+        self.lbl_date_range.setObjectName("meta")
+        date_row.addWidget(self.chk_dates)
+        date_row.addWidget(self.date_from)
+        date_row.addWidget(self.lbl_date_range)
+        date_row.addWidget(self.date_to)
+        filters.addWidget(self.date_group)
+        self.chk_hidden = QCheckBox()
+        self.chk_hidden.setChecked(False)
+        filters.addWidget(self.chk_hidden)
         filters.addStretch()
         self.sort_box = QGroupBox()
         self.combo_sort = DropHintCombo()
@@ -187,6 +205,8 @@ class OperatorWindow(QMainWindow):
         self.list.setMinimumWidth(220)
         self.list.setWordWrap(False)
         self.list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(self._list_menu)
         body.addWidget(self.list)
 
         preview_col = QVBoxLayout()
@@ -243,15 +263,23 @@ class OperatorWindow(QMainWindow):
         self.timeline_out = QSlider(Qt.Orientation.Horizontal)
         self.timeline_out.setObjectName("rangeOut")
         self.chk_loop = QCheckBox()
+        self.chk_audio = QCheckBox()
+        self.chk_audio.setChecked(True)
         row_in = QHBoxLayout()
         row_in.addWidget(self.lbl_in)
         row_in.addWidget(self.timeline, stretch=1)
         row_out = QHBoxLayout()
         row_out.addWidget(self.lbl_out)
         row_out.addWidget(self.timeline_out, stretch=1)
+        loop_row = QHBoxLayout()
+        loop_row.setContentsMargins(0, 0, 0, 0)
+        loop_row.setSpacing(16)
+        loop_row.addWidget(self.chk_loop)
+        loop_row.addWidget(self.chk_audio)
+        loop_row.addStretch()
         preview_col.addLayout(row_in)
         preview_col.addLayout(row_out)
-        preview_col.addWidget(self.chk_loop)
+        preview_col.addLayout(loop_row)
         body.addLayout(preview_col, stretch=1)
         outer.addLayout(body, stretch=1)
 
@@ -282,7 +310,9 @@ class OperatorWindow(QMainWindow):
         self.btn_rot_right.setMinimumWidth(72)
         self.btn_false_face.setMinimumWidth(120)
         self.btn_false_face.setVisible(False)
-        self.btn_folder_prep.setMinimumWidth(120)
+        self.btn_false_face.setCheckable(True)
+        self.btn_prep_photos.setMinimumWidth(80)
+        self.btn_prep_videos.setMinimumWidth(80)
         self.btn_clear_cache.setMinimumWidth(120)
         self.btn_play = _bar_button()
         self.btn_prep = _bar_button()
@@ -373,7 +403,8 @@ class OperatorWindow(QMainWindow):
         self.btn_star.clicked.connect(self.star_requested.emit)
         self.btn_undo.clicked.connect(self.undo_requested.emit)
         self.btn_prep.clicked.connect(self.prepare_requested.emit)
-        self.btn_folder_prep.clicked.connect(self.prepare_folder_requested.emit)
+        self.btn_prep_photos.clicked.connect(self.prepare_photos_requested.emit)
+        self.btn_prep_videos.clicked.connect(self.prepare_videos_requested.emit)
         self.btn_clear_cache.clicked.connect(self.clear_cache_requested.emit)
         self.btn_clear_marks.clicked.connect(self.clear_marks_requested.emit)
         self.slider_brush.valueChanged.connect(self._on_brush_width)
@@ -386,7 +417,7 @@ class OperatorWindow(QMainWindow):
         self.preview.region_clicked.connect(self.region_clicked.emit)
         self.btn_help.clicked.connect(self._show_shortcuts)
         self.btn_lang.clicked.connect(self.language_cycle_requested.emit)
-        self.btn_false_face.clicked.connect(self.false_face_requested.emit)
+        self.btn_false_face.toggled.connect(self._sync_false_face_caption)
         self.btn_rot_left.clicked.connect(self.rotate_left_requested.emit)
         self.btn_rot_right.clicked.connect(self.rotate_right_requested.emit)
         self.btn_manual.clicked.connect(lambda: self._set_manual(self.btn_manual.isChecked()))
@@ -395,12 +426,14 @@ class OperatorWindow(QMainWindow):
         self.chk_face.toggled.connect(lambda _=False: self.settings_changed.emit())
         self.chk_text.toggled.connect(lambda _=False: self.settings_changed.emit())
         self.chk_loop.toggled.connect(lambda _=False: self.loop_changed.emit())
+        self.chk_audio.toggled.connect(lambda _=False: self.audio_changed.emit())
         for box in (
             self.chk_star_only,
             self.chk_photos,
             self.chk_videos,
             self.chk_filter_face,
             self.chk_dates,
+            self.chk_hidden,
         ):
             box.toggled.connect(lambda _=False: self.filters_changed.emit())
         self.combo_place.currentIndexChanged.connect(lambda _=0: self.filters_changed.emit())
@@ -468,7 +501,7 @@ class OperatorWindow(QMainWindow):
         _caption(self.btn_panic, "⬛", t(lang, "btn_panic"), t(lang, "panic"))
         _caption(self.btn_prev, "◀", t(lang, "btn_prev"), t(lang, "prev"))
         _caption(self.btn_next, "▶", t(lang, "btn_next"), t(lang, "next"))
-        _caption(self.btn_play, "⏯", t(lang, "btn_play"), t(lang, "play"))
+        self.set_playing(self._playing)
         self.btn_star.setText("⭐" if self.btn_star.isChecked() else "☆")
         self.btn_star.setToolTip(t(lang, "star"))
         _caption(self.btn_undo, "↩", t(lang, "btn_undo"), t(lang, "undo"))
@@ -480,18 +513,21 @@ class OperatorWindow(QMainWindow):
         _caption(self.btn_clear_marks, "✕", t(lang, "btn_clear_marks"), t(lang, "clear_marks"))
         self.lbl_brush.setText(t(lang, "brush_width"))
         _caption(self.btn_prep, "⏳", t(lang, "btn_prep"), t(lang, "prepare"))
-        _caption(self.btn_folder_prep, "📂", t(lang, "btn_folder_prep"), t(lang, "prepare_folder"))
+        _caption(self.btn_prep_photos, "📸", t(lang, "btn_prep_photos"), t(lang, "prepare_photos"))
+        _caption(self.btn_prep_videos, "🎦", t(lang, "btn_prep_videos"), t(lang, "prepare_videos"))
         _caption(self.btn_clear_cache, "🧹", t(lang, "btn_clear"), t(lang, "clear_cache"))
         _caption(self.btn_settings, "⚙", t(lang, "btn_settings"), t(lang, "settings"))
         _caption(self.btn_lang, "あ/A", t(lang, "btn_lang"), t(lang, "language"))
         _caption(self.btn_help, "?", t(lang, "btn_help"), t(lang, "shortcuts"))
-        _caption(self.btn_false_face, "❗️", t(lang, "btn_false_face"), t(lang, "false_face"))
+        self._sync_false_face_caption()
         self.filter_box.setTitle("🔍 " + t(lang, "filters_title"))
         self.sort_box.setTitle(t(lang, "sort_title"))
         self.chk_face.setText(t(lang, "face_blur"))
         self.chk_text.setText(t(lang, "text_blur"))
         self.set_enhance_level(self.enhance_level)
         self.chk_loop.setText(t(lang, "loop"))
+        self.chk_audio.setText(t(lang, "audio"))
+        self.chk_audio.setToolTip(t(lang, "audio_hint"))
         self.chk_star_only.setText("⭐")
         self.chk_star_only.setToolTip(t(lang, "filter_star"))
         self.chk_photos.setText(t(lang, "filter_photo"))
@@ -499,6 +535,7 @@ class OperatorWindow(QMainWindow):
         self.chk_filter_face.setText("😊")
         self.chk_filter_face.setToolTip(t(lang, "filter_face"))
         self.chk_dates.setText(t(lang, "filter_dates"))
+        self.chk_hidden.setText(t(lang, "filter_hidden"))
         self._fill_sort()
         self._set_combo_all(self.combo_place, "filter_place_all")
         if self.combo_place.count() >= 2 and self.combo_place.itemData(1) == PLACE_NONE:
@@ -586,8 +623,33 @@ class OperatorWindow(QMainWindow):
     def set_enhance_level(self, level: str) -> None:
         self.enhance_level = parse_enhance_level(level)
         lang = self.lang
-        self.btn_enhance.setText(t(lang, f"enhance_{self.enhance_level}"))
+        state = t(lang, f"enhance_{self.enhance_level}")
+        self.btn_enhance.setText(f"✨{t(lang, 'enhance_title')}\n{state}")
         self.btn_enhance.setToolTip(t(lang, "enhance_hint"))
+
+    def set_playing(self, playing: bool) -> None:
+        self._playing = bool(playing)
+        lang = self.lang
+        if self._playing:
+            _caption(self.btn_play, "⏹", t(lang, "btn_stop"), t(lang, "pause"))
+            return
+        _caption(self.btn_play, "⏯", t(lang, "btn_play"), t(lang, "play"))
+
+    def _sync_false_face_caption(self) -> None:
+        lang = self.lang
+        state = t(lang, "toggle_on" if self.btn_false_face.isChecked() else "toggle_off")
+        self.btn_false_face.setText(f"❗️{t(lang, 'btn_false_face')}\n{state}")
+        self.btn_false_face.setToolTip(t(lang, "false_face"))
+
+    def _list_menu(self, pos) -> None:
+        row = self.list.indexAt(pos).row()
+        if row < 0:
+            return
+        menu = QMenu(self)
+        key = "unhide_item" if self.chk_hidden.isChecked() else "hide_item"
+        chosen = menu.addAction(t(self.lang, key))
+        if menu.exec(self.list.mapToGlobal(pos)) is chosen:
+            self.hide_item_requested.emit(row)
 
     def set_media_kind(self, kind: str | None) -> None:
         video = kind == "video"
@@ -603,6 +665,7 @@ class OperatorWindow(QMainWindow):
             self.lbl_out,
             self.timeline_out,
             self.chk_loop,
+            self.chk_audio,
         ):
             widget.setVisible(video)
 

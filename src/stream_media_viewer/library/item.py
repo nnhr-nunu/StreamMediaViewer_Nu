@@ -7,6 +7,13 @@ from typing import Any, Literal
 
 from stream_media_viewer.render.rotate import clamp_rotation
 
+
+def _as_int(raw: Any, default: int = 0) -> int:
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
 Kind = Literal["image", "video"]
 
 
@@ -34,6 +41,7 @@ class FileNote:
     has_text_region: bool = False
     skip_faces: bool = False
     rotation: int = 0
+    hidden: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -46,6 +54,7 @@ class FileNote:
             "has_text_region": self.has_text_region,
             "skip_faces": self.skip_faces,
             "rotation": clamp_rotation(self.rotation),
+            "hidden": self.hidden,
         }
 
     @classmethod
@@ -54,14 +63,23 @@ class FileNote:
         if not isinstance(marks, list):
             marks = []
         out_ms = data.get("out_ms")
+        parsed_out: int | None
+        if out_ms is None:
+            parsed_out = None
+        else:
+            try:
+                parsed_out = int(out_ms)
+            except (TypeError, ValueError):
+                parsed_out = None
         return cls(
             favorite=bool(data.get("favorite")),
             loop=bool(data.get("loop")),
-            in_ms=int(data.get("in_ms") or 0),
-            out_ms=None if out_ms is None else int(out_ms),
+            in_ms=_as_int(data.get("in_ms"), 0),
+            out_ms=parsed_out,
             marks=[m for m in marks if isinstance(m, dict)],
             has_face=bool(data.get("has_face")),
             has_text_region=bool(data.get("has_text_region")),
             skip_faces=bool(data.get("skip_faces")),
             rotation=clamp_rotation(data.get("rotation") or 0),
+            hidden=bool(data.get("hidden")),
         )
