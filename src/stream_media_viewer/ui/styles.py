@@ -38,6 +38,12 @@ QSlider::handle:horizontal {
   background: #c9a0ff;
   border-radius: 8px;
 }
+QSlider#rangeIn::handle:horizontal {
+  background: #7dcea0;
+}
+QSlider#rangeOut::handle:horizontal {
+  background: #e8a070;
+}
 QCheckBox { spacing: 8px; }
 QLabel#meta { color: #bdbdbd; }
 QLabel#preview {

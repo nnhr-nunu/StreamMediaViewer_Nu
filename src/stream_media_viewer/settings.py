@@ -11,6 +11,21 @@ from typing import Any
 from stream_media_viewer.config import SETTINGS_FILENAME, user_config_dir
 from stream_media_viewer.library.item import FileNote
 
+RECENT_FOLDER_LIMIT = 8
+
+
+def remember_folder(recent: list[str], path: str, *, limit: int = RECENT_FOLDER_LIMIT) -> list[str]:
+    incoming = str(path).strip()
+    if not incoming:
+        return list(recent)[:limit]
+    incoming_key = incoming.replace("\\", "/").rstrip("/").casefold()
+    ordered = [incoming]
+    for item in recent:
+        key = str(item).replace("\\", "/").rstrip("/").casefold()
+        if key != incoming_key:
+            ordered.append(item)
+    return ordered[:limit]
+
 
 @dataclass
 class AppSettings:
@@ -28,6 +43,7 @@ class AppSettings:
     date_to: str = ""
     notes: dict[str, FileNote] = field(default_factory=dict)
     blur_off_confirmed: bool = False
+    recent_folders: list[str] = field(default_factory=list)
 
     def note_for(self, path: str) -> FileNote:
         note = self.notes.get(path)
@@ -51,6 +67,7 @@ class AppSettings:
             "date_from": self.date_from,
             "date_to": self.date_to,
             "blur_off_confirmed": self.blur_off_confirmed,
+            "recent_folders": list(self.recent_folders),
             "notes": {key: note.to_dict() for key, note in self.notes.items()},
         }
 
@@ -62,8 +79,15 @@ class AppSettings:
             for key, value in raw_notes.items():
                 if isinstance(value, dict):
                     notes[str(key)] = FileNote.from_dict(value)
+        raw_recent = data.get("recent_folders") or []
+        recent_folders: list[str] = []
+        if isinstance(raw_recent, list):
+            recent_folders = [str(item) for item in raw_recent if str(item).strip()]
+        last_folder = str(data.get("last_folder") or "")
+        if last_folder:
+            recent_folders = remember_folder(recent_folders, last_folder)
         return cls(
-            last_folder=str(data.get("last_folder") or ""),
+            last_folder=last_folder,
             blur_strength=int(data.get("blur_strength") or 25),
             language=str(data.get("language") or "ja"),
             face_blur=bool(data.get("face_blur", True)),
@@ -77,6 +101,7 @@ class AppSettings:
             date_to=str(data.get("date_to") or ""),
             notes=notes,
             blur_off_confirmed=bool(data.get("blur_off_confirmed", False)),
+            recent_folders=recent_folders,
         )
 
 
