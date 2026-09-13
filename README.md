@@ -62,6 +62,13 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 2. 「ウィンドウが見つからないときは何も出さない」があればONにしてください。
 3. それでも残るときは、その取り込みを一度オフにして、もう一度オンにする
 
+## 開発者・お問い合わせ
+
+開発者: ぬぬはら
+X: [@nnhr_nunu](https://x.com/nnhr_nunu)
+
+バグ報告はXのDMなどでお願いいたします。
+
 ---
 
 # StreamMediaViewer (Nu) — English
@@ -125,3 +132,10 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 1. Set the capture method to Windows 10 (1903+) when available.
 2. Enable “show nothing when the window is missing” if available.
 3. Toggle the source off and on
+
+## Developer and contact
+
+Developer: ぬぬはら
+X: [@nnhr_nunu](https://x.com/nnhr_nunu)
+
+For bug reports, please contact us by X direct message.
