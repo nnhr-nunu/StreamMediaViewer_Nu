@@ -22,6 +22,7 @@ from stream_media_viewer.detect.false_faces import effective_false_face_hashes
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.library.sort import parse_list_sort
 from stream_media_viewer.render.enhance import parse_enhance_level
+from stream_media_viewer.ui.overlays import OPERATOR_LOUPE_PX, OUTPUT_LOUPE_PX, clamp_loupe_px
 
 RECENT_FOLDER_LIMIT = 8
 
@@ -76,6 +77,8 @@ class AppSettings:
     recent_folders: list[str] = field(default_factory=list)
     include_subfolders: bool = True
     brush_width: int = DEFAULT_BRUSH_WIDTH
+    operator_loupe_px: int = OPERATOR_LOUPE_PX
+    output_loupe_px: int = OUTPUT_LOUPE_PX
     list_sort: str = "date_asc"
     false_face_hashes: list[str] = field(default_factory=list)
 
@@ -108,6 +111,8 @@ class AppSettings:
             "recent_folders": list(self.recent_folders),
             "include_subfolders": self.include_subfolders,
             "brush_width": self.brush_width,
+            "operator_loupe_px": self.operator_loupe_px,
+            "output_loupe_px": self.output_loupe_px,
             "list_sort": self.list_sort,
             "false_face_hashes": list(self.false_face_hashes),
             "notes": {key: note.to_dict() for key, note in self.notes.items()},
@@ -159,6 +164,8 @@ class AppSettings:
             recent_folders=recent_folders,
             include_subfolders=bool(data.get("include_subfolders", True)),
             brush_width=clamp_brush_width(data.get("brush_width", DEFAULT_BRUSH_WIDTH)),
+            operator_loupe_px=clamp_loupe_px(data.get("operator_loupe_px", OPERATOR_LOUPE_PX)),
+            output_loupe_px=clamp_loupe_px(data.get("output_loupe_px", OUTPUT_LOUPE_PX)),
             list_sort=parse_list_sort(data.get("list_sort")),
             false_face_hashes=false_face_hashes,
         )

@@ -53,6 +53,7 @@ from stream_media_viewer.settings import (
     remember_folder,
     save_settings,
 )
+from stream_media_viewer.ui.overlays import clamp_loupe_px
 from stream_media_viewer.ui.geometry import geometry_hex, restore_saved_geometry
 from stream_media_viewer.ui.list_row import FACE_MARK, row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
@@ -173,13 +174,14 @@ class StreamMediaViewerApp:
         op.clear_cache_requested.connect(self._clear_cache)
         op.clear_marks_requested.connect(self._clear_marks)
         op.brush_width_changed.connect(self._on_brush_width)
+        op.slider_loupe.valueChanged.connect(self._on_operator_loupe_px)
+        self.output.slider_loupe.valueChanged.connect(self._on_output_loupe_px)
         op.enhance_cycle_requested.connect(self._cycle_enhance)
         op.settings_requested.connect(self._open_settings)
         op.language_cycle_requested.connect(self._cycle_language)
         op.region_clicked.connect(self._on_preview_region)
         op.hide_item_requested.connect(self._toggle_hidden)
         op.audio_changed.connect(self._on_audio_ui)
-        op.loupe_changed.connect(self.output.set_loupe)
         op.false_undo_requested.connect(self._undo_false_face)
         op.btn_false_face.toggled.connect(lambda _on=False: self._sync_false_face_button())
         op.rotate_left_requested.connect(lambda: self._rotate_current(270))
@@ -201,6 +203,11 @@ class StreamMediaViewerApp:
         op.chk_audio.setChecked(self.settings.video_audio)
         op.chk_audio.blockSignals(False)
         op.preview.brush_width = self.settings.brush_width
+        op.slider_loupe.blockSignals(True)
+        op.slider_loupe.setValue(self.settings.operator_loupe_px)
+        op.slider_loupe.blockSignals(False)
+        op.preview.set_loupe_px(self.settings.operator_loupe_px)
+        self.output.set_loupe_px(self.settings.output_loupe_px)
         op.set_sort(self.settings.list_sort)
         op.date_from.blockSignals(True)
         op.date_to.blockSignals(True)
@@ -1078,6 +1085,12 @@ class StreamMediaViewerApp:
     def _on_brush_width(self, value: int) -> None:
         self.settings.brush_width = clamp_brush_width(value)
         self.operator.preview.brush_width = self.settings.brush_width
+
+    def _on_operator_loupe_px(self, value: int) -> None:
+        self.settings.operator_loupe_px = clamp_loupe_px(value)
+
+    def _on_output_loupe_px(self, value: int) -> None:
+        self.settings.output_loupe_px = clamp_loupe_px(value)
 
     def _apply_in_out(self) -> None:
         item = self._current()

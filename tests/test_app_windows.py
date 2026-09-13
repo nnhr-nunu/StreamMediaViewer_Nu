@@ -199,7 +199,8 @@ def test_photo_and_video_show_different_controls(qtbot) -> None:
     assert bar.indexOf(app.operator.btn_next) < bar.indexOf(app.operator.btn_send)
     assert bar.indexOf(app.operator.btn_manual) < bar.indexOf(app.operator.btn_rot_left)
     assert bar.indexOf(app.operator.btn_rot_left) < bar.indexOf(app.operator.btn_rot_right)
-    assert bar.indexOf(app.operator.btn_rot_right) < bar.indexOf(app.operator.btn_play)
+    assert bar.indexOf(app.operator.btn_rot_right) < bar.indexOf(app.operator.btn_loupe)
+    assert bar.indexOf(app.operator.btn_loupe) < bar.indexOf(app.operator.btn_play)
     assert bar.indexOf(app.operator.btn_play) < bar.indexOf(app.operator.btn_prep)
     assert bar.indexOf(app.operator.btn_prep) < bar.indexOf(app.operator.btn_false_face)
     assert bar.indexOf(app.operator.btn_false_face) < bar.indexOf(app.operator.btn_lang)
@@ -325,9 +326,18 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert "拡大" in op.btn_loupe.text()
     assert "事前処理データ" in op.btn_clear_cache.text()
     assert op.chk_star_only.text() == "⭐"
+    assert op.loupe_tools.isHidden()
     assert op.manual_tools.isHidden()
     op._set_manual(True)
     assert not op.manual_tools.isHidden()
+    assert op.loupe_tools.isHidden()
+    op._apply_loupe(True)
+    assert not op.loupe_tools.isHidden()
+    assert op.manual_tools.isHidden()
+    assert op.preview.mode == "off"
+    op._set_manual(True)
+    assert not op.manual_tools.isHidden()
+    assert op.loupe_tools.isHidden()
     assert op.preview.mode == "rect"
     tools = op.manual_tools.layout()
     assert tools.indexOf(op.btn_rect) < tools.indexOf(op.btn_brush)
@@ -348,6 +358,7 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert "←" in body.text()
     assert "→" in body.text()
     assert "非表示にする" in body.text()
+    assert "右下" in body.text()
     assert op.minimumWidth() >= 900
     assert op.minimumHeight() >= 560
     assert op.btn_false_face.isHidden()
@@ -463,3 +474,35 @@ def test_list_grows_to_two_thumbs_when_wide(qtbot) -> None:
     pix = QPixmap(80, 80)
     marked = with_video_mark(pix, 80)
     assert marked.width() == 80
+
+
+def test_output_chrome_and_offscreen_send_keeps_position(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    out = app.output
+    assert out.btn_loupe.isCheckable()
+    assert out.btn_laser.isCheckable()
+    assert out.btn_pan.isCheckable()
+    assert out.btn_zoom_in.text() == "＋"
+    assert out.btn_zoom_out.text() == "－"
+    assert out.slider_loupe.isHidden()
+    out.btn_loupe.setChecked(True)
+    assert not out.slider_loupe.isHidden()
+    assert out.canvas._loupe is True
+    out.slider_loupe.setValue(200)
+    assert out.canvas.loupe_px == 200
+    out.btn_laser.setChecked(True)
+    assert out.canvas._laser is True
+    out.btn_pan.setChecked(True)
+    assert out.canvas._pan_mode is True
+    assert out.canvas.view_scale == 1.0
+    out.btn_zoom_in.click()
+    assert out.canvas.view_scale > 1.0
+    out.move(-420, 40)
+    pos = out.pos()
+    frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+    out.show_frame(frame)
+    assert out.pos() == pos
+    top = app.operator.btn_folder.parentWidget().layout()
+    assert top.indexOf(app.operator.btn_loupe) < 0

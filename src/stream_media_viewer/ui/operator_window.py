@@ -39,6 +39,7 @@ from stream_media_viewer.safety.output_gate import OutputGate, OutputReason
 from stream_media_viewer.ui.drop_hint import CalendarDateEdit, DropHintCombo
 from stream_media_viewer.ui.capture_exclude import exclude_from_capture
 from stream_media_viewer.ui.list_thumb import with_video_mark
+from stream_media_viewer.ui.overlays import MAX_LOUPE_PX, MIN_LOUPE_PX, OPERATOR_LOUPE_PX
 from stream_media_viewer.ui.preview_canvas import PreviewCanvas
 from stream_media_viewer.ui.styles import DARK_QSS
 
@@ -94,7 +95,6 @@ class OperatorWindow(QMainWindow):
     region_clicked = Signal(float, float)
     hide_item_requested = Signal(int)
     audio_changed = Signal()
-    loupe_changed = Signal(bool)
     false_undo_requested = Signal()
     brush_width_changed = Signal(int)
 
@@ -117,8 +117,6 @@ class OperatorWindow(QMainWindow):
         self.chk_text = QCheckBox()
         self.btn_enhance = _bar_button()
         self.btn_enhance.setMinimumWidth(96)
-        self.btn_loupe = _bar_button()
-        self.btn_loupe.setCheckable(True)
         self.enhance_level = "weak"
         self._playing = False
         self._fit_cache: dict[tuple, QPixmap] = {}
@@ -134,7 +132,6 @@ class OperatorWindow(QMainWindow):
         top.addWidget(self.chk_face)
         top.addWidget(self.chk_text)
         top.addWidget(self.btn_enhance)
-        top.addWidget(self.btn_loupe)
         top.addWidget(self.btn_prep_photos)
         top.addWidget(self.btn_prep_videos)
         top.addWidget(self.btn_clear_cache)
@@ -303,6 +300,15 @@ class OperatorWindow(QMainWindow):
         self.btn_manual = _bar_button()
         self.btn_rot_left = _bar_button()
         self.btn_rot_right = _bar_button()
+        self.btn_loupe = _bar_button()
+        self.btn_loupe.setCheckable(True)
+        self.lbl_loupe = QLabel()
+        self.lbl_loupe.setObjectName("meta")
+        self.slider_loupe = QSlider(Qt.Orientation.Horizontal)
+        self.slider_loupe.setRange(MIN_LOUPE_PX, MAX_LOUPE_PX)
+        self.slider_loupe.setValue(OPERATOR_LOUPE_PX)
+        self.slider_loupe.setMinimumWidth(120)
+        self.slider_loupe.setMaximumWidth(200)
         self.btn_false_face = _bar_button()
         self.btn_undo = _bar_button()
         self.btn_rect = _bar_button()
@@ -342,6 +348,13 @@ class OperatorWindow(QMainWindow):
         tools = QHBoxLayout(self.manual_tools)
         tools.setContentsMargins(8, 4, 8, 4)
         tools.setSpacing(6)
+        self.loupe_tools = QFrame()
+        self.loupe_tools.setObjectName("manualTools")
+        loupe_row = QHBoxLayout(self.loupe_tools)
+        loupe_row.setContentsMargins(8, 4, 8, 4)
+        loupe_row.setSpacing(6)
+        loupe_row.addWidget(self.lbl_loupe)
+        loupe_row.addWidget(self.slider_loupe)
         for widget in (
             self.btn_prev,
             self.btn_next,
@@ -362,6 +375,8 @@ class OperatorWindow(QMainWindow):
         bar.addWidget(self.manual_tools)
         bar.addWidget(self.btn_rot_left)
         bar.addWidget(self.btn_rot_right)
+        bar.addWidget(self.btn_loupe)
+        bar.addWidget(self.loupe_tools)
         bar.addStretch()
         bar.addWidget(self.btn_play)
         bar.addWidget(self.btn_prep)
@@ -378,6 +393,7 @@ class OperatorWindow(QMainWindow):
         self._bind()
         self.set_media_kind(None)
         self._set_manual(False)
+        self._apply_loupe(False)
         self.retranslate()
         self._relayout_list()
         self.show_guide(t("ja", "empty_guide"))
@@ -422,6 +438,7 @@ class OperatorWindow(QMainWindow):
         self.btn_clear_cache.clicked.connect(self.clear_cache_requested.emit)
         self.btn_clear_marks.clicked.connect(self.clear_marks_requested.emit)
         self.slider_brush.valueChanged.connect(self._on_brush_width)
+        self.slider_loupe.valueChanged.connect(self._on_loupe_px)
         self.btn_star.toggled.connect(self._on_star_toggled)
         self.btn_enhance.clicked.connect(self.enhance_cycle_requested.emit)
         self.btn_loupe.toggled.connect(self._on_loupe)
@@ -473,6 +490,8 @@ class OperatorWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Z"), self, self.undo_requested.emit)
 
     def _set_manual(self, on: bool) -> None:
+        if on:
+            self._apply_loupe(False)
         self.btn_manual.setChecked(on)
         if on:
             if self.preview.mode not in {"rect", "stroke"}:
@@ -483,6 +502,7 @@ class OperatorWindow(QMainWindow):
         self._sync_manual_extras()
 
     def _tool(self, mode: str) -> None:
+        self._apply_loupe(False)
         self.btn_manual.setChecked(True)
         self.preview.mode = mode
         self._sync_manual_extras()
@@ -506,13 +526,27 @@ class OperatorWindow(QMainWindow):
         self.preview.brush_width = value
         self.brush_width_changed.emit(value)
 
+    def _on_loupe_px(self, value: int) -> None:
+        self.preview.set_loupe_px(value)
+
     def _on_star_toggled(self, on: bool) -> None:
         self.btn_star.setText("⭐" if on else "☆")
         self.btn_star.setToolTip(t(self.lang, "star"))
 
     def _on_loupe(self, on: bool) -> None:
+        self._apply_loupe(on)
+
+    def _apply_loupe(self, on: bool) -> None:
+        self.btn_loupe.blockSignals(True)
+        self.btn_loupe.setChecked(on)
+        self.btn_loupe.blockSignals(False)
+        if on:
+            self.btn_manual.setChecked(False)
+            self.preview.mode = "off"
+            self._sync_manual_extras()
+        self.loupe_tools.setVisible(on)
         self.preview.set_loupe(on)
-        self.loupe_changed.emit(on)
+        self.preview.set_loupe_px(self.slider_loupe.value())
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
@@ -532,6 +566,8 @@ class OperatorWindow(QMainWindow):
         _caption(self.btn_manual, "💧", t(lang, "btn_manual"), t(lang, "manual"))
         _caption(self.btn_rot_left, "↺", t(lang, "btn_rot_left"), t(lang, "rot_left"))
         _caption(self.btn_rot_right, "↻", t(lang, "btn_rot_right"), t(lang, "rot_right"))
+        _caption(self.btn_loupe, "🔍", t(lang, "btn_loupe"), t(lang, "loupe"))
+        self.lbl_loupe.setText(t(lang, "loupe_size"))
         _caption(self.btn_rect, "▢", t(lang, "btn_rect"), t(lang, "rect"))
         _caption(self.btn_brush, "🖌", t(lang, "btn_brush"), t(lang, "brush"))
         _caption(self.btn_clear_marks, "✕", t(lang, "btn_clear_marks"), t(lang, "clear_marks"))
@@ -552,7 +588,6 @@ class OperatorWindow(QMainWindow):
         self.chk_face.setText(t(lang, "face_blur"))
         self.chk_text.setText(t(lang, "text_blur"))
         self.set_enhance_level(self.enhance_level)
-        _caption(self.btn_loupe, "🔍", t(lang, "btn_loupe"), t(lang, "loupe"))
         self.chk_loop.setText(t(lang, "loop"))
         self.chk_audio.setText(t(lang, "audio"))
         self.chk_audio.setToolTip(t(lang, "audio_hint"))

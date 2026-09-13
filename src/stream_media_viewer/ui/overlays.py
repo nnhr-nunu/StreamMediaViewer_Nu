@@ -6,9 +6,19 @@ from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPixmap, QRadialGradient
 
 LOUPE_ZOOM = 2.4
+MIN_LOUPE_PX = 80
+MAX_LOUPE_PX = 480
 OPERATOR_LOUPE_PX = 168
 OUTPUT_LOUPE_PX = 260
 LASER_RADIUS = 22
+
+
+def clamp_loupe_px(raw: object) -> int:
+    try:
+        value = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return OPERATOR_LOUPE_PX
+    return max(MIN_LOUPE_PX, min(MAX_LOUPE_PX, value))
 
 
 def paint_loupe(

@@ -144,6 +144,28 @@ QFrame#manualTools {
   border-left: 4px solid #c9a0ff;
   border-radius: 10px;
 }
+QFrame#outputChrome {
+  background: transparent;
+}
+QToolButton#outputChrome {
+  background: rgba(18, 18, 18, 200);
+  font-size: 20px;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 48px;
+  padding: 4px;
+  border-radius: 10px;
+}
+QToolButton#outputChrome:hover {
+  background: rgba(60, 42, 80, 220);
+}
+QToolButton#outputChrome:checked {
+  background: #6b3fa0;
+}
+QSlider#outputLoupe {
+  min-width: 96px;
+  max-width: 140px;
+}
 QToolButton#starOverlay {
   background: rgba(18, 18, 18, 170);
   font-size: 22px;
