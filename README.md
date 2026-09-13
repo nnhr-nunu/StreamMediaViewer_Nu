@@ -58,8 +58,9 @@
 - 「繰返」はその1本の動画だけ、同じ区間を繰り返します
 - **⏳** は、今選んでいる動画だけ先に処理します。選んだときも、裏で同じ処理を始めます
 - **📂⏳** は、今開いているフォルダの写真と動画を、配信前にまとめて処理します。押すと、おおよその空き容量の目安が出ます。写真はあまり増えません。容量のほとんどは動画です（目安: 1分あたり数百MB になることがあります）
-- 処理結果はパソコン内の作業用フォルダに残ります。元の写真・動画は増えませんし、上書きもしません
-- 配信が終わったら **🗑** で作業用データを消せます。画面上に「作業用 ○○ MB」と出ます
+- 処理結果はパソコン内に、**今開いているフォルダごと**に残ります。元の写真・動画は増えませんし、上書きもしません
+- 配信が終わったら **🗑**。確認で「このフォルダだけ消す」か「全部消す」を選べます。消えるのは処理済みの絵だけです。星・再生の区間・手で足したぼかしは残ります。画面上に「このフォルダ ○○ / 全体 ○○」と出ます
+- 左の一覧: **⬆** はいま視聴者に出しているもの、**✓** は処理済みです
 
 ## 顔や個人情報
 
@@ -156,8 +157,9 @@ Use あ/A to switch Japanese / English. Icons are the main labels; hover for a s
 - Loop applies to that file only
 - **⏳** prepares the current video (also starts in the background when you select it)
 - **📂⏳** prepares every photo and video in the open folder. You will see a rough disk estimate first. Photos are small; video is most of the size (often hundreds of MB per minute)
-- Working files are stored on your PC. Originals are never overwritten
-- After the stream, **🗑** deletes working files. The top of the window shows how much space they use
+- Working files are stored **per open folder**. Originals are never overwritten
+- After the stream, **🗑** asks whether to delete this folder’s prepared pictures or everything. Stars, in/out range, and hand-drawn blur stay. The top of the window shows this folder vs all
+- In the list, **⬆** is what viewers see now, **✓** means prepared
 
 ## Privacy
 

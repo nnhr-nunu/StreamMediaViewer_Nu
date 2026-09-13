@@ -33,13 +33,34 @@ def format_bytes(n: int) -> str:
     return f"{n / (1024 * 1024 * 1024):.1f} GB"
 
 
-def cache_size_bytes() -> int:
-    root = preload_root()
+def folder_cache_id(folder: Path | str) -> str:
+    path = Path(folder)
+    try:
+        resolved = str(path.resolve())
+    except OSError:
+        resolved = str(path)
+    return hashlib.sha256(resolved.encode("utf-8")).hexdigest()[:16]
+
+
+def item_cache_dir(folder_id: str, key: str) -> Path:
+    return preload_root() / folder_id / key
+
+
+def cache_size_bytes(folder_id: str | None = None) -> int:
+    root = preload_root() if folder_id is None else preload_root() / folder_id
+    if not root.exists():
+        return 0
     total = 0
     for path in root.rglob("*"):
         if path.is_file():
             total += path.stat().st_size
     return total
+
+
+def clear_folder_cache(folder_id: str) -> None:
+    import shutil
+
+    shutil.rmtree(preload_root() / folder_id, ignore_errors=True)
 
 
 def clear_preload_cache() -> None:
@@ -84,12 +105,13 @@ def cache_key(
     return hashlib.sha256(raw).hexdigest()[:20]
 
 
-def cache_folder(key: str) -> Path:
-    return preload_root() / key
+def cache_folder(key: str, folder_id: str) -> Path:
+    return item_cache_dir(folder_id, key)
 
 
-def cache_is_ready(key: str) -> bool:
-    meta = cache_folder(key) / "meta.json"
+def cache_is_ready(key: str, folder_id: str) -> bool:
+    dest = item_cache_dir(folder_id, key)
+    meta = dest / "meta.json"
     if not meta.is_file():
         return False
     try:
@@ -99,12 +121,12 @@ def cache_is_ready(key: str) -> bool:
     count = int(data.get("count") or 0)
     if count < 1:
         return False
-    last = cache_folder(key) / f"{count - 1:06d}.jpg"
+    last = dest / f"{count - 1:06d}.jpg"
     return last.is_file()
 
 
-def read_meta(key: str) -> dict[str, Any]:
-    meta = cache_folder(key) / "meta.json"
+def read_meta(key: str, folder_id: str) -> dict[str, Any]:
+    meta = item_cache_dir(folder_id, key) / "meta.json"
     return json.loads(meta.read_text(encoding="utf-8"))
 
 
@@ -120,6 +142,7 @@ class PreloadWorker(QThread):
         marks: list[dict[str, Any]],
         in_ms: int,
         out_ms: int | None,
+        folder_id: str,
     ) -> None:
         super().__init__()
         self._path = path
@@ -128,11 +151,12 @@ class PreloadWorker(QThread):
         self._marks = marks
         self._in_ms = in_ms
         self._out_ms = out_ms
+        self._folder_id = folder_id
 
     def run(self) -> None:
         import shutil
 
-        dest = cache_folder(self._key)
+        dest = item_cache_dir(self._folder_id, self._key)
         if dest.exists():
             shutil.rmtree(dest, ignore_errors=True)
         dest.mkdir(parents=True, exist_ok=True)
