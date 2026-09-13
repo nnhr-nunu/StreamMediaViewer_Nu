@@ -75,6 +75,7 @@ class AppSettings:
     include_subfolders: bool = True
     brush_width: int = DEFAULT_BRUSH_WIDTH
     list_sort: str = "date_asc"
+    false_face_hashes: list[str] = field(default_factory=list)
 
     def note_for(self, path: str) -> FileNote:
         note = self.notes.get(path)
@@ -103,6 +104,7 @@ class AppSettings:
             "include_subfolders": self.include_subfolders,
             "brush_width": self.brush_width,
             "list_sort": self.list_sort,
+            "false_face_hashes": list(self.false_face_hashes),
             "notes": {key: note.to_dict() for key, note in self.notes.items()},
         }
 
@@ -121,6 +123,10 @@ class AppSettings:
         last_folder = str(data.get("last_folder") or "")
         if last_folder:
             recent_folders = remember_folder(recent_folders, last_folder)
+        raw_hashes = data.get("false_face_hashes") or []
+        false_face_hashes: list[str] = []
+        if isinstance(raw_hashes, list):
+            false_face_hashes = [str(item) for item in raw_hashes if str(item).strip()]
         return cls(
             last_folder=last_folder,
             blur_strength=clamp_blur_strength(data.get("blur_strength", DEFAULT_BLUR_STRENGTH)),
@@ -145,6 +151,7 @@ class AppSettings:
             include_subfolders=bool(data.get("include_subfolders", True)),
             brush_width=clamp_brush_width(data.get("brush_width", DEFAULT_BRUSH_WIDTH)),
             list_sort=parse_list_sort(data.get("list_sort")),
+            false_face_hashes=false_face_hashes,
         )
 
 

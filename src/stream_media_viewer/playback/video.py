@@ -46,6 +46,7 @@ class VideoPlayer(QObject):
         self.playing = False
         self.audio_enabled = False
         self._protect: Callable[[np.ndarray], np.ndarray] | None = None
+        self.last_raw: np.ndarray | None = None
         self._last_ok: np.ndarray | None = None
         self._audio = None
         self._sink = None
@@ -135,6 +136,7 @@ class VideoPlayer(QObject):
     def close(self) -> None:
         self.pause()
         self._last_ok = None
+        self.last_raw = None
         self._protect = None
         if self._cap is not None:
             self._cap.release()
@@ -144,6 +146,7 @@ class VideoPlayer(QObject):
             self._audio.setSource(QUrl())
 
     def _apply(self, frame: np.ndarray) -> np.ndarray | None:
+        self.last_raw = frame
         if self._protect is None:
             self._last_ok = frame
             return frame

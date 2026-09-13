@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-def row_marks(*, favorite: bool, live: bool, ready: bool) -> str:
+def row_marks(*, favorite: bool, live: bool, ready: bool, manual: bool = False) -> str:
     parts: list[str] = []
     if favorite:
         parts.append("⭐")
@@ -11,4 +11,6 @@ def row_marks(*, favorite: bool, live: bool, ready: bool) -> str:
         parts.append("【表示中】")
     if ready:
         parts.append("✓")
+    if manual:
+        parts.append("💧手動ぼかし")
     return " ".join(parts)

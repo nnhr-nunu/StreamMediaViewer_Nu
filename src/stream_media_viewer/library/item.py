@@ -30,6 +30,7 @@ class FileNote:
     marks: list[dict[str, Any]] = field(default_factory=list)
     has_face: bool = False
     has_text_region: bool = False
+    skip_faces: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -40,6 +41,7 @@ class FileNote:
             "marks": list(self.marks),
             "has_face": self.has_face,
             "has_text_region": self.has_text_region,
+            "skip_faces": self.skip_faces,
         }
 
     @classmethod
@@ -56,4 +58,5 @@ class FileNote:
             marks=[m for m in marks if isinstance(m, dict)],
             has_face=bool(data.get("has_face")),
             has_text_region=bool(data.get("has_text_region")),
+            skip_faces=bool(data.get("skip_faces")),
         )

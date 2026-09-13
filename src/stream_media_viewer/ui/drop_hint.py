@@ -6,13 +6,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QCalendarWidget, QComboBox, QDateEdit
 
-_HINT = "🔽"
+_HINT = "▼"
 
 
 def _paint_hint(widget, painter: QPainter) -> None:
     painter.setPen(widget.palette().color(widget.foregroundRole()))
-    box = widget.rect().adjusted(0, 0, -8, 0)
-    painter.drawText(box, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, _HINT)
+    arrow = widget.rect().adjusted(widget.width() - 26, 0, -4, 0)
+    painter.drawText(arrow, Qt.AlignmentFlag.AlignCenter, _HINT)
 
 
 class DropHintCombo(QComboBox):
