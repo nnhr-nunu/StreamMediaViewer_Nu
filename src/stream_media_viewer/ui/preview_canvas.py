@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRect, Qt, Signal
+from PySide6.QtCore import QPoint, QRect, Qt, QTimer, Signal
 from PySide6.QtGui import QMouseEvent, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QLabel
 
@@ -12,6 +12,7 @@ _CLICK_PX = 8
 class PreviewCanvas(QLabel):
     mark_added = Signal(dict)
     clicked = Signal()
+    region_clicked = Signal(float, float)
 
     def __init__(self) -> None:
         super().__init__()
@@ -26,6 +27,9 @@ class PreviewCanvas(QLabel):
         self._current: QRect | None = None
         self._stroke: list[tuple[float, float]] = []
         self._pixmap: QPixmap | None = None
+        self._fit_timer = QTimer(self)
+        self._fit_timer.setSingleShot(True)
+        self._fit_timer.timeout.connect(self._refit)
 
     def set_frame(self, pixmap: QPixmap, *, smooth: bool = True) -> None:
         self._pixmap = pixmap
@@ -45,6 +49,9 @@ class PreviewCanvas(QLabel):
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
+        self._fit_timer.start(60)
+
+    def _refit(self) -> None:
         if self._pixmap:
             self.set_frame(self._pixmap)
 
@@ -97,6 +104,17 @@ class PreviewCanvas(QLabel):
             return
         pos = event.position().toPoint()
         click = abs(pos.x() - origin.x()) < _CLICK_PX and abs(pos.y() - origin.y()) < _CLICK_PX
+        if click and self.mode == "off":
+            pt = self._norm(origin)
+            self._origin = None
+            self._current = None
+            self._stroke = []
+            self.update()
+            if pt is not None:
+                self.region_clicked.emit(pt[0], pt[1])
+            elif self.click_toggles_play:
+                self.clicked.emit()
+            return
         if click and self.click_toggles_play:
             self._origin = None
             self._current = None

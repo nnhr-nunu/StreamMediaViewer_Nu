@@ -1,7 +1,7 @@
 import numpy as np
 
 from stream_media_viewer.detect.blur import Box
-from stream_media_viewer.detect.faces import crop_ahash, reject_false_faces, remember_false_faces
+from stream_media_viewer.detect.faces import crop_ahash, face_box_at, reject_false_faces, remember_false_faces
 
 
 def test_false_face_hash_rejects_same_crop() -> None:
@@ -26,3 +26,11 @@ def test_false_face_hash_keeps_different_crop() -> None:
     kept = reject_false_faces(second, [box], hashes)
     assert len(kept) == 1
     assert crop_ahash(first, box) != crop_ahash(second, box)
+
+
+def test_face_box_at_picks_smallest_hit() -> None:
+    inner = Box(10, 10, 10, 10)
+    outer = Box(0, 0, 40, 40)
+    hit = face_box_at([outer, inner], 0.3, 0.3, 50, 50)
+    assert hit == inner
+    assert face_box_at([outer], 0.9, 0.9, 50, 50) is None

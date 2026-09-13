@@ -15,7 +15,10 @@ def test_folder_filter_matches_relative_folder() -> None:
     assert passes_filters(relative_folder="day1", folder="") is True
 
 
-def test_place_filter_matches_name() -> None:
+def test_face_filter_keeps_only_faces() -> None:
+    assert passes_filters(has_face=True, faces=True) is True
+    assert passes_filters(has_face=False, faces=True) is False
+    assert passes_filters(has_face=False, faces=False) is True
     assert passes_filters(place_name="Kyoto", place="Kyoto") is True
     assert passes_filters(place_name="Kyoto", place="Osaka") is False
     assert passes_filters(place_name="Kyoto", place="") is True
