@@ -506,3 +506,32 @@ def test_output_chrome_and_offscreen_send_keeps_position(qtbot) -> None:
     assert out.pos() == pos
     top = app.operator.btn_folder.parentWidget().layout()
     assert top.indexOf(app.operator.btn_loupe) < 0
+    out.show()
+    qtbot.waitExposed(out)
+    assert out._zoom_chrome.height() < 400
+    assert out._zoom_chrome.height() < out.height() / 2
+
+
+def test_persist_survives_deleted_workers(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+
+    class Dead:
+        def isRunning(self) -> bool:
+            raise RuntimeError("libshiboken: Internal C++ object (ThumbWorker) already deleted.")
+
+        def requestInterruption(self) -> None:
+            return None
+
+        def wait(self, _timeout: int) -> bool:
+            return True
+
+        class _Sig:
+            def disconnect(self, *_args: object, **_kwargs: object) -> None:
+                raise RuntimeError("gone")
+
+        thumb_ready = _Sig()
+
+    app._thumb_worker = Dead()
+    app.persist()
