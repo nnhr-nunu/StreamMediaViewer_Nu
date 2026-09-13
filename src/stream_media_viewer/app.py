@@ -461,20 +461,33 @@ class StreamMediaViewerApp:
                 break
 
     def _on_operator_gone(self, *_args: object) -> None:
+        try:
+            self._video.close()
+        except RuntimeError:
+            pass
+        self._playing_to_output = False
         self._stop_protect_worker(timeout_ms=1500)
         self._stop_preload()
-        if self._scan_worker is not None and self._scan_worker.isRunning():
-            self._scan_worker.requestInterruption()
-            self._scan_worker.wait(1500)
-        if self._thumb_worker is None:
+        self._stop_qthread(self._scan_worker, timeout_ms=1500)
+        self._scan_worker = None
+        self._stop_qthread(self._thumb_worker, timeout_ms=1500)
+        self._thumb_worker = None
+
+    def _stop_qthread(self, worker, *, timeout_ms: int) -> None:
+        if worker is None:
             return
         try:
-            self._thumb_worker.thumb_ready.disconnect(self._on_thumb_ready)
-        except (TypeError, RuntimeError):
-            pass
-        if self._thumb_worker.isRunning():
-            self._thumb_worker.requestInterruption()
-            self._thumb_worker.wait(1500)
+            disconnect = getattr(getattr(worker, "thumb_ready", None), "disconnect", None)
+            if disconnect is not None:
+                try:
+                    disconnect(self._on_thumb_ready)
+                except (TypeError, RuntimeError):
+                    pass
+            if worker.isRunning():
+                worker.requestInterruption()
+                worker.wait(timeout_ms)
+        except RuntimeError:
+            return
 
     def _apply_folder_dates(self) -> None:
         dates = [item.captured_at.date() for item in self._items if item.captured_at]
@@ -763,9 +776,12 @@ class StreamMediaViewerApp:
             worker.failed.disconnect(self._on_protect_failed)
         except (TypeError, RuntimeError):
             pass
-        if worker.isRunning():
-            worker.requestInterruption()
-            worker.wait(timeout_ms)
+        try:
+            if worker.isRunning():
+                worker.requestInterruption()
+                worker.wait(timeout_ms)
+        except RuntimeError:
+            pass
         self._worker = None
 
     def _on_protect_failed(self, seq: int) -> None:
@@ -1135,10 +1151,16 @@ class StreamMediaViewerApp:
         self._video.set_cache(None, 30)
 
     def _stop_preload(self) -> None:
-        if self._preload is not None and self._preload.isRunning():
-            self._preload.requestInterruption()
-            self._preload.wait(1500)
+        worker = self._preload
         self._preload = None
+        if worker is None:
+            return
+        try:
+            if worker.isRunning():
+                worker.requestInterruption()
+                worker.wait(1500)
+        except RuntimeError:
+            return
 
     def _start_preload(self) -> None:
         if self._folder_queue:
@@ -1308,10 +1330,16 @@ class StreamMediaViewerApp:
         self.operator.activateWindow()
 
     def persist(self) -> None:
-        self._on_operator_gone()
-        geo = self.operator.saveGeometry()
-        self.settings.operator_geometry = geo.toHex().data().decode("ascii")
-        self.settings.output_pos = geometry_hex(self.output)
+        try:
+            self._on_operator_gone()
+        except RuntimeError:
+            pass
+        try:
+            geo = self.operator.saveGeometry()
+            self.settings.operator_geometry = geo.toHex().data().decode("ascii")
+            self.settings.output_pos = geometry_hex(self.output)
+        except RuntimeError:
+            pass
         self._save_settings()
 
     def _save_settings(self) -> None:

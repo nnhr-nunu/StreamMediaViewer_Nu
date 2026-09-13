@@ -3,7 +3,7 @@ from PySide6.QtGui import QPixmap
 
 from stream_media_viewer.ui.overlays import clamp_loupe_px
 from stream_media_viewer.ui.view_transform import dest_rect, stepped_view_scale
-from stream_media_viewer.ui.win_present import present_opaque_pixmap
+from stream_media_viewer.ui.win_present import present_opaque_pixmap, redraw_hwnd
 
 
 def test_dest_rect_grows_from_center() -> None:
@@ -41,3 +41,4 @@ def test_present_skips_invalid_handle(qtbot) -> None:
     pix.fill(Qt.GlobalColor.black)
     assert present_opaque_pixmap(0, pix) is False
     assert present_opaque_pixmap(1, QPixmap()) is False
+    assert redraw_hwnd(0) is False

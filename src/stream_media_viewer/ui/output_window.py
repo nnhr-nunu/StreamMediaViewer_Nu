@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QSizePolicy,
     QSlider,
     QToolButton,
     QVBoxLayout,
@@ -31,7 +32,7 @@ from stream_media_viewer.ui.overlays import (
 from stream_media_viewer.ui.pixmaps import bgr_to_pixmap
 from stream_media_viewer.ui.styles import DARK_QSS
 from stream_media_viewer.ui.view_transform import dest_rect, stepped_view_scale
-from stream_media_viewer.ui.win_present import present_opaque_pixmap
+from stream_media_viewer.ui.win_present import redraw_hwnd
 
 IDLE_WINDOW_TITLE = "SMV-Output-idle"
 
@@ -53,7 +54,6 @@ class OutputCanvas(QLabel):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet("background: #000000;")
         self.setMouseTracking(True)
-        self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self._source = QPixmap()
         self._mouse = QPoint(-1, -1)
         self._loupe = False
@@ -111,18 +111,7 @@ class OutputCanvas(QLabel):
         self._drag_from = None
         self.clear()
         self.setPixmap(QPixmap())
-        self._redraw()
-
-    def compose_pixmap(self) -> QPixmap:
-        size = self.size()
-        if size.width() < 1 or size.height() < 1:
-            return QPixmap()
-        pix = QPixmap(size)
-        pix.fill(QColor(0, 0, 0))
-        painter = QPainter(pix)
-        self._paint_contents(painter)
-        painter.end()
-        return pix
+        self.update()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton and self._pan_mode:
@@ -175,10 +164,6 @@ class OutputCanvas(QLabel):
 
     def _redraw(self) -> None:
         self.update()
-        host = self.window()
-        present = getattr(host, "present_canvas", None)
-        if callable(present):
-            present()
 
     def _sync_cursor(self) -> None:
         if self._pan_mode:
@@ -219,15 +204,16 @@ class OutputWindow(QMainWindow):
         self.slider_loupe.setVisible(False)
         zoom = QFrame()
         zoom.setObjectName("outputChrome")
+        zoom.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         zoom_col = QVBoxLayout(zoom)
         zoom_col.setContentsMargins(0, 16, 16, 0)
         zoom_col.setSpacing(8)
         zoom_col.addWidget(self.btn_zoom_in)
         zoom_col.addWidget(self.btn_zoom_out)
         zoom_col.addWidget(self.btn_pan)
-        zoom_col.addStretch()
         tools = QFrame()
         tools.setObjectName("outputChrome")
+        tools.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         tools_row = QHBoxLayout(tools)
         tools_row.setContentsMargins(0, 0, 16, 16)
         tools_row.setSpacing(8)
@@ -262,6 +248,7 @@ class OutputWindow(QMainWindow):
     def show_frame(self, bgr: np.ndarray) -> None:
         pix = bgr_to_pixmap(bgr)
         self.canvas.set_frame_pixmap(pix)
+        self.present_canvas()
 
     def closeEvent(self, event) -> None:  # noqa: N802
         event.ignore()
@@ -270,11 +257,8 @@ class OutputWindow(QMainWindow):
     def present_canvas(self) -> None:
         if not self.isVisible() or not self._gate.window_visible:
             return
-        pix = self.canvas.compose_pixmap()
-        if pix.isNull():
-            return
-        hwnd = int(self.canvas.winId())
-        present_opaque_pixmap(hwnd, pix)
+        self.canvas.repaint()
+        redraw_hwnd(int(self.winId()))
 
     def _on_loupe(self, on: bool) -> None:
         self.slider_loupe.setVisible(bool(on))

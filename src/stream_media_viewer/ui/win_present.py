@@ -57,6 +57,28 @@ class _BITMAPINFO(Structure):
     _fields_ = [("bmiHeader", _BITMAPINFOHEADER)]
 
 
+def redraw_hwnd(hwnd: int) -> bool:
+    """画面外の領域も含め、既存の HWND を再描画する。重ね描きはしない。"""
+    if sys.platform != "win32" or hwnd <= 0:
+        return False
+    try:
+        import ctypes
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.RedrawWindow.restype = wintypes.BOOL
+        user32.RedrawWindow.argtypes = [wintypes.HWND, c_void_p, c_void_p, DWORD]
+        return bool(
+            user32.RedrawWindow(
+                wintypes.HWND(hwnd),
+                None,
+                None,
+                _RDW_INVALIDATE | _RDW_ERASE | _RDW_ALLCHILDREN | _RDW_UPDATENOW | _RDW_FRAME,
+            )
+        )
+    except (AttributeError, OSError, ValueError, TypeError):
+        return False
+
+
 def present_opaque_pixmap(hwnd: int, pixmap: QPixmap) -> bool:
     """HWND の全体へ不透明な絵を載せる。失敗したら False。"""
     if sys.platform != "win32" or hwnd <= 0 or pixmap.isNull():
