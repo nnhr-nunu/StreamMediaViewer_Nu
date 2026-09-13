@@ -16,9 +16,9 @@ QToolButton, QPushButton {
   background: #2a2a2a;
   border: none;
   border-radius: 10px;
-  padding: 10px 12px;
-  min-width: 44px;
-  min-height: 40px;
+  padding: 6px 8px;
+  min-width: 56px;
+  min-height: 48px;
   color: #f0f0f0;
 }
 QToolButton:hover, QPushButton:hover {
@@ -59,6 +59,12 @@ QComboBox QAbstractItemView {
   selection-background-color: #3d2a4f;
 }
 QLabel#meta { color: #bdbdbd; }
+QLabel#guide {
+  color: #e8e8e8;
+  font-size: 16px;
+  background: #121212;
+  padding: 28px;
+}
 QLabel#preview {
   background: #000;
   border-radius: 12px;

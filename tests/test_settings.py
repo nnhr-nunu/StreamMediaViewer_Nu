@@ -19,6 +19,7 @@ def test_missing_settings_file_returns_defaults(tmp_path: Path) -> None:
     assert loaded.last_folder == ""
     assert loaded.blur_strength == 25
     assert loaded.enhance_level == "weak"
+    assert loaded.include_subfolders is True
 
 
 def test_settings_roundtrip_keeps_detection_flags(tmp_path: Path) -> None:

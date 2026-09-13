@@ -3,11 +3,26 @@ from __future__ import annotations
 STRINGS = {
     "ja": {
         "open_folder": "フォルダを開く（最近使った場所からも選べます）",
+        "btn_folder": "フォルダ",
+        "btn_send": "送る",
+        "btn_panic": "隠す",
+        "btn_prev": "前",
+        "btn_next": "次",
+        "btn_play": "再生",
+        "btn_star": "星",
+        "btn_undo": "戻す",
+        "btn_rect": "四角",
+        "btn_brush": "筆",
+        "btn_prep": "下準備",
+        "btn_standby": "待機",
+        "btn_folder_prep": "一括",
+        "btn_clear": "削除",
+        "btn_settings": "設定",
         "send": "配信出力に表示",
         "panic": "配信出力を非表示",
         "prev": "前のファイル",
         "next": "次のファイル",
-        "play": "再生",
+        "play": "再生／停止",
         "pause": "停止",
         "star": "ブックマーク",
         "undo": "手動ぼかしを取り消す",
@@ -36,7 +51,19 @@ STRINGS = {
         "language_choice": "言語",
         "ok": "OK",
         "filter_gps_no": "位置情報なし",
+        "filter_dates": "日付",
         "filter_place_all": "場所（すべて）",
+        "filter_folder_all": "フォルダ（すべて）",
+        "include_subfolders": "下の階層のフォルダも読む",
+        "empty_guide": (
+            "フォルダを選択して下さい\n\n"
+            "1. 「フォルダ」で今日の写真・動画を開く\n"
+            "2. 左の一覧で確認する（まだ配信には出ません）\n"
+            "3. 「送る」で視聴者に出す\n"
+            "4. 「隠す」で配信用の窓を消す"
+        ),
+        "scanning": "読み込み中…\n写真が多いと少し時間がかかります。画面は止まっていません。",
+        "folder_empty": "このフォルダに写真・動画がありません",
         "confirm_no_blur": "顔のぼかしなしで配信出力に表示します。よろしいですか？",
         "pick_folder": "写真・動画のフォルダを選択",
         "empty": "写真・動画のフォルダを選択してください",
@@ -69,11 +96,26 @@ STRINGS = {
     },
     "en": {
         "open_folder": "Open a folder (recent places too)",
+        "btn_folder": "Folder",
+        "btn_send": "Send",
+        "btn_panic": "Hide",
+        "btn_prev": "Prev",
+        "btn_next": "Next",
+        "btn_play": "Play",
+        "btn_star": "Star",
+        "btn_undo": "Undo",
+        "btn_rect": "Box",
+        "btn_brush": "Brush",
+        "btn_prep": "Prep",
+        "btn_standby": "Standby",
+        "btn_folder_prep": "All",
+        "btn_clear": "Clear",
+        "btn_settings": "Settings",
         "send": "Show in output",
         "panic": "Hide output",
         "prev": "Previous file",
         "next": "Next file",
-        "play": "Play",
+        "play": "Play / pause",
         "pause": "Pause",
         "star": "Bookmark",
         "undo": "Undo hand-drawn blur",
@@ -105,7 +147,19 @@ STRINGS = {
         "language_choice": "Language",
         "ok": "OK",
         "filter_gps_no": "No location",
+        "filter_dates": "Dates",
         "filter_place_all": "Place (all)",
+        "filter_folder_all": "Folder (all)",
+        "include_subfolders": "Include subfolders",
+        "empty_guide": (
+            "Please choose a folder\n\n"
+            "1. Use Folder to open today’s photos and videos\n"
+            "2. Review them in the list (nothing goes to the stream yet)\n"
+            "3. Send to show it to viewers\n"
+            "4. Hide to close the output window"
+        ),
+        "scanning": "Loading…\nLarge folders take a moment. The window is not frozen.",
+        "folder_empty": "No photos or videos in this folder",
         "confirm_no_blur": "Show in output without face blur?",
         "pick_folder": "Choose a photo/video folder",
         "empty": "Choose a photo/video folder",

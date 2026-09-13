@@ -18,6 +18,7 @@ class MediaItem:
     has_face: bool = False
     has_text_region: bool = False
     place_name: str = ""
+    relative_folder: str = ""
 
 
 @dataclass
