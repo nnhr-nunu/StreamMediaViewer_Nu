@@ -7,7 +7,13 @@ StreamMediaViewer(ぬ)
    StreamMediaViewer(ぬ) - 配信出力
 
 送るまで／緊急（Esc またはテンキー 0）では窓が消えます。
-OBS で古い絵が残るときは、キャプチャ方法を「Windows 10 (1903 以降）」にし、
+動画は ⏳ で先に準備すると、配信中に遅れにくくなります。
+
+Windows: StreamMediaViewer.exe
+Mac: StreamMediaViewer（または .app）
+
+OBS で古い絵が残るときは、キャプチャ方法を「Windows 10 (1903 以降)」にし、
 「ウィンドウが無いときは何も表示しない」があればオンにしてください。
 
 詳しくは GitHub の README を見てください。
+

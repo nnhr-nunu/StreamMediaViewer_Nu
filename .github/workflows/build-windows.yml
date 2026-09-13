@@ -26,26 +26,63 @@ jobs:
           --hidden-import PySide6.QtMultimedia
           --add-data "src/stream_media_viewer/assets;stream_media_viewer/assets"
           src/stream_media_viewer/__main__.py
-      - name: Add run notes
-        run: Copy-Item packaging/HOW_TO_RUN.txt dist/StreamMediaViewer/使いかた.txt
-      - name: Zip
-        run: Compress-Archive -Path dist/StreamMediaViewer/* -DestinationPath StreamMediaViewer.zip -Force
+      - run: Copy-Item packaging/HOW_TO_RUN.txt dist/StreamMediaViewer/使いかた.txt
+      - run: Compress-Archive -Path dist/StreamMediaViewer/* -DestinationPath StreamMediaViewer-windows.zip -Force
       - uses: actions/upload-artifact@v4
         with:
-          name: StreamMediaViewer-windows
-          path: StreamMediaViewer.zip
+          name: windows-zip
+          path: StreamMediaViewer-windows.zip
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: python -m pip install -U pip
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+      - name: Build app
+        run: >
+          pyinstaller --noconfirm --clean --windowed --name StreamMediaViewer
+          --collect-all mediapipe --collect-all PySide6
+          --hidden-import PySide6.QtMultimedia
+          --add-data "src/stream_media_viewer/assets:stream_media_viewer/assets"
+          src/stream_media_viewer/__main__.py
+      - name: Zip
+        run: |
+          cp packaging/HOW_TO_RUN.txt dist/HOW_TO_RUN.txt
+          cd dist
+          if [ -d StreamMediaViewer.app ]; then
+            zip -r ../StreamMediaViewer-macOS.zip StreamMediaViewer.app HOW_TO_RUN.txt
+          else
+            zip -r ../StreamMediaViewer-macOS.zip StreamMediaViewer HOW_TO_RUN.txt
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-zip
+          path: StreamMediaViewer-macOS.zip
+
+  release:
+    needs: [windows, macos]
+    if: always() && needs.windows.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: 最新版（展開して exe をダブルクリック）
+          name: 最新版（展開して起動）
           body: |
-            ## 使い方
-            1. 下の **StreamMediaViewer.zip** をダウンロード
-            2. 展開して `StreamMediaViewer.exe` をダブルクリック
-            3. 📁 でフォルダを開き、確認してから ⬆ で送る
-            4. OBS のウィンドウキャプチャで `StreamMediaViewer(ぬ) - 配信出力` を選ぶ
+            ## ダウンロード
+            - Windows: **StreamMediaViewer-windows.zip** を展開し `StreamMediaViewer.exe` をダブルクリック
+            - Mac: **StreamMediaViewer-macOS.zip** を展開し `StreamMediaViewer`（または `.app`）を開く
 
-            Python のインストールは不要です。
-          files: StreamMediaViewer.zip
+            詳しい使い方はリポジトリの README を見てください。
+          files: |
+            windows-zip/StreamMediaViewer-windows.zip
+            macos-zip/StreamMediaViewer-macOS.zip
+          fail_on_unmatched_files: false
           make_latest: true

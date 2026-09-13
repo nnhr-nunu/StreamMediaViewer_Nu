@@ -48,6 +48,7 @@ class OperatorWindow(QMainWindow):
     mark_added = Signal(dict)
     settings_changed = Signal()
     standby_requested = Signal()
+    prepare_requested = Signal()
 
     def __init__(self, gate: OutputGate) -> None:
         super().__init__()
@@ -133,6 +134,7 @@ class OperatorWindow(QMainWindow):
         self.btn_undo = _icon_button("↩", "")
         self.btn_rect = _icon_button("▢", "")
         self.btn_brush = _icon_button("🖌", "")
+        self.btn_prep = _icon_button("⏳", "")
         self.btn_rect.setCheckable(True)
         self.btn_brush.setCheckable(True)
         self.btn_rect.setChecked(True)
@@ -147,6 +149,7 @@ class OperatorWindow(QMainWindow):
             self.btn_undo,
             self.btn_rect,
             self.btn_brush,
+            self.btn_prep,
         ):
             bar.addWidget(widget)
         bar.addStretch()
@@ -167,6 +170,7 @@ class OperatorWindow(QMainWindow):
         self.btn_undo.clicked.connect(self.undo_requested.emit)
         self.btn_lang.clicked.connect(self.language_requested.emit)
         self.btn_standby.clicked.connect(self.standby_requested.emit)
+        self.btn_prep.clicked.connect(self.prepare_requested.emit)
         self.list.currentRowChanged.connect(self.item_selected.emit)
         self.preview.mark_added.connect(self.mark_added.emit)
         self.btn_rect.clicked.connect(lambda: self._mode("rect"))
@@ -229,6 +233,7 @@ class OperatorWindow(QMainWindow):
         self.btn_standby.setToolTip(t(lang, "standby"))
         self.btn_rect.setToolTip(t(lang, "rect"))
         self.btn_brush.setToolTip(t(lang, "brush"))
+        self.btn_prep.setToolTip(t(lang, "prepare"))
 
     def set_items(self, items: list[MediaItem], labels: list[str]) -> None:
         self.list.blockSignals(True)

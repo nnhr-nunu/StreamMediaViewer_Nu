@@ -31,6 +31,9 @@ STRINGS = {
         "place_yes": "場所あり",
         "rect": "四角",
         "brush": "筆",
+        "prepare": "動画を先に準備",
+        "preparing": "準備中",
+        "prepared": "準備済み",
     },
     "en": {
         "open_folder": "Folder",
@@ -62,6 +65,9 @@ STRINGS = {
         "place_yes": "Has place",
         "rect": "Box",
         "brush": "Brush",
+        "prepare": "Prepare video",
+        "preparing": "Preparing",
+        "prepared": "Ready",
     },
 }
 
