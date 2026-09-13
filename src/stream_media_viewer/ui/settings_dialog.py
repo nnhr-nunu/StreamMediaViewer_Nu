@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from stream_media_viewer import display_version
 from stream_media_viewer.i18n import t
 from stream_media_viewer.render.enhance import parse_enhance_level
 from stream_media_viewer.settings import (
@@ -91,6 +92,9 @@ class SettingsDialog(QDialog):
 
         root = QVBoxLayout(self)
         root.addLayout(form)
+        self.version_label = QLabel(display_version())
+        self.version_label.setObjectName("meta")
+        root.addWidget(self.version_label)
         root.addWidget(buttons)
         self.resize(420, 320)
 
