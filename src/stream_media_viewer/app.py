@@ -10,7 +10,8 @@ import numpy as np
 from PySide6.QtCore import QDate, QThread, Signal
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QMessageBox
 
-from stream_media_viewer.detect.protect import protect_frame
+from stream_media_viewer.detect.protect import protect_frame_safe
+from stream_media_viewer.errors import install_excepthook, log_exception
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.scan import load_rgb_image, scan_folder
@@ -41,6 +42,7 @@ from stream_media_viewer.ui.pixmaps import bgr_to_pixmap
 
 class ProtectThread(QThread):
     done = Signal(object, bool, bool)
+    failed = Signal()
 
     def __init__(self, bgr: np.ndarray, settings: AppSettings, marks: list[dict]) -> None:
         super().__init__()
@@ -49,15 +51,22 @@ class ProtectThread(QThread):
         self._marks = marks
 
     def run(self) -> None:
-        out, faces, texts = protect_frame(
-            self._bgr,
-            face_blur=self._settings.face_blur,
-            text_blur=self._settings.text_blur,
-            marks=self._marks,
-            strength=self._settings.blur_strength,
-        )
-        out = enhance_bgr(out, level=self._settings.enhance_level)
-        self.done.emit(out, faces, texts)
+        try:
+            out, faces, texts = protect_frame_safe(
+                self._bgr,
+                face_blur=self._settings.face_blur,
+                text_blur=self._settings.text_blur,
+                marks=self._marks,
+                strength=self._settings.blur_strength,
+            )
+            if out is None:
+                self.failed.emit()
+                return
+            out = enhance_bgr(out, level=self._settings.enhance_level)
+            self.done.emit(out, faces, texts)
+        except Exception as exc:
+            log_exception(exc)
+            self.failed.emit()
 
 
 class StreamMediaViewerApp:
@@ -198,12 +207,21 @@ class StreamMediaViewerApp:
 
     def _load_folder(self, folder: Path) -> None:
         self._items = scan_folder(folder)
+        self._apply_saved_marks()
         self._index = 0
         self._refresh_list()
         if self._visible:
             self._select_visible(0)
 
+    def _apply_saved_marks(self) -> None:
+        for item in self._items:
+            note = self.settings.note_for(str(item.path))
+            item.has_face = note.has_face
+            item.has_text_region = note.has_text_region
+
     def _passes_filter(self, item: MediaItem) -> bool:
+        if not item.readable:
+            return False
         op = self.operator
         note = self.settings.note_for(str(item.path))
         if op.chk_star_only.isChecked() and not note.favorite:
@@ -291,9 +309,7 @@ class StreamMediaViewerApp:
         if item.kind == "image":
             image = load_rgb_image(item.path)
             if image is None:
-                item.readable = False
-                self.operator.meta.setText(t(self.settings.language, "unreadable"))
-                self.operator.refresh_status()
+                self._mark_unreadable(item)
                 return
             bgr = rgb_to_bgr(np.array(image))
             self._start_protect(bgr, note.marks)
@@ -309,10 +325,21 @@ class StreamMediaViewerApp:
             self._video.loop = note.loop
             frame = self._video.seek_ms(note.in_ms)
             if frame is None:
-                self.operator.meta.setText(t(self.settings.language, "unreadable"))
+                self._mark_unreadable(item)
                 return
             self._start_protect(frame, note.marks)
             _ = fps
+
+    def _mark_unreadable(self, item: MediaItem) -> None:
+        item.readable = False
+        self._preview = None
+        self.operator.set_range_visible(False)
+        self.operator.meta.setText(t(self.settings.language, "unreadable"))
+        self._refresh_list()
+        self.operator.list.blockSignals(True)
+        self.operator.list.setCurrentRow(-1)
+        self.operator.list.blockSignals(False)
+        self.operator.refresh_status()
 
     def _start_protect(self, bgr: np.ndarray, marks: list[dict]) -> None:
         prefix = self.operator.meta.text().split(" · ")[0]
@@ -321,18 +348,28 @@ class StreamMediaViewerApp:
             self._worker.requestInterruption()
         self._worker = ProtectThread(bgr, self.settings, list(marks))
         self._worker.done.connect(self._on_protected)
+        self._worker.failed.connect(self._on_protect_failed)
         self._worker.start()
+
+    def _on_protect_failed(self) -> None:
+        self._preview = None
+        self.operator.meta.setText(t(self.settings.language, "protect_failed"))
+        self.operator.refresh_status()
 
     def _on_protected(self, bgr: np.ndarray, has_face: bool, has_text: bool) -> None:
         item = self._current()
         if item:
             item.has_face = has_face
             item.has_text_region = has_text
+            note = self.settings.note_for(str(item.path))
+            note.has_face = has_face
+            note.has_text_region = has_text
         fitted = fit_letterbox(bgr)
         self._preview = fitted
         self.operator.preview.set_frame(bgr_to_pixmap(fitted))
         self.gate.mark_processed()
         self.operator.refresh_status()
+        self._refresh_list()
         item = self._current()
         if item and item.kind == "video" and not self._folder_queue:
             self._start_preload()
@@ -371,13 +408,15 @@ class StreamMediaViewerApp:
         self._refresh_list()
 
     def _protect_sync(self, frame: np.ndarray, marks: list[dict]) -> np.ndarray:
-        out, _, _ = protect_frame(
+        out, _, _ = protect_frame_safe(
             frame,
             face_blur=self.settings.face_blur,
             text_blur=self.settings.text_blur,
             marks=marks,
             strength=self.settings.blur_strength,
         )
+        if out is None:
+            raise RuntimeError("protect failed")
         out = enhance_bgr(out, level=self.settings.enhance_level)
         return fit_letterbox(out)
 
@@ -535,9 +574,27 @@ class StreamMediaViewerApp:
         label = t(self.settings.language, "preparing")
         self.operator.meta.setText(f"{prefix} · {label} {done}/{max(1, total)}")
 
-    def _on_preload_done(self, _key: str) -> None:
+    def _on_preload_done(self, key: str) -> None:
+        folder_id = self._folder_id()
+        if cache_is_ready(key, folder_id):
+            try:
+                meta = read_meta(key, folder_id)
+            except (OSError, ValueError):
+                meta = {}
+            has_face = bool(meta.get("has_face"))
+            has_text = bool(meta.get("has_text_region"))
+            for item in self._items:
+                if self._key_for(item) != key:
+                    continue
+                item.has_face = item.has_face or has_face
+                item.has_text_region = item.has_text_region or has_text
+                note = self.settings.note_for(str(item.path))
+                note.has_face = item.has_face
+                note.has_text_region = item.has_text_region
+                break
         prefix = self.operator.meta.text().split(" · ")[0]
-        self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'prepared')}")
+        label_key = "prepared" if cache_is_ready(key, folder_id) else "protect_failed"
+        self.operator.meta.setText(f"{prefix} · {t(self.settings.language, label_key)}")
         self._refresh_cache_label()
         self._refresh_list()
         self._advance_folder_queue()
@@ -568,10 +625,15 @@ class StreamMediaViewerApp:
             duration_ms = 0
             fps = 30.0
             if item.kind == "video":
-                cap = cv2.VideoCapture(str(item.path))
-                fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
-                frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-                cap.release()
+                try:
+                    cap = cv2.VideoCapture(str(item.path))
+                    fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
+                    frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+                    cap.release()
+                except Exception as exc:
+                    log_exception(exc)
+                    fps = 30.0
+                    frames = 0.0
                 full_ms = int(1000 * frames / max(fps, 1.0)) if frames else 0
                 end = note.out_ms if note.out_ms else full_ms
                 duration_ms = max(0, end - note.in_ms)
@@ -643,13 +705,23 @@ class StreamMediaViewerApp:
         geo = self.operator.saveGeometry()
         self.settings.operator_geometry = geo.toHex().data().decode("ascii")
         self.settings.output_pos = geometry_hex(self.output)
-        save_settings(self.settings)
+        try:
+            save_settings(self.settings)
+        except OSError as exc:
+            log_exception(exc)
 
 
 def run() -> int:
-    qt_app = QApplication.instance() or QApplication(sys.argv)
-    qt_app.setApplicationName("StreamMediaViewer")
-    app = StreamMediaViewerApp()
-    qt_app.aboutToQuit.connect(app.persist)
-    app.show()
-    return qt_app.exec()
+    install_excepthook()
+    try:
+        qt_app = QApplication.instance() or QApplication(sys.argv)
+        qt_app.setApplicationName("StreamMediaViewer")
+        app = StreamMediaViewerApp()
+        qt_app.aboutToQuit.connect(app.persist)
+        app.show()
+        return qt_app.exec()
+    except Exception as exc:
+        log_exception(exc)
+        qt_app = QApplication.instance() or QApplication(sys.argv)
+        QMessageBox.critical(None, "StreamMediaViewer(ぬ)", t("ja", "startup_failed"))
+        return 1

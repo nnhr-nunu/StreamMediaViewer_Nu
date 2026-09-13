@@ -45,6 +45,24 @@ def _exif_datetime_and_gps(path: Path) -> tuple[datetime | None, bool]:
     return captured, has_gps
 
 
+def _file_has_bytes(path: Path) -> bool:
+    try:
+        return path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def _image_readable(path: Path) -> bool:
+    if not _file_has_bytes(path):
+        return False
+    try:
+        with Image.open(path) as img:
+            img.verify()
+    except (OSError, ValueError, SyntaxError):
+        return False
+    return True
+
+
 def scan_folder(folder: Path) -> list[MediaItem]:
     if not folder.is_dir():
         return []
@@ -57,6 +75,10 @@ def scan_folder(folder: Path) -> list[MediaItem]:
         if suffix not in suffixes:
             continue
         kind = "video" if suffix in SUPPORTED_VIDEO_SUFFIXES else "image"
+        if kind == "image" and not _image_readable(path):
+            continue
+        if kind == "video" and not _file_has_bytes(path):
+            continue
         captured, has_gps = _exif_datetime_and_gps(path)
         items.append(
             MediaItem(path=path, kind=kind, captured_at=captured, has_gps=has_gps, readable=True)
