@@ -66,23 +66,32 @@ jobs:
 
   release:
     needs: [windows, macos]
-    if: always() && needs.windows.result == 'success'
+    if: needs.windows.result == 'success' && needs.macos.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
+      - name: Remove obsolete generic asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete-asset latest StreamMediaViewer.zip --yes || true
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: 最新版（展開して起動）
           body: |
-            ## ダウンロード
-            - Windows: **StreamMediaViewer-windows.zip** を展開し `StreamMediaViewer.exe` をダブルクリック
-            - Mac: **StreamMediaViewer-macOS.zip** を展開し `StreamMediaViewer`（または `.app`）を開く
+            ## ダウンロード手順
+
+            1. このページ下部の **Assets** を開く
+            2. Windows は **StreamMediaViewer-windows.zip**、Mac は **StreamMediaViewer-macOS.zip** をダウンロード
+            3. ダウンロードした zip を展開
+            4. Windows は `StreamMediaViewer.exe`、Mac は `StreamMediaViewer.app`（または `StreamMediaViewer`）を開く
+
+            OS と違う zip は使わないでください。
 
             詳しい使い方はリポジトリの README を見てください。
           files: |
             windows-zip/StreamMediaViewer-windows.zip
             macos-zip/StreamMediaViewer-macOS.zip
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
           make_latest: true
