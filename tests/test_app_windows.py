@@ -128,3 +128,26 @@ def test_photo_and_video_show_different_controls(qtbot) -> None:
     assert not app.operator.btn_prep.isHidden()
     assert not app.operator.timeline.isHidden()
     assert not app.operator.chk_loop.isHidden()
+    bar = app.operator.btn_prev.parentWidget().layout()
+    assert bar.indexOf(app.operator.btn_next) < bar.indexOf(app.operator.btn_send)
+    assert bar.indexOf(app.operator.btn_brush) < bar.indexOf(app.operator.btn_play)
+    assert bar.indexOf(app.operator.btn_play) < bar.indexOf(app.operator.btn_prep)
+
+
+def test_common_buttons_stay_put_when_video_controls_appear(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    app.operator.resize(1280, 800)
+    app.operator.show()
+    qtbot.waitExposed(app.operator)
+    app.operator.set_media_kind("image")
+    qtbot.wait(20)
+    next_x = app.operator.btn_next.x()
+    send_x = app.operator.btn_send.x()
+    panic_x = app.operator.btn_panic.x()
+    app.operator.set_media_kind("video")
+    qtbot.wait(20)
+    assert app.operator.btn_next.x() == next_x
+    assert app.operator.btn_send.x() == send_x
+    assert app.operator.btn_panic.x() == panic_x
+    assert app.operator.btn_play.x() > app.operator.btn_brush.x()

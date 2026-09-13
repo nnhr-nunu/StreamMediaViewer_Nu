@@ -180,9 +180,10 @@ class OperatorWindow(QMainWindow):
         body.addLayout(preview_col, stretch=1)
         outer.addLayout(body, stretch=1)
 
-        bar = QHBoxLayout()
+        bar_host = QWidget()
+        bar = QHBoxLayout(bar_host)
+        bar.setContentsMargins(0, 0, 0, 0)
         self.btn_prev = _bar_button()
-        self.btn_play = _bar_button()
         self.btn_next = _bar_button()
         self.btn_send = _bar_button()
         self.btn_panic = _bar_button()
@@ -190,6 +191,7 @@ class OperatorWindow(QMainWindow):
         self.btn_undo = _bar_button()
         self.btn_rect = _bar_button()
         self.btn_brush = _bar_button()
+        self.btn_play = _bar_button()
         self.btn_prep = _bar_button()
         self.btn_rect.setCheckable(True)
         self.btn_brush.setCheckable(True)
@@ -197,7 +199,6 @@ class OperatorWindow(QMainWindow):
         self.btn_star.setCheckable(True)
         for widget in (
             self.btn_prev,
-            self.btn_play,
             self.btn_next,
             self.btn_send,
             self.btn_panic,
@@ -205,11 +206,12 @@ class OperatorWindow(QMainWindow):
             self.btn_undo,
             self.btn_rect,
             self.btn_brush,
-            self.btn_prep,
         ):
             bar.addWidget(widget)
         bar.addStretch()
-        outer.addLayout(bar)
+        bar.addWidget(self.btn_play)
+        bar.addWidget(self.btn_prep)
+        outer.addWidget(bar_host)
 
         self.setCentralWidget(root)
         self._bind()
