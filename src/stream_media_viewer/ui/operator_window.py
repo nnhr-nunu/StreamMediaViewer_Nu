@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut
+from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut, QTransform
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -43,7 +43,11 @@ from stream_media_viewer.ui.styles import DARK_QSS
 _LIST_ICON = QSize(220, 220)
 _LIST_GRID = QSize(228, 238)
 _PREVIEW_MIN = 520
+_LIST_SHARE = 0.42
 _TWO_COL_MIN = 400
+_ROLE_PIX = Qt.ItemDataRole.UserRole
+_ROLE_KIND = Qt.ItemDataRole.UserRole + 1
+_ROLE_ROT = Qt.ItemDataRole.UserRole + 2
 
 
 def _bar_button() -> QToolButton:
@@ -81,6 +85,8 @@ class OperatorWindow(QMainWindow):
     settings_requested = Signal()
     language_cycle_requested = Signal()
     false_face_requested = Signal()
+    rotate_left_requested = Signal()
+    rotate_right_requested = Signal()
     brush_width_changed = Signal(int)
 
     def __init__(self, gate: OutputGate) -> None:
@@ -176,12 +182,6 @@ class OperatorWindow(QMainWindow):
         self.meta = QLabel()
         self.meta.setObjectName("meta")
         self.meta.setWordWrap(True)
-        self.btn_false_face = _bar_button()
-        self.btn_false_face.setMinimumWidth(132)
-        self.btn_false_face.setVisible(False)
-        meta_row = QHBoxLayout()
-        meta_row.addWidget(self.meta, stretch=1)
-        meta_row.addWidget(self.btn_false_face)
         preview_stage = QWidget()
         preview_host = QWidget()
         self._preview_stack = QStackedLayout(preview_host)
@@ -221,7 +221,7 @@ class OperatorWindow(QMainWindow):
             self.btn_star, 0, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight
         )
         self.btn_star.raise_()
-        preview_col.addLayout(meta_row)
+        preview_col.addWidget(self.meta)
         preview_col.addWidget(preview_stage, stretch=1)
         self.lbl_in = QLabel()
         self.lbl_in.setObjectName("meta")
@@ -252,6 +252,9 @@ class OperatorWindow(QMainWindow):
         self.btn_send = _bar_button()
         self.btn_panic = _bar_button()
         self.btn_manual = _bar_button()
+        self.btn_rot_left = _bar_button()
+        self.btn_rot_right = _bar_button()
+        self.btn_false_face = _bar_button()
         self.btn_undo = _bar_button()
         self.btn_rect = _bar_button()
         self.btn_brush = _bar_button()
@@ -264,6 +267,10 @@ class OperatorWindow(QMainWindow):
         self.slider_brush.setMinimumWidth(120)
         self.slider_brush.setMaximumWidth(200)
         self.btn_manual.setMinimumWidth(88)
+        self.btn_rot_left.setMinimumWidth(72)
+        self.btn_rot_right.setMinimumWidth(72)
+        self.btn_false_face.setMinimumWidth(120)
+        self.btn_false_face.setVisible(False)
         self.btn_folder_prep.setMinimumWidth(120)
         self.btn_clear_cache.setMinimumWidth(120)
         self.btn_play = _bar_button()
@@ -299,9 +306,12 @@ class OperatorWindow(QMainWindow):
         ):
             tools.addWidget(widget)
         bar.addWidget(self.manual_tools)
+        bar.addWidget(self.btn_rot_left)
+        bar.addWidget(self.btn_rot_right)
         bar.addStretch()
         bar.addWidget(self.btn_play)
         bar.addWidget(self.btn_prep)
+        bar.addWidget(self.btn_false_face)
         bar.addWidget(self.btn_lang)
         bar.addWidget(self.btn_help)
         outer.addWidget(bar_host)
@@ -362,6 +372,8 @@ class OperatorWindow(QMainWindow):
         self.btn_help.clicked.connect(self._show_shortcuts)
         self.btn_lang.clicked.connect(self.language_cycle_requested.emit)
         self.btn_false_face.clicked.connect(self.false_face_requested.emit)
+        self.btn_rot_left.clicked.connect(self.rotate_left_requested.emit)
+        self.btn_rot_right.clicked.connect(self.rotate_right_requested.emit)
         self.btn_manual.clicked.connect(lambda: self._set_manual(self.btn_manual.isChecked()))
         self.btn_rect.clicked.connect(lambda: self._tool("rect"))
         self.btn_brush.clicked.connect(lambda: self._tool("stroke"))
@@ -445,6 +457,8 @@ class OperatorWindow(QMainWindow):
         self.btn_star.setToolTip(t(lang, "star"))
         _caption(self.btn_undo, "↩", t(lang, "btn_undo"), t(lang, "undo"))
         _caption(self.btn_manual, "💧", t(lang, "btn_manual"), t(lang, "manual"))
+        _caption(self.btn_rot_left, "↺", t(lang, "btn_rot_left"), t(lang, "rot_left"))
+        _caption(self.btn_rot_right, "↻", t(lang, "btn_rot_right"), t(lang, "rot_right"))
         _caption(self.btn_rect, "▢", t(lang, "btn_rect"), t(lang, "rect"))
         _caption(self.btn_brush, "🖌", t(lang, "btn_brush"), t(lang, "brush"))
         _caption(self.btn_clear_marks, "✕", t(lang, "btn_clear_marks"), t(lang, "clear_marks"))
@@ -608,6 +622,7 @@ class OperatorWindow(QMainWindow):
         labels: list[str],
         icons: list[QPixmap | None] | None = None,
         tips: list[str] | None = None,
+        rotations: list[int] | None = None,
     ) -> None:
         self.list.blockSignals(True)
         self.list.clear()
@@ -615,11 +630,12 @@ class OperatorWindow(QMainWindow):
             row = QListWidgetItem(label)
             pixmap = icons[index] if icons and index < len(icons) else None
             if pixmap is not None:
-                row.setData(Qt.ItemDataRole.UserRole, pixmap)
-            row.setData(Qt.ItemDataRole.UserRole + 1, items[index].kind if index < len(items) else "image")
-            if index < len(items) and items[index].kind == "video":
-                pixmap = with_video_mark(pixmap, self.list.iconSize().width())
-            fitted = self._fit_icon(pixmap)
+                row.setData(_ROLE_PIX, pixmap)
+            kind = items[index].kind if index < len(items) else "image"
+            row.setData(_ROLE_KIND, kind)
+            rot = rotations[index] if rotations and index < len(rotations) else 0
+            row.setData(_ROLE_ROT, int(rot))
+            fitted = self._row_icon(row)
             if fitted is not None and not fitted.isNull():
                 row.setIcon(QIcon(fitted))
             if tips and index < len(tips):
@@ -633,13 +649,36 @@ class OperatorWindow(QMainWindow):
         item = self.list.item(row)
         if item is None:
             return
-        item.setData(Qt.ItemDataRole.UserRole, pixmap)
-        item.setData(Qt.ItemDataRole.UserRole + 1, "video" if video else "image")
-        shown = with_video_mark(pixmap, self.list.iconSize().width()) if video else pixmap
-        fitted = self._fit_icon(shown)
+        item.setData(_ROLE_PIX, pixmap)
+        item.setData(_ROLE_KIND, "video" if video else "image")
+        fitted = self._row_icon(item)
         if fitted is None or fitted.isNull():
             return
         item.setIcon(QIcon(fitted))
+
+    def set_row_rotation(self, row: int, degrees: int) -> None:
+        item = self.list.item(row)
+        if item is None:
+            return
+        item.setData(_ROLE_ROT, int(degrees))
+        fitted = self._row_icon(item)
+        if fitted is None or fitted.isNull():
+            return
+        item.setIcon(QIcon(fitted))
+
+    def _row_icon(self, item: QListWidgetItem) -> QPixmap | None:
+        stored = item.data(_ROLE_PIX)
+        if not isinstance(stored, QPixmap) or stored.isNull():
+            return None
+        rotation = int(item.data(_ROLE_ROT) or 0)
+        if rotation:
+            stored = stored.transformed(
+                QTransform().rotate(rotation),
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        if item.data(_ROLE_KIND) == "video":
+            stored = with_video_mark(stored, self.list.iconSize().width())
+        return self._fit_icon(stored)
 
     def _fit_icon(self, pixmap: QPixmap | None) -> QPixmap | None:
         if pixmap is None or pixmap.isNull():
@@ -659,7 +698,7 @@ class OperatorWindow(QMainWindow):
 
     def _relayout_list(self) -> None:
         body = max(720, self.width() - 24)
-        list_w = max(220, body - _PREVIEW_MIN)
+        list_w = max(220, min(body - _PREVIEW_MIN, int(body * _LIST_SHARE)))
         two = list_w >= _TWO_COL_MIN
         cols = 2 if two else 1
         inner = max(160, list_w - 24)
@@ -675,13 +714,9 @@ class OperatorWindow(QMainWindow):
             if item is None:
                 continue
             item.setSizeHint(QSize(cell_w, cell_h))
-            stored = item.data(Qt.ItemDataRole.UserRole)
-            if isinstance(stored, QPixmap):
-                video = item.data(Qt.ItemDataRole.UserRole + 1) == "video"
-                source = with_video_mark(stored, icon) if video else stored
-                fitted = self._fit_icon(source)
-                if fitted is not None:
-                    item.setIcon(QIcon(fitted))
+            fitted = self._row_icon(item)
+            if fitted is not None:
+                item.setIcon(QIcon(fitted))
 
     def set_false_face_visible(self, visible: bool) -> None:
         self.btn_false_face.setVisible(visible)

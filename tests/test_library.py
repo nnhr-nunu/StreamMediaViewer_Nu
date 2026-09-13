@@ -47,6 +47,13 @@ def test_file_note_keeps_detection_flags() -> None:
     assert restored.has_text_region is True
 
 
+def test_file_note_keeps_rotation() -> None:
+    note = FileNote(rotation=270)
+    restored = FileNote.from_dict(note.to_dict())
+    assert restored.rotation == 270
+    assert FileNote.from_dict({"rotation": 45}).rotation == 0
+
+
 def test_scan_skips_empty_and_corrupt_images(tmp_path: Path) -> None:
     Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "good.jpg")
     (tmp_path / "empty.jpg").write_bytes(b"")

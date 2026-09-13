@@ -27,6 +27,10 @@ STRINGS = {
         "btn_lang": "言語",
         "btn_false_face": "誤検出修正",
         "false_face": "顔がないのに検出されたら押す。この写真のぼかしを消し、似た誤検出を覚えます",
+        "btn_rot_left": "左90°",
+        "btn_rot_right": "右90°",
+        "rot_left": "左に90度回す。元のファイルは変わりません",
+        "rot_right": "右に90度回す。元のファイルは変わりません",
         "shortcuts": "キー説明",
         "shortcuts_body": (
             "前: A / ← / 4\n"
@@ -146,6 +150,10 @@ STRINGS = {
         "btn_lang": "Language",
         "btn_false_face": "Not a face",
         "false_face": "Use when there is no face. Clears blur on this file and remembers similar false detections",
+        "btn_rot_left": "Left 90°",
+        "btn_rot_right": "Right 90°",
+        "rot_left": "Rotate 90° left. The original file stays unchanged",
+        "rot_right": "Rotate 90° right. The original file stays unchanged",
         "shortcuts": "Keys",
         "shortcuts_body": (
             "Previous: A / Left / 4\n"
