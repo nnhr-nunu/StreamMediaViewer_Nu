@@ -51,17 +51,23 @@ QSlider#rangeIn::handle:horizontal {
 QSlider#rangeOut::handle:horizontal {
   background: #e8a070;
 }
-QCheckBox { spacing: 8px; }
+QCheckBox { spacing: 10px; padding: 4px 12px 4px 4px; }
 QComboBox, QDateEdit, QDialog {
   background: #1b1b1b;
   color: #e8e8e8;
   border: 1px solid #333;
   border-radius: 8px;
-  padding: 4px 8px;
+  padding: 4px 28px 4px 10px;
   min-height: 32px;
 }
 QDateEdit {
   min-width: 150px;
+}
+QComboBox::drop-down, QDateEdit::drop-down {
+  subcontrol-origin: padding;
+  subcontrol-position: center right;
+  width: 22px;
+  border: none;
 }
 QComboBox QAbstractItemView {
   background: #1b1b1b;
@@ -80,6 +86,12 @@ QGroupBox::title {
   left: 12px;
   padding: 0 6px;
   color: #c9a0ff;
+}
+QFrame#manualTools {
+  background: #1a1520;
+  border: 1px solid #6b3fa0;
+  border-left: 4px solid #c9a0ff;
+  border-radius: 10px;
 }
 QToolButton#starOverlay {
   background: rgba(18, 18, 18, 170);

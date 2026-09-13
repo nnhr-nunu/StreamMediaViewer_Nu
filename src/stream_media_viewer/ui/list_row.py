@@ -8,7 +8,7 @@ def row_marks(*, favorite: bool, live: bool, ready: bool) -> str:
     if favorite:
         parts.append("⭐")
     if live:
-        parts.append("⬆")
+        parts.append("【表示中】")
     if ready:
         parts.append("✓")
     return " ".join(parts)

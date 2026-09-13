@@ -1,11 +1,12 @@
 from datetime import datetime
 
-from stream_media_viewer.library.filters import passes_filters
+from stream_media_viewer.library.filters import PLACE_NONE, passes_filters
 
 
-def test_gps_none_filter_keeps_items_without_location() -> None:
-    assert passes_filters(has_gps=False, gps_no=True) is True
-    assert passes_filters(has_gps=True, gps_no=True) is False
+def test_place_none_keeps_items_without_gps() -> None:
+    assert passes_filters(has_gps=False, place=PLACE_NONE) is True
+    assert passes_filters(has_gps=True, place=PLACE_NONE) is False
+    assert passes_filters(has_gps=True, place_name="Kyoto", place="") is True
 
 
 def test_folder_filter_matches_relative_folder() -> None:
