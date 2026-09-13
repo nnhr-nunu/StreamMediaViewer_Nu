@@ -8,11 +8,12 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PySide6.QtCore import QDate, QThread, Signal
-from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessageBox
 
 from stream_media_viewer.detect.protect import protect_frame_safe
 from stream_media_viewer.errors import install_excepthook, log_exception
 from stream_media_viewer.i18n import t
+from stream_media_viewer.library.filters import passes_filters
 from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.scan import load_rgb_image, scan_folder
 from stream_media_viewer.playback.preload import (
@@ -38,6 +39,7 @@ from stream_media_viewer.ui.list_row import row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
 from stream_media_viewer.ui.output_window import OutputWindow
 from stream_media_viewer.ui.pixmaps import bgr_to_pixmap
+from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
 
 
 class ProtectThread(QThread):
@@ -119,6 +121,7 @@ class StreamMediaViewerApp:
         op.prepare_requested.connect(self._start_preload)
         op.prepare_folder_requested.connect(self._prepare_folder)
         op.enhance_cycle_requested.connect(self._cycle_enhance)
+        op.settings_requested.connect(self._open_settings)
         op.timeline.sliderReleased.connect(self._apply_in_out)
         op.timeline_out.sliderReleased.connect(self._apply_in_out)
 
@@ -128,6 +131,18 @@ class StreamMediaViewerApp:
         op.chk_text.setChecked(self.settings.text_blur)
         op.chk_audio.setChecked(self.settings.video_audio)
         self.operator.set_enhance_level(self.settings.enhance_level)
+        op.date_from.blockSignals(True)
+        op.date_to.blockSignals(True)
+        if self.settings.date_from:
+            parsed = QDate.fromString(self.settings.date_from, "yyyy-MM-dd")
+            if parsed.isValid():
+                op.date_from.setDate(parsed)
+        if self.settings.date_to:
+            parsed = QDate.fromString(self.settings.date_to, "yyyy-MM-dd")
+            if parsed.isValid():
+                op.date_to.setDate(parsed)
+        op.date_from.blockSignals(False)
+        op.date_to.blockSignals(False)
         if self.settings.operator_geometry:
             self.operator.restoreGeometry(bytes.fromhex(self.settings.operator_geometry))
         restore_saved_geometry(self.output, self.settings.output_pos)
@@ -138,6 +153,8 @@ class StreamMediaViewerApp:
         self.settings.text_blur = self.operator.chk_text.isChecked()
         self.settings.video_audio = self.operator.chk_audio.isChecked()
         self.settings.enhance_level = self.operator.enhance_level
+        self.settings.date_from = self.operator.date_from.date().toString("yyyy-MM-dd")
+        self.settings.date_to = self.operator.date_to.date().toString("yyyy-MM-dd")
         if prev_face and not self.settings.face_blur:
             self.settings.blur_off_confirmed = False
         item = self._current()
@@ -149,6 +166,46 @@ class StreamMediaViewerApp:
     def _cycle_enhance(self) -> None:
         self.settings.enhance_level = next_enhance_level(self.settings.enhance_level)
         self.operator.set_enhance_level(self.settings.enhance_level)
+        self._reload_current()
+
+    def _open_settings(self) -> None:
+        dialog = SettingsDialog(
+            self.operator,
+            SettingsDraft(
+                blur_strength=self.settings.blur_strength,
+                face_blur=self.settings.face_blur,
+                text_blur=self.settings.text_blur,
+                video_audio=self.settings.video_audio,
+                enhance_level=self.settings.enhance_level,
+                language=self.settings.language,
+            ),
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        applied = dialog.draft()
+        prev_face = self.settings.face_blur
+        self.settings.blur_strength = applied.blur_strength
+        self.settings.face_blur = applied.face_blur
+        self.settings.text_blur = applied.text_blur
+        self.settings.video_audio = applied.video_audio
+        self.settings.enhance_level = applied.enhance_level
+        self.settings.language = applied.language
+        if prev_face and not self.settings.face_blur:
+            self.settings.blur_off_confirmed = False
+        op = self.operator
+        op.chk_face.blockSignals(True)
+        op.chk_text.blockSignals(True)
+        op.chk_audio.blockSignals(True)
+        op.chk_face.setChecked(applied.face_blur)
+        op.chk_text.setChecked(applied.text_blur)
+        op.chk_audio.setChecked(applied.video_audio)
+        op.chk_face.blockSignals(False)
+        op.chk_text.blockSignals(False)
+        op.chk_audio.blockSignals(False)
+        op.lang = applied.language
+        op.set_enhance_level(applied.enhance_level)
+        op.retranslate()
+        self._refresh_list()
         self._reload_current()
 
     def _on_folder_button(self) -> None:
@@ -220,30 +277,32 @@ class StreamMediaViewerApp:
             item.has_text_region = note.has_text_region
 
     def _passes_filter(self, item: MediaItem) -> bool:
-        if not item.readable:
-            return False
         op = self.operator
         note = self.settings.note_for(str(item.path))
-        if op.chk_star_only.isChecked() and not note.favorite:
-            return False
-        if op.chk_photos.isChecked() and item.kind != "image":
-            return False
-        if op.chk_videos.isChecked() and item.kind != "video":
-            return False
-        if op.chk_faces.isChecked() and not item.has_face:
-            return False
-        if op.chk_gps.isChecked() and not item.has_gps:
-            return False
-        captured = item.captured_at
-        if captured and op.chk_dates.isChecked():
-            start = op.date_from.date()
-            end = op.date_to.date()
-            day = QDate(captured.year, captured.month, captured.day)
-            if day < start or day > end:
-                return False
-        return True
+        return passes_filters(
+            readable=item.readable,
+            kind=item.kind,
+            favorite=note.favorite,
+            has_face=item.has_face,
+            has_gps=item.has_gps,
+            place_name=item.place_name,
+            captured_at=item.captured_at,
+            star_only=op.chk_star_only.isChecked(),
+            photos=op.chk_photos.isChecked(),
+            videos=op.chk_videos.isChecked(),
+            faces=op.chk_faces.isChecked(),
+            gps_yes=op.chk_gps.isChecked(),
+            gps_no=op.chk_no_gps.isChecked(),
+            place=op.selected_place(),
+            dates=op.chk_dates.isChecked(),
+            date_from=op.date_from.date().toPython(),
+            date_to=op.date_to.date().toPython(),
+        )
 
     def _refresh_list(self) -> None:
+        selected_place = self.operator.selected_place()
+        places = sorted({item.place_name for item in self._items if item.place_name})
+        self.operator.set_places(places, selected_place)
         row = self.operator.list.currentRow()
         self._visible = [i for i, item in enumerate(self._items) if self._passes_filter(item)]
         labels = []
@@ -260,7 +319,9 @@ class StreamMediaViewerApp:
             if item.has_face or (self.settings.text_blur and item.has_text_region):
                 warn = "⚠ "
             when = item.captured_at.strftime("%Y-%m-%d %H:%M") if item.captured_at else ""
-            place = t(self.settings.language, "place_yes") if item.has_gps else ""
+            place = item.place_name or (
+                t(self.settings.language, "place_yes") if item.has_gps else ""
+            )
             labels.append(f"{mark}{warn}{item.path.name}\n{when} {place}".strip())
         self.operator.set_items([self._items[i] for i in self._visible], labels)
         if 0 <= row < self.operator.list.count():
@@ -302,7 +363,9 @@ class StreamMediaViewerApp:
         self.operator.chk_loop.setChecked(note.loop)
         self.operator.btn_star.setChecked(note.favorite)
         when = item.captured_at.strftime("%Y-%m-%d %H:%M") if item.captured_at else ""
-        place = t(self.settings.language, "place_yes") if item.has_gps else ""
+        place = item.place_name or (
+            t(self.settings.language, "place_yes") if item.has_gps else ""
+        )
         self.operator.meta.setText(f"{item.path.name}  {when}  {place}".strip())
         self.operator.meta.setToolTip(str(item.path))
         self.operator.set_range_visible(item.kind == "video")

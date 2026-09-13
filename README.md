@@ -25,7 +25,7 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 1. 📁から写真や動画のフォルダを選びます。最近使ったフォルダも選択できます。
 2. 一覧からファイルを選び、操作用ウィンドウで確認します。配信用ウィンドウにはまだ表示されません。
 3. 必要に応じて手動でぼかしを追加します。
-4. ✨ボタンでコントラストと彩度の自動補正を切り替えます。押すたびに「オフ → 弱 → 強」と変わります。
+4. ✨ボタンでコントラストと彩度の自動補正を切り替えます。押すたびに「オフ → 弱 → 強」と変わります。ぼかしの強さなどは⚙から変えられます。
 5. ⬆ボタン または Enterキーで、確認中の写真や動画を配信用ウィンドウに表示します。
 6. OBSで「ウィンドウの取り込み」を追加し、`StreamMediaViewer(ぬ) - 配信出力` を選びます。
 7. ⬛ボタン、Escキー、またはテンキーの 0 で配信用ウィンドウを非表示にします。再び表示するには ⬆ボタン または Enterキーを押します。
@@ -58,10 +58,6 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 1. 取り込み方法を「Windows 10 (1903 以降)」にしてください（Macは初期設定のままで試してください）。
 2. 「ウィンドウが見つからないときは何も出さない」があればONにしてください。
 3. それでも残るときは、その取り込みを一度オフにして、もう一度オンにする
-
-### Q. 設定やエラーの記録はどこにありますか
-
-**A.** ダウンロードした zip から起動しているときは、`StreamMediaViewer.exe`（Mac はアプリ）と同じフォルダの `settings.json` と `error.log` です。開発用にソースから起動しているときは、Windows は `%LOCALAPPDATA%\StreamMediaViewer_Nu\`、Mac は `~/Library/Application Support/StreamMediaViewer_Nu/` です。写真フォルダの中には書き込みません。
 
 ## 開発者・お問い合わせ
 
@@ -97,7 +93,7 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 1. Click 📁 and choose the folder for today’s stream. Recent folders are available too.
 2. Select a file on the left and review it in the operator window. It is not shown in the output window yet.
 3. Add manual blur where needed.
-4. Click the ✨ button to cycle contrast and saturation enhancement: Off → Soft → Strong.
+4. Click the ✨ button to cycle contrast and saturation enhancement: Off → Soft → Strong. Use ⚙ to change blur strength and other settings.
 5. Press the ⬆ button or the Enter key to display the selected photo or video in the output window.
 6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力`.
 7. Press the ⬛ button, Esc key, or numpad 0 to hide the output window. Press the ⬆ button or Enter to display it again.
@@ -130,10 +126,6 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 1. Set the capture method to Windows 10 (1903+) when available.
 2. Enable “show nothing when the window is missing” if available.
 3. Toggle the source off and on
-
-### Q. Where are settings and error logs?
-
-**A.** When you start from the downloaded zip, `settings.json` and `error.log` sit next to `StreamMediaViewer.exe` (or the Mac app). When you start from source, they are in `%LOCALAPPDATA%\StreamMediaViewer_Nu\` on Windows and `~/Library/Application Support/StreamMediaViewer_Nu/` on Mac. Nothing is written into the photo folder.
 
 ## Developer and contact
 

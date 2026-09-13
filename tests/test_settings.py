@@ -34,6 +34,16 @@ def test_settings_roundtrip_keeps_detection_flags(tmp_path: Path) -> None:
     assert restored.has_text_region is True
 
 
+def test_blur_strength_is_clamped_to_odd_range(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text('{"blur_strength": 999}', encoding="utf-8")
+    assert load_settings(path).blur_strength == 51
+    path.write_text('{"blur_strength": 1}', encoding="utf-8")
+    assert load_settings(path).blur_strength == 5
+    path.write_text('{"blur_strength": 26}', encoding="utf-8")
+    assert load_settings(path).blur_strength == 26
+
+
 def test_old_auto_enhance_true_becomes_weak(tmp_path: Path) -> None:
     path = tmp_path / "settings.json"
     path.write_text('{"auto_enhance": false}', encoding="utf-8")

@@ -32,6 +32,24 @@ def test_scan_skips_empty_and_corrupt_images(tmp_path: Path) -> None:
     assert [it.path.name for it in items] == ["good.jpg"]
 
 
+def test_scan_reads_mp4_creation_time(tmp_path: Path) -> None:
+    from datetime import datetime
+
+    created = datetime(2024, 4, 1, 12, 0, 0)
+    epoch = datetime(1904, 1, 1)
+    seconds = int((created - epoch).total_seconds())
+    mvhd = (8 + 24).to_bytes(4, "big") + b"mvhd" + b"\x00\x00\x00\x00" + seconds.to_bytes(4, "big") + b"\x00" * 16
+    moov = (8 + len(mvhd)).to_bytes(4, "big") + b"moov" + mvhd
+    ftyp = (8 + 12).to_bytes(4, "big") + b"ftyp" + b"isom" + b"\x00" * 8
+    (tmp_path / "clip.mp4").write_bytes(ftyp + moov)
+    Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "z.jpg")
+    items = scan_folder(tmp_path)
+    names = [it.path.name for it in items]
+    assert names[0] == "clip.mp4"
+    assert items[0].captured_at is not None
+    assert items[0].captured_at.year == 2024
+
+
 def test_letterbox_is_1920x1080() -> None:
     src = np.zeros((100, 400, 3), dtype=np.uint8)
     src[:] = (0, 255, 0)
