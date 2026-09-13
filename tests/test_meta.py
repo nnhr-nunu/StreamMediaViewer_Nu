@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from stream_media_viewer.library.geo import gps_to_decimal, place_from_gps
 from stream_media_viewer.library.meta import (
     format_place_name,
     mp4_creation_datetime,
@@ -15,6 +16,18 @@ def test_format_place_name_joins_city_and_country() -> None:
     assert format_place_name("京都", "日本") == "京都 日本"
     assert format_place_name("京都", "") == "京都"
     assert format_place_name("", "") == ""
+    assert format_place_name("伏見", "京都", "日本") == "伏見 京都 日本"
+
+
+def test_gps_becomes_nearby_city_name_not_coordinates() -> None:
+    lat = gps_to_decimal(((35, 1), (0, 1), (41.8, 1)), "N")
+    lon = gps_to_decimal(((135, 1), (46, 1), (5.0, 1)), "E")
+    assert lat is not None
+    assert lon is not None
+    name = place_from_gps(lat, lon)
+    assert name == "京都"
+    assert "135" not in name
+    assert "35" not in name
 
 
 def test_mp4_creation_datetime_reads_mvhd(tmp_path: Path) -> None:

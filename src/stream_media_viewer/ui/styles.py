@@ -8,9 +8,16 @@ QListWidget {
   background: #1b1b1b;
   border: none;
   outline: none;
+  padding: 8px;
+}
+QListWidget::item {
+  color: #cfcfcf;
+  font-size: 12px;
+  padding: 4px;
 }
 QListWidget::item:selected {
   background: #3d2a4f;
+  border-radius: 10px;
 }
 QToolButton, QPushButton {
   background: #2a2a2a;

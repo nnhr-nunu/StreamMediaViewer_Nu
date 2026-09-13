@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QHBoxLayout,
     QLabel,
+    QListView,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -28,8 +29,8 @@ from stream_media_viewer.safety.output_gate import OutputGate, OutputReason
 from stream_media_viewer.ui.preview_canvas import PreviewCanvas
 from stream_media_viewer.ui.styles import DARK_QSS
 
-_LIST_ICON = QSize(96, 96)
-_LIST_ROW = QSize(300, 108)
+_LIST_ICON = QSize(168, 168)
+_LIST_GRID = QSize(200, 214)
 
 
 def _bar_button() -> QToolButton:
@@ -138,11 +139,19 @@ class OperatorWindow(QMainWindow):
 
         body = QHBoxLayout()
         self.list = QListWidget()
+        self.list.setViewMode(QListView.ViewMode.IconMode)
+        self.list.setFlow(QListView.Flow.TopToBottom)
+        self.list.setWrapping(False)
+        self.list.setMovement(QListView.Movement.Static)
+        self.list.setResizeMode(QListView.ResizeMode.Adjust)
+        self.list.setUniformItemSizes(True)
         self.list.setIconSize(_LIST_ICON)
-        self.list.setSpacing(4)
-        self.list.setMinimumWidth(300)
-        self.list.setMaximumWidth(420)
+        self.list.setGridSize(_LIST_GRID)
+        self.list.setSpacing(8)
+        self.list.setMinimumWidth(220)
+        self.list.setMaximumWidth(280)
         self.list.setWordWrap(True)
+        self.list.setTextElideMode(Qt.TextElideMode.ElideRight)
         body.addWidget(self.list)
 
         preview_col = QVBoxLayout()
@@ -236,6 +245,7 @@ class OperatorWindow(QMainWindow):
         self.btn_settings.clicked.connect(self.settings_requested.emit)
         self.list.currentRowChanged.connect(self.item_selected.emit)
         self.preview.mark_added.connect(self.mark_added.emit)
+        self.preview.clicked.connect(self.play_requested.emit)
         self.btn_rect.clicked.connect(lambda: self._mode("rect"))
         self.btn_brush.clicked.connect(lambda: self._mode("stroke"))
         self.chk_face.toggled.connect(lambda _=False: self.settings_changed.emit())
@@ -348,6 +358,10 @@ class OperatorWindow(QMainWindow):
 
     def set_media_kind(self, kind: str | None) -> None:
         video = kind == "video"
+        self.preview.click_toggles_play = video
+        self.preview.setCursor(
+            Qt.CursorShape.PointingHandCursor if video else Qt.CursorShape.ArrowCursor
+        )
         for widget in (
             self.btn_play,
             self.btn_prep,
@@ -374,6 +388,7 @@ class OperatorWindow(QMainWindow):
         items: list[MediaItem],
         labels: list[str],
         icons: list[QPixmap | None] | None = None,
+        tips: list[str] | None = None,
     ) -> None:
         self.list.blockSignals(True)
         self.list.clear()
@@ -382,7 +397,10 @@ class OperatorWindow(QMainWindow):
             pixmap = icons[index] if icons and index < len(icons) else None
             if pixmap is not None and not pixmap.isNull():
                 row.setIcon(QIcon(pixmap))
-            row.setSizeHint(_LIST_ROW)
+            if tips and index < len(tips):
+                row.setToolTip(tips[index])
+            row.setSizeHint(_LIST_GRID)
+            row.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             self.list.addItem(row)
         self.list.blockSignals(False)
 

@@ -10,7 +10,7 @@ from PIL import Image
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
 from stream_media_viewer.library.scan import load_rgb_image
 
-THUMB_SIZE = 96
+THUMB_SIZE = 168
 
 
 def thumbs_root() -> Path:
@@ -22,7 +22,7 @@ def thumbs_root() -> Path:
 def thumb_cache_path(src: Path) -> Path:
     try:
         stat = src.stat()
-        stamp = f"{src.resolve()}|{stat.st_mtime_ns}|{stat.st_size}"
+        stamp = f"{src.resolve()}|{stat.st_mtime_ns}|{stat.st_size}|{THUMB_SIZE}"
     except OSError:
         stamp = str(src)
     digest = hashlib.sha1(stamp.encode("utf-8")).hexdigest()

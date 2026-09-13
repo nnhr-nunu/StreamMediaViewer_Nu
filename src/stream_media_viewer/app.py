@@ -410,13 +410,15 @@ class StreamMediaViewerApp:
         self._visible = [i for i, item in enumerate(self._items) if self._passes_filter(item)]
         labels: list[str] = []
         icons: list[QPixmap | None] = []
+        tips: list[str] = []
         visible_items: list[MediaItem] = []
         for i in self._visible:
             item = self._items[i]
             visible_items.append(item)
             labels.append(self._row_label(item))
             icons.append(self._thumb_pix.get(str(item.path)))
-        self.operator.set_items(visible_items, labels, icons)
+            tips.append(self._row_tooltip(item))
+        self.operator.set_items(visible_items, labels, icons, tips)
         row = 0
         if current_path:
             for index, item_index in enumerate(self._visible):
@@ -436,16 +438,34 @@ class StreamMediaViewerApp:
             live=self._live_path == str(item.path) and not self.gate.masked,
             ready=cache_is_ready(self._key_for(item), self._folder_id()),
         )
-        mark = f"{marks} " if marks else ""
-        warn = ""
-        if item.has_face or (self.settings.text_blur and item.has_text_region):
-            warn = "⚠ "
+        warn = "⚠" if item.has_face or (self.settings.text_blur and item.has_text_region) else ""
+        when = item.captured_at.strftime("%m/%d") if item.captured_at else ""
+        place = item.place_name
+        lines = [part for part in (f"{marks} {warn}".strip(), when, place) if part]
+        return "\n".join(lines)
+
+    def _row_tooltip(self, item: MediaItem) -> str:
         when = item.captured_at.strftime("%Y-%m-%d %H:%M") if item.captured_at else ""
-        place = item.place_name or (
-            t(self.settings.language, "place_yes") if item.has_gps else ""
-        )
-        folder = f"{item.relative_folder}/" if item.relative_folder else ""
-        return f"{mark}{warn}{folder}{item.path.name}\n{when} {place}".strip()
+        place = item.place_name
+        folder = item.relative_folder
+        parts = [item.path.name]
+        if folder:
+            parts.append(folder)
+        if when:
+            parts.append(when)
+        if place:
+            parts.append(place)
+        parts.append(str(item.path))
+        return "\n".join(parts)
+
+    def _sync_live_marks(self) -> None:
+        for row, index in enumerate(self._visible):
+            list_item = self.operator.list.item(row)
+            if list_item is None:
+                continue
+            item = self._items[index]
+            list_item.setText(self._row_label(item))
+            list_item.setToolTip(self._row_tooltip(item))
 
     def _relabel_current_row(self) -> None:
         item = self._current()
@@ -494,10 +514,8 @@ class StreamMediaViewerApp:
         self.operator.chk_loop.blockSignals(False)
         self.operator.btn_star.setChecked(note.favorite)
         when = item.captured_at.strftime("%Y-%m-%d %H:%M") if item.captured_at else ""
-        place = item.place_name or (
-            t(self.settings.language, "place_yes") if item.has_gps else ""
-        )
-        self.operator.meta.setText(f"{item.path.name}  {when}  {place}".strip())
+        place = item.place_name
+        self.operator.meta.setText(f"{when}  {place}".strip() or item.path.name)
         self.operator.meta.setToolTip(str(item.path))
         self.operator.set_media_kind(item.kind)
         if item.kind == "image":
@@ -527,7 +545,7 @@ class StreamMediaViewerApp:
             _ = fps
 
     def _show_operator_frame(self, bgr: np.ndarray) -> None:
-        self.operator.preview.set_frame(bgr_to_pixmap(fit_letterbox(bgr)))
+        self.operator.preview.set_frame(bgr_to_pixmap(fit_letterbox(bgr)), smooth=False)
 
     def _mark_unreadable(self, item: MediaItem) -> None:
         item.readable = False
@@ -617,11 +635,13 @@ class StreamMediaViewerApp:
             self._video.audio_enabled = self.settings.video_audio
             self._playing_to_output = True
             self._bind_cache(item)
-            self._video.seek_ms(note.in_ms)
+            cached = cache_is_ready(self._key_for(item), self._folder_id())
+            if not cached and abs(self._video.position_ms() - note.in_ms) > 120:
+                self._video.seek_ms(note.in_ms)
             self._video.play()
         self._sync_windows()
         self.operator.refresh_status()
-        self._refresh_list()
+        self._sync_live_marks()
 
     def _protect_sync(self, frame: np.ndarray, marks: list[dict]) -> np.ndarray:
         out, _, _ = protect_frame_safe(
@@ -638,7 +658,7 @@ class StreamMediaViewerApp:
 
     def _on_video_frame(self, frame: np.ndarray) -> None:
         fitted = frame if frame.shape[0] == 1080 else fit_letterbox(frame)
-        self.operator.preview.set_frame(bgr_to_pixmap(fitted))
+        self.operator.preview.set_frame(bgr_to_pixmap(fitted), smooth=False)
         if self._playing_to_output and self.gate.window_visible:
             self._live = fitted
             self.output.show_frame(fitted)
@@ -672,7 +692,7 @@ class StreamMediaViewerApp:
         self.gate.panic()
         self._sync_windows()
         self.operator.refresh_status()
-        self._refresh_list()
+        self._sync_live_marks()
 
     def _toggle_star(self) -> None:
         item = self._current()
@@ -681,7 +701,10 @@ class StreamMediaViewerApp:
         note = self.settings.note_for(str(item.path))
         note.favorite = not note.favorite
         self.operator.btn_star.setChecked(note.favorite)
-        self._refresh_list()
+        if self.operator.chk_star_only.isChecked():
+            self._refresh_list()
+        else:
+            self._relabel_current_row()
 
     def _add_mark(self, mark: dict) -> None:
         item = self._current()
