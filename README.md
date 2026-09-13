@@ -27,7 +27,7 @@
 ## 使い方（3分）
 
 1. アプリを起動する。最初は視聴者向けの窓は出ていません
-2. 📁 で、**今日使うフォルダを1つ**開く
+2. 📁 で、**今日使うフォルダを1つ**開く（2回目以降は、最近使ったフォルダからも選べます）
 3. 左の一覧で写真を選ぶ。これは自分の確認用です。この時点では配信に乗りません
 4. 顔がぼけているか目で見る。足りなければ ▢（四角）や 🖌（筆）で足す
 5. ⬆ または Enter で送る。ここで初めて、横長フルHD（1920×1080）の窓が出ます
@@ -49,17 +49,17 @@
 | さっきのぼかしを取り消す | | Ctrl+Z（Mac では Command+Z のことがあります） | ↩ |
 | 今の動画だけ先に処理 | | | ⏳ |
 | フォルダ内をまとめて処理 | | | 📂⏳ |
-| 処理用のデータを消して空き容量を戻す | | | 🗑 |
+| アプリが作った処理済みの絵だけ消す（元の写真・動画は消えない） | | | 🗑 |
 
 ## 動画と、配信前のまとめ処理
 
 - 自分で再生している最中は、視聴者には見えません。音も、自分で確認しているだけでは出ません
-- 送ると、決めた区間の最初から再生します。棒が2本あります。上が始まり、下が終わりです
+- 送ると、決めた区間の最初から再生します。棒は2本で、**始まり**（緑）と**終わり**（オレンジ）と書いてあります。写真を見ているときは、この棒は出ません
 - 「繰返」はその1本の動画だけ、同じ区間を繰り返します
 - **⏳** は、今選んでいる動画だけ先に処理します。選んだときも、裏で同じ処理を始めます
 - **📂⏳** は、今開いているフォルダの写真と動画を、配信前にまとめて処理します。押すと、おおよその空き容量の目安が出ます。写真はあまり増えません。容量のほとんどは動画です（目安: 1分あたり数百MB になることがあります）
 - 処理結果はパソコン内に、**今開いているフォルダごと**に残ります。元の写真・動画は増えませんし、上書きもしません
-- 配信が終わったら **🗑**。確認で「このフォルダだけ消す」か「全部消す」を選べます。消えるのは処理済みの絵だけです。星・再生の区間・手で足したぼかしは残ります。画面上に「このフォルダ ○○ / 全体 ○○」と出ます
+- **🗑 はゴミ箱ではありません。** フォルダの中の写真や動画は1枚も消しません。消えるのは、アプリが作った処理済みの絵だけです。確認で「このフォルダの処理済みだけ」か「処理済みの絵を全部消す」を選べます。星・再生の区間・手で足したぼかしは残ります。画面上に「処理済みの絵 ○○ / 全体 ○○」と出ます
 - 左の一覧: **⬆** はいま視聴者に出しているもの、**✓** は処理済みです
 
 ## 顔や個人情報
@@ -126,7 +126,7 @@ The same page is updated when we ship a new build. On Mac, if Gatekeeper blocks 
 ## Start in 3 minutes
 
 1. Launch the app. The viewer window stays hidden at first
-2. Click 📁 and pick **one folder for today’s stream**
+2. Click 📁 and pick **one folder for today’s stream** (later you can pick from recent folders)
 3. Click a file on the left. That is **your** preview only
 4. Check the blur. Add more with the box or brush tools if needed
 5. Press ⬆ or Enter to send. A 1920×1080 window appears
@@ -148,17 +148,17 @@ Use あ/A to switch Japanese / English. Icons are the main labels; hover for a s
 | Undo blur | | Ctrl+Z (Command+Z on some Macs) | ↩ |
 | Prepare this video | | | ⏳ |
 | Prepare the whole folder | | | 📂⏳ |
-| Delete working files (free disk) | | | 🗑 |
+| Delete the app’s prepared pictures only (originals stay) | | | 🗑 |
 
 ## Video and preparing ahead of time
 
 - Preview playback is not sent. Preview is silent
-- After Send, the chosen in/out range plays from the start (two sliders)
+- After Send, the chosen range plays from the start. Two sliders are labeled **Start** (green) and **End** (orange). They hide when you are looking at a photo
 - Loop applies to that file only
 - **⏳** prepares the current video (also starts in the background when you select it)
 - **📂⏳** prepares every photo and video in the open folder. You will see a rough disk estimate first. Photos are small; video is most of the size (often hundreds of MB per minute)
 - Working files are stored **per open folder**. Originals are never overwritten
-- After the stream, **🗑** asks whether to delete this folder’s prepared pictures or everything. Stars, in/out range, and hand-drawn blur stay. The top of the window shows this folder vs all
+- **🗑 is not a file trash can.** It never deletes photos or videos in the folder. It only removes prepared pictures the app made. You can choose this folder’s prepared pictures or all prepared pictures. Stars, in/out range, and hand-drawn blur stay. The top shows prepared size vs all
 - In the list, **⬆** is what viewers see now, **✓** means prepared
 
 ## Privacy

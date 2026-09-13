@@ -8,7 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PySide6.QtCore import QDate, QThread, Signal
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QMessageBox
 
 from stream_media_viewer.detect.protect import protect_frame
 from stream_media_viewer.i18n import t
@@ -30,7 +30,7 @@ from stream_media_viewer.playback.preload import (
 from stream_media_viewer.playback.video import VideoPlayer
 from stream_media_viewer.render.canvas import fit_letterbox, rgb_to_bgr
 from stream_media_viewer.safety.output_gate import OutputGate
-from stream_media_viewer.settings import AppSettings, load_settings, save_settings
+from stream_media_viewer.settings import AppSettings, load_settings, remember_folder, save_settings
 from stream_media_viewer.ui.list_row import row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
 from stream_media_viewer.ui.output_window import OutputWindow
@@ -85,13 +85,13 @@ class StreamMediaViewerApp:
         self._wire()
         self._restore_checks()
         if self.settings.last_folder:
-            self._load_folder(Path(self.settings.last_folder))
+            self._open_folder_path(self.settings.last_folder)
         self._sync_windows()
         self._refresh_cache_label()
 
     def _wire(self) -> None:
         op = self.operator
-        op.open_folder_requested.connect(self._pick_folder)
+        op.open_folder_requested.connect(self._on_folder_button)
         op.send_requested.connect(self._on_send)
         op.panic_requested.connect(self._on_panic)
         op.prev_requested.connect(lambda: self._step(-1))
@@ -131,13 +131,40 @@ class StreamMediaViewerApp:
         self._refresh_list()
         self._reload_current()
 
-    def _pick_folder(self) -> None:
+    def _on_folder_button(self) -> None:
+        lang = self.settings.language
+        recents = [path for path in self.settings.recent_folders if Path(path).is_dir()]
+        if not recents:
+            self._browse_folder()
+            return
+        menu = QMenu(self.operator)
+        for path in recents:
+            action = menu.addAction(Path(path).name or path)
+            action.setToolTip(path)
+            action.setData(path)
+        menu.addSeparator()
+        browse = menu.addAction(t(lang, "browse_folder"))
+        chosen = menu.exec(self.operator.btn_folder.mapToGlobal(self.operator.btn_folder.rect().bottomLeft()))
+        if chosen is None:
+            return
+        if chosen is browse:
+            self._browse_folder()
+            return
+        path = str(chosen.data() or "")
+        if path:
+            self._open_folder_path(path)
+
+    def _browse_folder(self) -> None:
         path = QFileDialog.getExistingDirectory(
             self.operator, t(self.settings.language, "pick_folder"), self.settings.last_folder
         )
         if path:
-            self.settings.last_folder = path
-            self._load_folder(Path(path))
+            self._open_folder_path(path)
+
+    def _open_folder_path(self, path: str) -> None:
+        self.settings.last_folder = path
+        self.settings.recent_folders = remember_folder(self.settings.recent_folders, path)
+        self._load_folder(Path(path))
 
     def _pick_standby(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self.operator, t(self.settings.language, "standby"))
@@ -237,6 +264,7 @@ class StreamMediaViewerApp:
         self._playing_to_output = False
         self.gate.begin_load()
         if item is None:
+            self.operator.set_range_visible(False)
             self.operator.meta.setText(t(self.settings.language, "empty"))
             self.operator.refresh_status()
             return
@@ -247,6 +275,7 @@ class StreamMediaViewerApp:
         place = t(self.settings.language, "place_yes") if item.has_gps else ""
         self.operator.meta.setText(f"{item.path.name}  {when}  {place}".strip())
         self.operator.meta.setToolTip(str(item.path))
+        self.operator.set_range_visible(item.kind == "video")
         if item.kind == "image":
             image = load_rgb_image(item.path)
             if image is None:
