@@ -20,8 +20,10 @@ from stream_media_viewer.playback.preload import (
     cache_is_ready,
     cache_key,
     cache_size_bytes,
+    clear_folder_cache,
     clear_preload_cache,
     estimate_item_bytes,
+    folder_cache_id,
     format_bytes,
     read_meta,
 )
@@ -29,6 +31,7 @@ from stream_media_viewer.playback.video import VideoPlayer
 from stream_media_viewer.render.canvas import fit_letterbox, rgb_to_bgr
 from stream_media_viewer.safety.output_gate import OutputGate
 from stream_media_viewer.settings import AppSettings, load_settings, save_settings
+from stream_media_viewer.ui.list_row import row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
 from stream_media_viewer.ui.output_window import OutputWindow
 from stream_media_viewer.ui.pixmaps import bgr_to_pixmap
@@ -184,19 +187,29 @@ class StreamMediaViewerApp:
         return True
 
     def _refresh_list(self) -> None:
+        row = self.operator.list.currentRow()
         self._visible = [i for i, item in enumerate(self._items) if self._passes_filter(item)]
         labels = []
         for i in self._visible:
             item = self._items[i]
             note = self.settings.note_for(str(item.path))
-            star = "⭐ " if note.favorite else ""
+            marks = row_marks(
+                favorite=note.favorite,
+                live=self._live_path == str(item.path) and not self.gate.masked,
+                ready=cache_is_ready(self._key_for(item), self._folder_id()),
+            )
+            mark = f"{marks} " if marks else ""
             warn = ""
             if item.has_face or (self.settings.text_blur and item.has_text_region):
                 warn = "⚠ "
             when = item.captured_at.strftime("%Y-%m-%d %H:%M") if item.captured_at else ""
             place = t(self.settings.language, "place_yes") if item.has_gps else ""
-            labels.append(f"{star}{warn}{item.path.name}\n{when} {place}".strip())
+            labels.append(f"{mark}{warn}{item.path.name}\n{when} {place}".strip())
         self.operator.set_items([self._items[i] for i in self._visible], labels)
+        if 0 <= row < self.operator.list.count():
+            self.operator.list.blockSignals(True)
+            self.operator.list.setCurrentRow(row)
+            self.operator.list.blockSignals(False)
 
     def _current(self) -> MediaItem | None:
         if not self._visible:
@@ -314,6 +327,7 @@ class StreamMediaViewerApp:
             self._video.play()
         self._sync_windows()
         self.operator.refresh_status()
+        self._refresh_list()
 
     def _protect_sync(self, frame: np.ndarray, marks: list[dict]) -> np.ndarray:
         out, _, _ = protect_frame(
@@ -361,6 +375,7 @@ class StreamMediaViewerApp:
         self.gate.panic()
         self._sync_windows()
         self.operator.refresh_status()
+        self._refresh_list()
 
     def _toggle_star(self) -> None:
         item = self._current()
@@ -413,11 +428,16 @@ class StreamMediaViewerApp:
             marks=note.marks,
         )
 
+    def _folder_id(self) -> str:
+        folder = self.settings.last_folder or "_none"
+        return folder_cache_id(folder)
+
     def _bind_cache(self, item: MediaItem) -> None:
         key = self._key_for(item)
-        if cache_is_ready(key):
-            meta = read_meta(key)
-            self._video.set_cache(cache_folder(key), float(meta.get("fps") or 30))
+        folder_id = self._folder_id()
+        if cache_is_ready(key, folder_id):
+            meta = read_meta(key, folder_id)
+            self._video.set_cache(cache_folder(key, folder_id), float(meta.get("fps") or 30))
             return
         self._video.set_cache(None, 30)
 
@@ -440,7 +460,7 @@ class StreamMediaViewerApp:
         key = self._key_for(item)
         lang = self.settings.language
         prefix = self.operator.meta.text().split(" · ")[0]
-        if cache_is_ready(key):
+        if cache_is_ready(key, self._folder_id()):
             self.operator.meta.setText(f"{prefix} · {t(lang, 'prepared')}")
             if self._folder_queue:
                 self._advance_folder_queue()
@@ -454,6 +474,7 @@ class StreamMediaViewerApp:
             list(note.marks),
             note.in_ms,
             note.out_ms,
+            self._folder_id(),
         )
         self._preload.progress.connect(self._on_preload_progress)
         self._preload.finished_ok.connect(self._on_preload_done)
@@ -475,15 +496,18 @@ class StreamMediaViewerApp:
         prefix = self.operator.meta.text().split(" · ")[0]
         self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'prepared')}")
         self._refresh_cache_label()
+        self._refresh_list()
         self._advance_folder_queue()
 
     def _advance_folder_queue(self) -> None:
         if not self._folder_queue:
             self._refresh_cache_label()
+            self._refresh_list()
             return
         self._folder_queue.pop(0)
         if not self._folder_queue:
             self._refresh_cache_label()
+            self._refresh_list()
             return
         self._start_preload_for(self._folder_queue[0])
 
@@ -494,7 +518,7 @@ class StreamMediaViewerApp:
         pending: list[MediaItem] = []
         total_bytes = 0
         for item in self._items:
-            if cache_is_ready(self._key_for(item)):
+            if cache_is_ready(self._key_for(item), self._folder_id()):
                 continue
             pending.append(item)
             note = self.settings.note_for(str(item.path))
@@ -525,20 +549,33 @@ class StreamMediaViewerApp:
 
     def _clear_cache(self) -> None:
         lang = self.settings.language
-        size = format_bytes(cache_size_bytes())
-        ask = t(lang, "clear_cache_ask").format(size=size)
-        if QMessageBox.question(self.operator, "", ask) != QMessageBox.StandardButton.Yes:
+        folder_size = format_bytes(cache_size_bytes(self._folder_id()))
+        total_size = format_bytes(cache_size_bytes())
+        ask = t(lang, "clear_cache_ask").format(folder=folder_size, total=total_size)
+        box = QMessageBox(self.operator)
+        box.setText(ask)
+        this_btn = box.addButton(t(lang, "clear_this_folder"), QMessageBox.ButtonRole.AcceptRole)
+        all_btn = box.addButton(t(lang, "clear_all_cache"), QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(t(lang, "cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is not this_btn and clicked is not all_btn:
             return
         self._stop_preload()
         self._folder_queue = []
-        clear_preload_cache()
+        if clicked is this_btn:
+            clear_folder_cache(self._folder_id())
+        else:
+            clear_preload_cache()
         self._video.set_cache(None, 30)
         self._refresh_cache_label()
+        self._refresh_list()
 
     def _refresh_cache_label(self) -> None:
-        size = format_bytes(cache_size_bytes())
+        folder = format_bytes(cache_size_bytes(self._folder_id()))
+        total = format_bytes(cache_size_bytes())
         self.operator.cache_label.setText(
-            t(self.settings.language, "cache_label").format(size=size)
+            t(self.settings.language, "cache_label").format(folder=folder, total=total)
         )
 
     def _toggle_lang(self) -> None:
