@@ -32,6 +32,7 @@ class PreviewCanvas(QLabel):
         self._fit_timer.setSingleShot(True)
         self._fit_timer.timeout.connect(self._refit)
         self._loupe = False
+        self._loupe_px = OPERATOR_LOUPE_PX
         self._mouse = QPoint(-1, -1)
         self.setMouseTracking(True)
 
@@ -57,6 +58,10 @@ class PreviewCanvas(QLabel):
 
     def set_loupe(self, on: bool) -> None:
         self._loupe = bool(on)
+        self.update()
+
+    def set_loupe_px(self, diameter: int) -> None:
+        self._loupe_px = max(1, int(diameter))
         self.update()
 
     def _refit(self) -> None:
@@ -183,4 +188,4 @@ class PreviewCanvas(QLabel):
             for a, b in zip(pts, pts[1:], strict=False):
                 painter.drawLine(a, b)
         if self._loupe and self._pixmap is not None and not self._pixmap.isNull():
-            paint_loupe(painter, self._pixmap, box, self._mouse, diameter=OPERATOR_LOUPE_PX)
+            paint_loupe(painter, self._pixmap, box, self._mouse, diameter=self._loupe_px)

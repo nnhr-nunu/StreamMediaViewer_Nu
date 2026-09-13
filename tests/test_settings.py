@@ -6,6 +6,7 @@ from stream_media_viewer.settings import (
     load_settings_with_error,
     save_settings,
 )
+from stream_media_viewer.ui.overlays import OUTPUT_LOUPE_PX
 
 
 def test_settings_roundtrip(tmp_path: Path) -> None:
@@ -28,6 +29,7 @@ def test_missing_settings_file_returns_defaults(tmp_path: Path) -> None:
     assert loaded.brush_width == 120
     assert loaded.list_sort == "date_asc"
     assert loaded.video_audio is True
+    assert loaded.output_loupe_px == OUTPUT_LOUPE_PX
 
 
 def test_settings_roundtrip_keeps_detection_flags(tmp_path: Path) -> None:

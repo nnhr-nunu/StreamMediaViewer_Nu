@@ -31,6 +31,7 @@ STRINGS = {
         "btn_false_face": "誤検出修正",
         "btn_false_undo": "取り消し",
         "btn_loupe": "拡大",
+        "loupe_size": "範囲",
         "toggle_on": "ON",
         "toggle_off": "OFF",
         "false_face": (
@@ -38,7 +39,7 @@ STRINGS = {
             "本物の顔のぼかしは残ります"
         ),
         "false_undo": "直前の誤検出の取り消しを戻す",
-        "loupe": "確認画面と配信用の窓で、カーソル付近を拡大する",
+        "loupe": "確認画面で、カーソル付近を拡大する。大きさは隣のスライダ",
         "btn_rot_left": "左90°",
         "btn_rot_right": "右90°",
         "rot_left": "左に90度回す。元のファイルは変わりません",
@@ -53,7 +54,7 @@ STRINGS = {
             "ブックマーク: F\n"
             "手動ぼかしを戻す: Ctrl+Z\n"
             "一覧の縮小画を右クリック: 非表示にする\n"
-            "拡大: 🔍ボタン。配信用の窓ではカーソルが光ります"
+            "確認の拡大: 下の🔍。配信用の窓は右下の🔍と⦿、右の＋－と✋"
         ),
         "sort_date_asc": "古い順",
         "sort_date_desc": "新しい順",
@@ -184,6 +185,7 @@ STRINGS = {
         "btn_false_face": "Not a face",
         "btn_false_undo": "Undo",
         "btn_loupe": "Zoom",
+        "loupe_size": "Size",
         "toggle_on": "ON",
         "toggle_off": "OFF",
         "false_face": (
@@ -191,7 +193,7 @@ STRINGS = {
             "Real face blurs stay"
         ),
         "false_undo": "Undo the last false-face correction",
-        "loupe": "Magnify around the cursor on the review and output windows",
+        "loupe": "Magnify around the cursor on the review window. Size is the slider beside it",
         "btn_rot_left": "Left 90°",
         "btn_rot_right": "Right 90°",
         "rot_left": "Rotate 90° left. The original file stays unchanged",
@@ -206,7 +208,7 @@ STRINGS = {
             "Bookmark: F\n"
             "Undo manual blur: Ctrl+Z\n"
             "Right-click a list thumbnail: Hide\n"
-            "Magnifier: 🔍. On output the cursor glows"
+            "Review magnifier: 🔍 at the bottom. Output uses 🔍 and ⦿ at the bottom-right, ＋－ and ✋ on the right"
         ),
         "sort_date_asc": "Oldest first",
         "sort_date_desc": "Newest first",
