@@ -71,7 +71,6 @@ def test_folder_load_applies_saved_face_marks(qtbot, tmp_path: Path) -> None:
     qtbot.addWidget(app.output)
     app._items = scan_folder(tmp_path)
     app._apply_saved_marks()
-    app.operator.chk_faces.setChecked(True)
     app._refresh_list()
     assert app._items[0].has_face is True
     assert len(app._visible) == 1
@@ -133,6 +132,7 @@ def test_photo_and_video_show_different_controls(qtbot) -> None:
     assert bar.indexOf(app.operator.btn_next) < bar.indexOf(app.operator.btn_send)
     assert bar.indexOf(app.operator.btn_manual) < bar.indexOf(app.operator.btn_play)
     assert bar.indexOf(app.operator.btn_play) < bar.indexOf(app.operator.btn_prep)
+    assert bar.indexOf(app.operator.btn_prep) < bar.indexOf(app.operator.btn_help)
 
 
 def test_common_buttons_stay_put_when_video_controls_appear(qtbot) -> None:
@@ -169,6 +169,11 @@ def test_list_caption_omits_filename_and_shows_place(qtbot) -> None:
     label = app._row_label(item)
     assert "DSC01234" not in label
     assert "京都" in label
+    assert "04/01" in label
+    assert "\n京都" not in label
+    meta = app._item_meta_text(item)
+    assert "DSC01234" in meta
+    assert "京都" in meta
     tip = app._row_tooltip(item)
     assert "DSC01234" in tip
     assert "京都" in tip
@@ -194,6 +199,29 @@ def test_preview_click_toggles_play_on_video(qtbot) -> None:
     assert clicked
 
 
+def test_preview_norm_maps_center_of_pixmap(qtbot) -> None:
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtGui import QPixmap
+
+    from stream_media_viewer.ui.preview_canvas import PreviewCanvas
+
+    canvas = PreviewCanvas()
+    qtbot.addWidget(canvas)
+    canvas.resize(400, 300)
+    canvas.show()
+    qtbot.waitExposed(canvas)
+    pix = QPixmap(200, 100)
+    pix.fill(Qt.GlobalColor.black)
+    canvas.set_frame(pix)
+    box = canvas._content_rect()
+    mid = QPoint(box.center().x(), box.center().y())
+    mapped = canvas._norm(mid)
+    assert mapped is not None
+    nx, ny = mapped
+    assert abs(nx - 0.5) < 0.08
+    assert abs(ny - 0.5) < 0.08
+
+
 def test_operator_ux_labels_and_overlays(qtbot) -> None:
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
@@ -203,26 +231,26 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert op.btn_star.isCheckable()
     assert "手動ぼかし" in op.btn_manual.text()
     assert not hasattr(op, "chk_gps")
+    assert not hasattr(op, "chk_faces")
+    assert op.filter_box.layout().indexOf(op.combo_sort) == -1
+    assert op.sort_box.layout().indexOf(op.combo_sort) >= 0
     assert op.combo_sort.count() == 3
-    assert "全部下準備" in op.btn_folder_prep.text()
-    assert "下準備だけ消す" in op.btn_clear_cache.text()
-    assert op.btn_brush.isHidden()
-    assert op.btn_rect.isHidden()
-    assert op.btn_undo.isHidden()
-    assert op.slider_brush.isHidden()
-    assert op.btn_clear_marks.isHidden()
+    assert "事前処理" in op.btn_folder_prep.text()
+    assert "事前処理データ" in op.btn_clear_cache.text()
+    assert op.chk_star_only.text() == "⭐"
+    assert op.manual_tools.isHidden()
     op._set_manual(True)
-    assert not op.btn_brush.isHidden()
-    assert not op.btn_rect.isHidden()
-    assert not op.btn_undo.isHidden()
-    assert not op.slider_brush.isHidden()
+    assert not op.manual_tools.isHidden()
     assert op.preview.mode == "stroke"
     op._tool("rect")
     assert op.preview.mode == "rect"
     assert op.slider_brush.isHidden()
+    assert "?" in op.btn_help.text()
     op.show_guide("読み込み中…", done=1, total=4)
     assert not op.scan_progress.isHidden()
     assert op.scan_count.text() == "1 / 4"
+    op.set_places(["京都"], "")
+    assert op.combo_place.findData("__none__") >= 0
 
 
 def test_folder_dates_span_oldest_to_newest(qtbot) -> None:
@@ -270,7 +298,7 @@ def test_date_checkbox_sits_left_of_date_fields(qtbot) -> None:
     assert lay.indexOf(app.operator.date_from) == lay.indexOf(app.operator.date_to) - 1
 
 
-def test_list_is_one_large_thumb_per_row(qtbot) -> None:
+def test_list_grows_to_two_thumbs_when_wide(qtbot) -> None:
     from PySide6.QtGui import QPixmap
 
     from stream_media_viewer.ui.list_thumb import with_video_mark
@@ -278,8 +306,13 @@ def test_list_is_one_large_thumb_per_row(qtbot) -> None:
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
     op = app.operator
+    op.resize(1280, 800)
+    op._relayout_list()
     assert op.list.isWrapping() is True
-    assert op.list.gridSize().width() >= 270
+    assert op.list.maximumWidth() < 420
+    op.resize(1600, 900)
+    op._relayout_list()
+    assert op.list.maximumWidth() >= 500
     badge = with_video_mark(None, 80)
     assert badge.width() == 80
     assert not badge.isNull()

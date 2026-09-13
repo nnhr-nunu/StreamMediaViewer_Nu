@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDateEdit,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMessageBox,
     QProgressBar,
     QSlider,
     QStackedLayout,
@@ -27,6 +29,7 @@ from PySide6.QtWidgets import (
 from stream_media_viewer import OPERATOR_WINDOW_TITLE
 from stream_media_viewer.detect.blur import DEFAULT_BRUSH_WIDTH, MAX_BRUSH_WIDTH, MIN_BRUSH_WIDTH
 from stream_media_viewer.i18n import t
+from stream_media_viewer.library.filters import PLACE_NONE
 from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.sort import parse_list_sort
 from stream_media_viewer.render.enhance import parse_enhance_level
@@ -110,17 +113,16 @@ class OperatorWindow(QMainWindow):
 
         self.filter_box = QGroupBox()
         filters = QHBoxLayout(self.filter_box)
-        self.combo_sort = QComboBox()
-        self.combo_sort.setMinimumWidth(128)
+        filters.setSpacing(16)
+        filters.setContentsMargins(10, 8, 12, 8)
         self.chk_star_only = QCheckBox()
         self.chk_photos = QCheckBox()
         self.chk_videos = QCheckBox()
-        self.chk_faces = QCheckBox()
         self.chk_dates = QCheckBox()
         self.combo_place = QComboBox()
-        self.combo_place.setMinimumWidth(140)
+        self.combo_place.setMinimumWidth(150)
         self.combo_folder = QComboBox()
-        self.combo_folder.setMinimumWidth(140)
+        self.combo_folder.setMinimumWidth(150)
         self.date_from = QDateEdit()
         self.date_to = QDateEdit()
         self.date_from.setCalendarPopup(True)
@@ -129,16 +131,9 @@ class OperatorWindow(QMainWindow):
         self.date_to.setDisplayFormat("yyyy/MM/dd")
         self.date_from.setMinimumWidth(158)
         self.date_to.setMinimumWidth(158)
-        for box in (
-            self.chk_star_only,
-            self.chk_photos,
-            self.chk_videos,
-            self.chk_faces,
-            self.chk_dates,
-        ):
+        for box in (self.chk_star_only, self.chk_photos, self.chk_videos, self.chk_dates):
             box.setChecked(False)
-        filters.addWidget(self.combo_sort)
-        for box in (self.chk_star_only, self.chk_photos, self.chk_videos, self.chk_faces):
+        for box in (self.chk_star_only, self.chk_photos, self.chk_videos):
             filters.addWidget(box)
         filters.addWidget(self.combo_folder)
         filters.addWidget(self.combo_place)
@@ -146,7 +141,17 @@ class OperatorWindow(QMainWindow):
         filters.addWidget(self.date_from)
         filters.addWidget(self.date_to)
         filters.addStretch()
-        outer.addWidget(self.filter_box)
+        self.sort_box = QGroupBox()
+        self.combo_sort = QComboBox()
+        self.combo_sort.setMinimumWidth(128)
+        sort_lay = QHBoxLayout(self.sort_box)
+        sort_lay.setContentsMargins(10, 8, 10, 8)
+        sort_lay.addWidget(self.combo_sort)
+        filter_row = QHBoxLayout()
+        filter_row.setSpacing(10)
+        filter_row.addWidget(self.filter_box, stretch=1)
+        filter_row.addWidget(self.sort_box)
+        outer.addLayout(filter_row)
 
         body = QHBoxLayout()
         self.list = QListWidget()
@@ -160,7 +165,6 @@ class OperatorWindow(QMainWindow):
         self.list.setGridSize(_LIST_GRID)
         self.list.setSpacing(10)
         self.list.setMinimumWidth(310)
-        self.list.setMaximumWidth(340)
         self.list.setWordWrap(True)
         self.list.setTextElideMode(Qt.TextElideMode.ElideRight)
         body.addWidget(self.list)
@@ -168,6 +172,7 @@ class OperatorWindow(QMainWindow):
         preview_col = QVBoxLayout()
         self.meta = QLabel()
         self.meta.setObjectName("meta")
+        self.meta.setWordWrap(True)
         preview_stage = QWidget()
         preview_host = QWidget()
         self._preview_stack = QStackedLayout(preview_host)
@@ -250,13 +255,20 @@ class OperatorWindow(QMainWindow):
         self.slider_brush.setMinimumWidth(100)
         self.slider_brush.setMaximumWidth(160)
         self.btn_manual.setMinimumWidth(88)
-        self.btn_folder_prep.setMinimumWidth(88)
-        self.btn_clear_cache.setMinimumWidth(88)
+        self.btn_folder_prep.setMinimumWidth(120)
+        self.btn_clear_cache.setMinimumWidth(120)
         self.btn_play = _bar_button()
         self.btn_prep = _bar_button()
+        self.btn_help = _bar_button()
+        self.btn_help.setMinimumWidth(52)
         self.btn_manual.setCheckable(True)
         self.btn_rect.setCheckable(True)
         self.btn_brush.setCheckable(True)
+        self.manual_tools = QFrame()
+        self.manual_tools.setObjectName("manualTools")
+        tools = QHBoxLayout(self.manual_tools)
+        tools.setContentsMargins(8, 4, 8, 4)
+        tools.setSpacing(6)
         for widget in (
             self.btn_prev,
             self.btn_next,
@@ -265,15 +277,20 @@ class OperatorWindow(QMainWindow):
             self.btn_manual,
         ):
             bar.addWidget(widget)
-        bar.addWidget(self.btn_brush)
-        bar.addWidget(self.btn_rect)
-        bar.addWidget(self.btn_undo)
-        bar.addWidget(self.lbl_brush)
-        bar.addWidget(self.slider_brush)
-        bar.addWidget(self.btn_clear_marks)
+        for widget in (
+            self.btn_brush,
+            self.btn_rect,
+            self.btn_undo,
+            self.lbl_brush,
+            self.slider_brush,
+            self.btn_clear_marks,
+        ):
+            tools.addWidget(widget)
+        bar.addWidget(self.manual_tools)
         bar.addStretch()
         bar.addWidget(self.btn_play)
         bar.addWidget(self.btn_prep)
+        bar.addWidget(self.btn_help)
         outer.addWidget(bar_host)
 
         self.setCentralWidget(root)
@@ -281,6 +298,7 @@ class OperatorWindow(QMainWindow):
         self.set_media_kind(None)
         self._set_manual(False)
         self.retranslate()
+        self._relayout_list()
         self.show_guide(t("ja", "empty_guide"))
 
     def _bind(self) -> None:
@@ -303,6 +321,7 @@ class OperatorWindow(QMainWindow):
         self.list.currentRowChanged.connect(self.item_selected.emit)
         self.preview.mark_added.connect(self.mark_added.emit)
         self.preview.clicked.connect(self.play_requested.emit)
+        self.btn_help.clicked.connect(self._show_shortcuts)
         self.btn_manual.clicked.connect(lambda: self._set_manual(self.btn_manual.isChecked()))
         self.btn_rect.clicked.connect(lambda: self._tool("rect"))
         self.btn_brush.clicked.connect(lambda: self._tool("stroke"))
@@ -313,7 +332,6 @@ class OperatorWindow(QMainWindow):
             self.chk_star_only,
             self.chk_photos,
             self.chk_videos,
-            self.chk_faces,
             self.chk_dates,
         ):
             box.toggled.connect(lambda _=False: self.filters_changed.emit())
@@ -357,8 +375,7 @@ class OperatorWindow(QMainWindow):
         stroke = on and self.preview.mode == "stroke"
         self.btn_brush.setChecked(on and self.preview.mode == "stroke")
         self.btn_rect.setChecked(on and self.preview.mode == "rect")
-        for widget in (self.btn_brush, self.btn_rect, self.btn_undo, self.btn_clear_marks):
-            widget.setVisible(on)
+        self.manual_tools.setVisible(on)
         self.lbl_brush.setVisible(stroke)
         self.slider_brush.setVisible(stroke)
 
@@ -396,18 +413,22 @@ class OperatorWindow(QMainWindow):
         _caption(self.btn_folder_prep, "📂", t(lang, "btn_folder_prep"), t(lang, "prepare_folder"))
         _caption(self.btn_clear_cache, "🧹", t(lang, "btn_clear"), t(lang, "clear_cache"))
         _caption(self.btn_settings, "⚙", t(lang, "btn_settings"), t(lang, "settings"))
+        _caption(self.btn_help, "?", t(lang, "btn_help"), t(lang, "shortcuts"))
         self.filter_box.setTitle("🔍 " + t(lang, "filters_title"))
+        self.sort_box.setTitle(t(lang, "sort_title"))
         self.chk_face.setText(t(lang, "face_blur"))
         self.chk_text.setText(t(lang, "text_blur"))
         self.set_enhance_level(self.enhance_level)
         self.chk_loop.setText(t(lang, "loop"))
-        self.chk_star_only.setText("⭐ " + t(lang, "filter_star"))
+        self.chk_star_only.setText("⭐")
+        self.chk_star_only.setToolTip(t(lang, "filter_star"))
         self.chk_photos.setText(t(lang, "filter_photo"))
         self.chk_videos.setText(t(lang, "filter_video"))
-        self.chk_faces.setText(t(lang, "filter_face"))
         self.chk_dates.setText(t(lang, "filter_dates"))
         self._fill_sort()
         self._set_combo_all(self.combo_place, "filter_place_all")
+        if self.combo_place.count() >= 2 and self.combo_place.itemData(1) == PLACE_NONE:
+            self.combo_place.setItemText(1, t(lang, "filter_gps_no"))
         self._set_combo_all(self.combo_folder, "filter_folder_all")
         self.lbl_in.setText(t(lang, "range_in"))
         self.lbl_out.setText(t(lang, "range_out"))
@@ -423,7 +444,16 @@ class OperatorWindow(QMainWindow):
         combo.setItemText(0, t(self.lang, key))
 
     def set_places(self, names: list[str], selected: str) -> None:
-        self._fill_combo(self.combo_place, "filter_place_all", names, selected)
+        combo = self.combo_place
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem(t(self.lang, "filter_place_all"), "")
+        combo.addItem(t(self.lang, "filter_gps_no"), PLACE_NONE)
+        for name in names:
+            combo.addItem(name, name)
+        index = combo.findData(selected)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+        combo.blockSignals(False)
 
     def set_folders(self, names: list[str], selected: str) -> None:
         self._fill_combo(self.combo_folder, "filter_folder_all", names, selected)
@@ -531,12 +561,12 @@ class OperatorWindow(QMainWindow):
             row = QListWidgetItem(label)
             pixmap = icons[index] if icons and index < len(icons) else None
             if index < len(items) and items[index].kind == "video":
-                pixmap = with_video_mark(pixmap, _LIST_ICON.width())
+                pixmap = with_video_mark(pixmap, self.list.iconSize().width())
             if pixmap is not None and not pixmap.isNull():
                 row.setIcon(QIcon(pixmap))
             if tips and index < len(tips):
                 row.setToolTip(tips[index])
-            row.setSizeHint(_LIST_GRID)
+            row.setSizeHint(self.list.gridSize())
             row.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             self.list.addItem(row)
         self.list.blockSignals(False)
@@ -545,10 +575,33 @@ class OperatorWindow(QMainWindow):
         item = self.list.item(row)
         if item is None:
             return
-        shown = with_video_mark(pixmap, _LIST_ICON.width()) if video else pixmap
+        shown = with_video_mark(pixmap, self.list.iconSize().width()) if video else pixmap
         if shown.isNull():
             return
         item.setIcon(QIcon(shown))
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._relayout_list()
+
+    def _relayout_list(self) -> None:
+        two = self.width() >= 1420
+        extra = min(80, max(0, (self.width() - 1420) // 4)) if two else 0
+        icon = 240 + extra
+        cell_w = icon + 40
+        cell_h = icon + 56
+        self.list.setIconSize(QSize(icon, icon))
+        self.list.setGridSize(QSize(cell_w, cell_h))
+        width = cell_w * (2 if two else 1) + 28
+        self.list.setMinimumWidth(width)
+        self.list.setMaximumWidth(width)
+        for row in range(self.list.count()):
+            item = self.list.item(row)
+            if item is not None:
+                item.setSizeHint(QSize(cell_w, cell_h))
+
+    def _show_shortcuts(self) -> None:
+        QMessageBox.information(self, t(self.lang, "shortcuts"), t(self.lang, "shortcuts_body"))
 
     def refresh_status(self) -> None:
         live = self._gate.reason is OutputReason.LIVE

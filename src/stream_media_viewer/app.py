@@ -52,6 +52,11 @@ from stream_media_viewer.ui.pixmaps import bgr_to_pixmap
 from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
 
 
+def _format_duration(ms: int) -> str:
+    sec = max(0, int(ms) // 1000)
+    return f"{sec // 60}:{sec % 60:02d}"
+
+
 class ProtectThread(QThread):
     done = Signal(object, bool, bool, int)
     failed = Signal(int)
@@ -310,9 +315,7 @@ class StreamMediaViewerApp:
         self.operator.set_items([], [])
         self.operator.set_media_kind(None)
         lang = self.settings.language
-        self.operator.show_guide(
-            f"{t(lang, 'scanning')}\n{t(lang, 'scanning_hint')}", done=0, total=0
-        )
+        self.operator.show_guide(t(lang, "scanning"), done=0, total=0)
         self.operator.meta.setText(t(lang, "scanning"))
         worker = ScanWorker(folder, recursive=self.settings.include_subfolders)
         worker.progress.connect(lambda done, total, tok=token: self._on_scan_progress(done, total, tok))
@@ -423,7 +426,7 @@ class StreamMediaViewerApp:
             star_only=op.chk_star_only.isChecked(),
             photos=op.chk_photos.isChecked(),
             videos=op.chk_videos.isChecked(),
-            faces=op.chk_faces.isChecked(),
+            faces=False,
             gps_yes=False,
             gps_no=False,
             place=op.selected_place(),
@@ -485,15 +488,28 @@ class StreamMediaViewerApp:
         )
         when = item.captured_at.strftime("%m/%d") if item.captured_at else ""
         place = item.place_name
-        lines = [part for part in (f"{marks} {warn}".strip(), when, place) if part]
+        detail = "  ".join(part for part in (when, place, warn) if part)
+        lines = [part for part in (marks, detail) if part]
         return "\n".join(lines)
 
-    def _item_meta_text(self, item: MediaItem | None) -> str:
+    def _item_meta_text(self, item: MediaItem | None, *, duration_ms: int | None = None) -> str:
         if item is None:
             return ""
-        when = item.captured_at.strftime("%Y-%m-%d %H:%M") if item.captured_at else ""
-        place = item.place_name
-        return f"{when}  {place}".strip() or item.path.name
+        lang = self.settings.language
+        parts: list[str] = []
+        if item.captured_at:
+            parts.append(item.captured_at.strftime("%Y-%m-%d %H:%M"))
+        if item.place_name:
+            parts.append(item.place_name)
+        parts.append(item.path.name)
+        if item.relative_folder:
+            parts.append(item.relative_folder)
+        parts.append(t(lang, "filter_video" if item.kind == "video" else "filter_photo"))
+        if duration_ms and duration_ms > 0:
+            parts.append(_format_duration(duration_ms))
+        if item.has_face:
+            parts.append(t(lang, "list_face"))
+        return "  ".join(parts)
 
     def _row_tooltip(self, item: MediaItem) -> str:
         when = item.captured_at.strftime("%Y-%m-%d %H:%M") if item.captured_at else ""
@@ -585,6 +601,7 @@ class StreamMediaViewerApp:
             self._video.in_ms = note.in_ms
             self._video.out_ms = note.out_ms
             self._video.loop = note.loop
+            self.operator.meta.setText(self._item_meta_text(item, duration_ms=duration))
             frame = self._video.seek_ms(note.in_ms)
             if frame is None:
                 self._mark_unreadable(item)
@@ -594,7 +611,7 @@ class StreamMediaViewerApp:
             _ = fps
 
     def _show_operator_frame(self, bgr: np.ndarray) -> None:
-        self.operator.preview.set_frame(bgr_to_pixmap(fit_letterbox(bgr)), smooth=False)
+        self.operator.preview.set_frame(bgr_to_pixmap(bgr), smooth=False)
 
     def _mark_unreadable(self, item: MediaItem) -> None:
         item.readable = False
@@ -643,17 +660,15 @@ class StreamMediaViewerApp:
             note.has_face = has_face
             note.has_text_region = has_text
             self._protect_cache.put(self._key_for(item), bgr, has_face, has_text)
-            self.operator.meta.setText(self._item_meta_text(item))
+            duration = self.operator.timeline.maximum() if item.kind == "video" else None
+            self.operator.meta.setText(self._item_meta_text(item, duration_ms=duration))
         fitted = fit_letterbox(bgr)
         self._preview = fitted
         self.operator.reveal_preview()
-        self.operator.preview.set_frame(bgr_to_pixmap(fitted))
+        self.operator.preview.set_frame(bgr_to_pixmap(bgr))
         self.gate.mark_processed()
         self.operator.refresh_status()
-        if self.operator.chk_faces.isChecked():
-            self._refresh_list()
-        else:
-            self._relabel_current_row()
+        self._relabel_current_row()
         item = self._current()
         if item and item.kind == "video" and not self._folder_queue:
             self._start_preload()
@@ -704,12 +719,12 @@ class StreamMediaViewerApp:
         if out is None:
             raise RuntimeError("protect failed")
         out = enhance_bgr(out, level=self.settings.enhance_level)
-        return fit_letterbox(out)
+        return out
 
     def _on_video_frame(self, frame: np.ndarray) -> None:
-        fitted = frame if frame.shape[0] == 1080 else fit_letterbox(frame)
-        self.operator.preview.set_frame(bgr_to_pixmap(fitted), smooth=False)
+        self.operator.preview.set_frame(bgr_to_pixmap(frame), smooth=False)
         if self._playing_to_output and self.gate.window_visible:
+            fitted = fit_letterbox(frame)
             self._live = fitted
             self.output.show_frame(fitted)
 

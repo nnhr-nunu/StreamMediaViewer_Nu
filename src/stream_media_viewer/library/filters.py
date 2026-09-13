@@ -5,6 +5,9 @@ from __future__ import annotations
 from datetime import date, datetime
 
 
+PLACE_NONE = "__none__"
+
+
 def passes_filters(
     *,
     readable: bool = True,
@@ -42,7 +45,10 @@ def passes_filters(
     if gps_no and has_gps:
         return False
     wanted = place.strip()
-    if wanted and place_name != wanted:
+    if wanted == PLACE_NONE:
+        if has_gps:
+            return False
+    elif wanted and place_name != wanted:
         return False
     wanted_folder = folder.strip()
     if wanted_folder and relative_folder != wanted_folder:

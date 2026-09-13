@@ -16,6 +16,7 @@ class PreviewCanvas(QLabel):
         self.setObjectName("preview")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(480, 270)
+        self.setContentsMargins(0, 0, 0, 0)
         self.mode = "off"
         self.click_toggles_play = False
         self.brush_width = 128
@@ -31,9 +32,10 @@ class PreviewCanvas(QLabel):
             if smooth
             else Qt.TransformationMode.FastTransformation
         )
+        box = self.contentsRect().size()
         self.setPixmap(
             pixmap.scaled(
-                self.size(),
+                box if box.width() > 1 else self.size(),
                 Qt.AspectRatioMode.KeepAspectRatio,
                 transform,
             )
@@ -44,15 +46,23 @@ class PreviewCanvas(QLabel):
         if self._pixmap:
             self.set_frame(self._pixmap)
 
-    def _norm(self, pos: QPoint) -> tuple[float, float] | None:
+    def _content_rect(self) -> QRect:
         pix = self.pixmap()
         if pix is None or pix.isNull():
+            return QRect()
+        cr = self.contentsRect()
+        dpr = float(pix.devicePixelRatio() or 1.0)
+        pw = pix.width() / dpr
+        ph = pix.height() / dpr
+        x = cr.x() + int((cr.width() - pw) / 2)
+        y = cr.y() + int((cr.height() - ph) / 2)
+        return QRect(x, y, max(1, int(pw)), max(1, int(ph)))
+
+    def _norm(self, pos: QPoint) -> tuple[float, float] | None:
+        box = self._content_rect()
+        if box.isNull() or not box.contains(pos):
             return None
-        x0 = (self.width() - pix.width()) // 2
-        y0 = (self.height() - pix.height()) // 2
-        if not QRect(x0, y0, pix.width(), pix.height()).contains(pos):
-            return None
-        return ((pos.x() - x0) / pix.width(), (pos.y() - y0) / pix.height())
+        return ((pos.x() - box.x()) / box.width(), (pos.y() - box.y()) / box.height())
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() != Qt.MouseButton.LeftButton:
@@ -92,17 +102,16 @@ class PreviewCanvas(QLabel):
             self.update()
             self.clicked.emit()
             return
-        x0 = (self.width() - pix.width()) // 2
-        y0 = (self.height() - pix.height()) // 2
-        if self.mode == "rect" and self._current:
-            nx = (self._current.x() - x0) / pix.width()
-            ny = (self._current.y() - y0) / pix.height()
-            nw = self._current.width() / pix.width()
-            nh = self._current.height() / pix.height()
+        box = self._content_rect()
+        if self.mode == "rect" and self._current and box.width() > 0 and box.height() > 0:
+            nx = (self._current.x() - box.x()) / box.width()
+            ny = (self._current.y() - box.y()) / box.height()
+            nw = self._current.width() / box.width()
+            nh = self._current.height() / box.height()
             if nw > 0.01 and nh > 0.01:
                 self.mark_added.emit({"kind": "rect", "x": nx, "y": ny, "w": nw, "h": nh})
         elif self.mode == "stroke" and len(self._stroke) >= 2:
-            pix_w = max(1, pix.width())
+            pix_w = max(1, box.width())
             self.mark_added.emit(
                 {
                     "kind": "stroke",
@@ -118,17 +127,14 @@ class PreviewCanvas(QLabel):
     def paintEvent(self, event) -> None:  # noqa: N802
         super().paintEvent(event)
         painter = QPainter(self)
+        box = self._content_rect()
         painter.setPen(QPen(Qt.GlobalColor.magenta, 2))
         if self._current:
             painter.drawRect(self._current)
-        if len(self._stroke) >= 2:
+        if len(self._stroke) >= 2 and box.width() > 0:
             pts = []
-            pix = self.pixmap()
-            if pix:
-                x0 = (self.width() - pix.width()) // 2
-                y0 = (self.height() - pix.height()) // 2
-                painter.setPen(QPen(Qt.GlobalColor.magenta, max(8, self.brush_width // 8)))
-                for x, y in self._stroke:
-                    pts.append(QPoint(int(x0 + x * pix.width()), int(y0 + y * pix.height())))
-                for a, b in zip(pts, pts[1:], strict=False):
-                    painter.drawLine(a, b)
+            painter.setPen(QPen(Qt.GlobalColor.magenta, max(8, self.brush_width // 8)))
+            for x, y in self._stroke:
+                pts.append(QPoint(int(box.x() + x * box.width()), int(box.y() + y * box.height())))
+            for a, b in zip(pts, pts[1:], strict=False):
+                painter.drawLine(a, b)

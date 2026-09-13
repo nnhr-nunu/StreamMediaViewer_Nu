@@ -15,13 +15,25 @@ STRINGS = {
         "btn_rect": "四角",
         "btn_brush": "筆",
         "btn_prep": "下準備",
-        "btn_folder_prep": "全部下準備",
-        "btn_clear": "下準備だけ消す",
+        "btn_folder_prep": "ぼかしの事前処理",
+        "btn_clear": "事前処理データを削除",
         "btn_clear_marks": "クリア",
         "btn_settings": "設定",
         "brush_width": "太さ",
         "filters_title": "絞り込み",
+        "sort_title": "ソート",
         "list_face": "顔あり",
+        "btn_help": "ヘルプ",
+        "shortcuts": "ショートカット",
+        "shortcuts_body": (
+            "前: A / ← / 4\n"
+            "次: D / → / 6\n"
+            "送る: Enter\n"
+            "隠す: Esc / 0\n"
+            "再生／停止: Space / 5（動画）\n"
+            "ブックマーク: F\n"
+            "手動ぼかしを戻す: Ctrl+Z"
+        ),
         "sort_date_asc": "古い順",
         "sort_date_desc": "新しい順",
         "sort_name": "名前順",
@@ -70,7 +82,6 @@ STRINGS = {
             "4. 「隠す」で配信用の窓を消す"
         ),
         "scanning": "読み込み中…",
-        "scanning_hint": "画面は止まっていません。",
         "standby_pick": "待機画像を選ぶ",
         "standby_none": "なし",
         "clear_marks": "この写真の手動ぼかしを全部消す",
@@ -86,12 +97,12 @@ STRINGS = {
         "prepare": "この動画を配信前に下準備",
         "preparing": "下準備中",
         "prepared": "下準備完了",
-        "prepare_folder": "このフォルダを配信前に下準備",
+        "prepare_folder": "このフォルダのぼかしを配信前に処理する",
         "prepare_folder_ask": (
             "写真と動画を配信前に下準備します。元のファイルは変わりません。"
             "目安容量: {size}。続けますか？"
         ),
-        "clear_cache": "下準備を削除（元の写真・動画は消えません）",
+        "clear_cache": "事前処理データを削除（元の写真・動画は消えません）",
         "clear_cache_ask": (
             "写真や動画は削除しません。アプリが別の場所に保存した下準備だけ削除します。"
             "ブックマーク・再生区間・手動ぼかしは残ります。"
@@ -120,13 +131,25 @@ STRINGS = {
         "btn_rect": "Box",
         "btn_brush": "Brush",
         "btn_prep": "Prep",
-        "btn_folder_prep": "Prep all",
-        "btn_clear": "Clear prep only",
+        "btn_folder_prep": "Pre-blur folder",
+        "btn_clear": "Delete pre-blur data",
         "btn_clear_marks": "Clear",
         "btn_settings": "Settings",
         "brush_width": "Size",
         "filters_title": "Filters",
+        "sort_title": "Sort",
         "list_face": "faces",
+        "btn_help": "Help",
+        "shortcuts": "Shortcuts",
+        "shortcuts_body": (
+            "Previous: A / Left / 4\n"
+            "Next: D / Right / 6\n"
+            "Send: Enter\n"
+            "Hide: Esc / 0\n"
+            "Play / pause: Space / 5 (videos)\n"
+            "Bookmark: F\n"
+            "Undo manual blur: Ctrl+Z"
+        ),
         "sort_date_asc": "Oldest first",
         "sort_date_desc": "Newest first",
         "sort_name": "By name",
@@ -178,7 +201,6 @@ STRINGS = {
             "4. Hide to close the output window"
         ),
         "scanning": "Loading…",
-        "scanning_hint": "The window is not frozen.",
         "standby_pick": "Choose standby image",
         "standby_none": "None",
         "clear_marks": "Remove all hand-drawn blur on this photo",
@@ -194,12 +216,12 @@ STRINGS = {
         "prepare": "Prep this video before streaming",
         "preparing": "Prepping",
         "prepared": "Prep complete",
-        "prepare_folder": "Prep this folder before streaming",
+        "prepare_folder": "Pre-blur this folder before streaming",
         "prepare_folder_ask": (
             "Prep the photos and videos before streaming? "
             "Originals stay unchanged. Rough size: {size}. Continue?"
         ),
-        "clear_cache": "Remove prep data (original photos and videos stay)",
+        "clear_cache": "Delete pre-blur data (original photos and videos stay)",
         "clear_cache_ask": (
             "Photos and videos are not deleted. "
             "Only prep data stored outside the folder is removed. "
