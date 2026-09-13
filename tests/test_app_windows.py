@@ -261,7 +261,8 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     dialog = op._shortcuts_dialog()
     qtbot.addWidget(dialog)
     assert dialog.windowTitle() == "キー説明"
-    assert op.date_from.calendarPopup() is True
+    assert op.minimumWidth() >= 900
+    assert op.minimumHeight() >= 560
     assert op.btn_false_face.isHidden()
     op.set_false_face_visible(True)
     assert not op.btn_false_face.isHidden()

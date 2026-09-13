@@ -49,9 +49,13 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 - 顔のぼかしは初期設定で有効です。強さの初期は約 150 です。すでに弱い強さで保存してある場合は⚙で上げてください。
 - 車の番号や名札の自動ぼかし機能は、必要に応じてONにしてください。外れやすいので、配信前に手元で確認し、足りなければドラッグ指定や手動ぼかしで足してください。
 - 開けないファイルは一覧に出しません。操作画面に「このファイルは開けません」と出ます。
-- 顔がありそうな印は、一度確認したあと残ります。顔がないのに付いているときは「❗️誤検出修正」で消せます。
+- 顔がありそうな印は、一度確認したあと残ります。顔がないのに付いているときは「❗️誤検出修正」で消せます。消した特徴は手元に残り、似た誤検出を次からぼかしにくくします。
 
 ## よくある質問
+
+### Q. 小さい画面やノートPCでも使えますか
+
+**A.** 使えます。操作画面の目安は 1280×800、最低はおおよそ 900×560 です。1366×768 のノートでも動きます。幅が狭いと左の一覧は 1 行 1 枚になります。配信用の窓は OBS 向けに中身が 1920×1080 です。ノートの画面がそれより小さくても、配信用の窓を 2 枚目のディスプレイへ置くか、画面の外に置いて取り込んでください。
 
 ### Q. OBS側に前の画像が残るとき
 
@@ -119,9 +123,13 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 - Face blur is on by default. Strength starts around 150. If an older settings file kept a weaker value, raise it in ⚙.
 - Turn on automatic plate / name-tag blur when needed. It can miss; review in the operator window and add a drag box or manual blur before sending.
 - Files that cannot be opened are skipped in the list. The operator window shows “Can't open this file”.
-- The “has faces” mark stays after you have reviewed a file. If there is no face, use **Not a face** to clear blur and remember similar false detections.
+- The “has faces” mark stays after you have reviewed a file. If there is no face, use **Not a face** to clear blur and remember similar false detections. Those records stay on this PC, and when the app is run from source they are also added to the bundled list that the next GitHub Release ships.
 
 ## FAQ
+
+### Q. Can I use a small screen or a laptop?
+
+**A.** Yes. The operator window is comfortable at 1280×800 and works down to about 900×560, including 1366×768 laptops. A narrow window shows one thumbnail per row. The output window is always 1920×1080 for OBS. If the laptop screen is smaller, put that window on a second display or off-screen and capture it.
 
 ### Q. OBS keeps showing the previous picture
 

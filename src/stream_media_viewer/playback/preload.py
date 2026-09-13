@@ -207,7 +207,7 @@ class PreloadWorker(QThread):
                 text_blur=self._settings.text_blur,
                 marks=self._marks,
                 strength=self._settings.blur_strength,
-                false_face_hashes=self._settings.false_face_hashes,
+                false_face_hashes=self._settings.all_false_face_hashes(),
             )
             if out is None:
                 continue
@@ -261,7 +261,7 @@ class PreloadWorker(QThread):
             text_blur=self._settings.text_blur,
             marks=self._marks,
             strength=self._settings.blur_strength,
-            false_face_hashes=self._settings.false_face_hashes,
+            false_face_hashes=self._settings.all_false_face_hashes(),
         )
         if out is None:
             shutil.rmtree(dest, ignore_errors=True)

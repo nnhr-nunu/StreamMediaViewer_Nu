@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -87,7 +88,8 @@ class OperatorWindow(QMainWindow):
         self._gate = gate
         self.lang = "ja"
         self.setWindowTitle(OPERATOR_WINDOW_TITLE)
-        self.resize(1280, 800)
+        self.setMinimumSize(900, 560)
+        self._fit_initial_size()
         self.setStyleSheet(DARK_QSS)
 
         root = QWidget()
@@ -311,6 +313,31 @@ class OperatorWindow(QMainWindow):
         self.retranslate()
         self._relayout_list()
         self.show_guide(t("ja", "empty_guide"))
+
+    def _fit_initial_size(self) -> None:
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            self.resize(1280, 800)
+            return
+        avail = screen.availableGeometry()
+        width = min(1280, max(900, avail.width() - 48))
+        height = min(800, max(560, avail.height() - 72))
+        self.resize(width, height)
+
+    def clamp_to_screen(self) -> None:
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            return
+        avail = screen.availableGeometry()
+        width = min(self.width(), max(self.minimumWidth(), avail.width() - 24))
+        height = min(self.height(), max(self.minimumHeight(), avail.height() - 48))
+        if width != self.width() or height != self.height():
+            self.resize(width, height)
+        frame = self.frameGeometry()
+        x = min(max(avail.x(), frame.x()), avail.right() - frame.width() + 1)
+        y = min(max(avail.y(), frame.y()), avail.bottom() - frame.height() + 1)
+        if x != frame.x() or y != frame.y():
+            self.move(x, y)
 
     def _bind(self) -> None:
         self.btn_folder.clicked.connect(self.open_folder_requested.emit)

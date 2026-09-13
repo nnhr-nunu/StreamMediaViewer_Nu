@@ -17,6 +17,7 @@ from stream_media_viewer.detect.blur import (
     MIN_BLUR_STRENGTH,
     MIN_BRUSH_WIDTH,
 )
+from stream_media_viewer.detect.false_faces import effective_false_face_hashes
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.library.sort import parse_list_sort
 from stream_media_viewer.render.enhance import parse_enhance_level
@@ -83,6 +84,9 @@ class AppSettings:
             note = FileNote()
             self.notes[path] = note
         return note
+
+    def all_false_face_hashes(self) -> list[str]:
+        return effective_false_face_hashes(self.false_face_hashes)
 
     def to_dict(self) -> dict[str, Any]:
         return {
