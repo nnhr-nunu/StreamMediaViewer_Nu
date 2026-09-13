@@ -1,0 +1,13 @@
+---
+description: Python パッケージ構成と分割
+globs: src/**/*.py
+alwaysApply: false
+---
+
+# Python
+
+- パッケージは `src/stream_media_viewer/`。起動は `python -m stream_media_viewer`
+- GUI は PySide6（配布ライセンスが PyQt6 より扱いやすい）
+- 画像処理（OpenCV / MediaPipe / Pillow）をウィンドウクラスに直接書かない。`safety` / 将来の `media` 層へ
+- 型ヒントを付ける。`from __future__ import annotations` をモジュール先頭に
+- 1 ファイル 800 行超で分割を検討。UI / ゲート / 検出は混ぜない
