@@ -11,6 +11,7 @@ from PySide6.QtCore import QThread, Signal
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
 from stream_media_viewer.detect.protect import protect_frame
 from stream_media_viewer.render.canvas import fit_letterbox
+from stream_media_viewer.render.enhance import enhance_bgr
 from stream_media_viewer.settings import AppSettings
 
 
@@ -88,6 +89,7 @@ def cache_key(
     text_blur: bool,
     strength: int,
     marks: list[dict[str, Any]],
+    auto_enhance: bool = False,
 ) -> str:
     stat = path.stat() if path.is_file() else None
     payload = {
@@ -100,6 +102,7 @@ def cache_key(
         "text_blur": text_blur,
         "strength": strength,
         "marks": marks,
+        "auto_enhance": auto_enhance,
     }
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()[:20]
@@ -190,7 +193,9 @@ class PreloadWorker(QThread):
                 marks=self._marks,
                 strength=self._settings.blur_strength,
             )
-            fitted = fit_letterbox(out)
+            fitted = fit_letterbox(
+                enhance_bgr(out, enabled=self._settings.auto_enhance)
+            )
             cv2.imwrite(str(dest / f"{index:06d}.jpg"), fitted, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
             index += 1
             self.progress.emit(index, estimated)
@@ -225,7 +230,7 @@ class PreloadWorker(QThread):
             marks=self._marks,
             strength=self._settings.blur_strength,
         )
-        fitted = fit_letterbox(out)
+        fitted = fit_letterbox(enhance_bgr(out, enabled=self._settings.auto_enhance))
         cv2.imwrite(str(dest / "000000.jpg"), fitted, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
         (dest / "meta.json").write_text(
             json.dumps({"count": 1, "fps": 1, "in_ms": 0, "out_ms": None}),

@@ -70,6 +70,8 @@ class OperatorWindow(QMainWindow):
         self.chk_face.setChecked(True)
         self.chk_text = QCheckBox()
         self.chk_audio = QCheckBox()
+        self.chk_enhance = QCheckBox()
+        self.chk_enhance.setChecked(True)
         self.btn_standby = _icon_button("🖼", "")
         self.btn_folder_prep = _icon_button("📂⏳", "")
         self.btn_clear_cache = _icon_button("🗑", "")
@@ -79,6 +81,7 @@ class OperatorWindow(QMainWindow):
         top.addWidget(self.chk_face)
         top.addWidget(self.chk_text)
         top.addWidget(self.chk_audio)
+        top.addWidget(self.chk_enhance)
         top.addWidget(self.btn_standby)
         top.addWidget(self.btn_folder_prep)
         top.addWidget(self.btn_clear_cache)
@@ -202,6 +205,7 @@ class OperatorWindow(QMainWindow):
             self.chk_face,
             self.chk_text,
             self.chk_audio,
+            self.chk_enhance,
             self.chk_star_only,
             self.chk_photos,
             self.chk_videos,
@@ -245,6 +249,8 @@ class OperatorWindow(QMainWindow):
         self.chk_text.setText(t(lang, "text_blur"))
         self.chk_audio.setText(t(lang, "audio"))
         self.chk_audio.setToolTip(t(lang, "audio_hint"))
+        self.chk_enhance.setText(t(lang, "auto_enhance"))
+        self.chk_enhance.setToolTip(t(lang, "auto_enhance_hint"))
         self.chk_loop.setText(t(lang, "loop"))
         self.chk_star_only.setText("⭐ " + t(lang, "filter_star"))
         self.chk_photos.setText(t(lang, "filter_photo"))

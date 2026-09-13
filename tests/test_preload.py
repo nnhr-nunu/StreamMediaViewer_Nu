@@ -17,8 +17,10 @@ def test_cache_key_changes_when_marks_or_range_change(tmp_path: Path) -> None:
     first = cache_key(path, **base)
     shifted = cache_key(path, **{**base, "in_ms": 200})
     marked = cache_key(path, **{**base, "marks": [{"kind": "rect", "x": 0.1}]})
+    vivid = cache_key(path, **{**base, "auto_enhance": True})
     assert first != shifted
     assert first != marked
+    assert first != vivid
     assert first == cache_key(path, **base)
 
 
