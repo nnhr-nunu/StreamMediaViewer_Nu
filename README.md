@@ -81,21 +81,33 @@ OBS が、窓が消えたあとも前の絵を覚えていることがありま�
 
 Python 3.10〜3.12。[docs/product/spec.md](./docs/product/spec.md) が動きの正本です。
 
-このリポジトリで動かす（Windows）。**いまのコードを確認するときは、フォルダ内の `起動.bat` をダブルクリック**してください。黒いコマンド窓は出さず、手元のアプリが開きます。初回だけ下の venv 作成が必要です。
+**配布の exe には、この作業は不要です。** zip を展開して `StreamMediaViewer.exe` を押せば足ります。
 
-venv が無い・依存を入れ直すとき:
+**ソース（このフォルダのコード）を `起動.bat` で見るときだけ**、最初に一度、このパソコン用の実行環境を作ります。名前は `.venv` というフォルダです。中に Python と、このアプリが使う部品が入ります。2回目からは `起動.bat` だけで大丈夫です。
+
+### 初回だけ（Windows）
+
+1. [Python 3.12](https://www.python.org/downloads/) を入れる。インストール画面で **「Add python.exe to PATH」** にチェックを付ける
+2. エクスプローラーで `D:\Dev\StreamMediaViewer_Nu` を開く
+3. アドレスバーに `pwsh` と打って Enter（PowerShell がそのフォルダで開く）
+4. 次を上から順にコピペして Enter。1行終わるのを待ってから次へ
 
 ```powershell
-cd D:\Dev\StreamMediaViewer_Nu
+python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -U pip
 pip install -e ".[dev]"
 ```
 
-そのあと `起動.bat` をダブルクリック。コマンドで起動したいときは `.\scripts\run.ps1` でも同じです。
+5. `python --version` が `3.10`〜`3.12` なら前へ進んでよい。違う・見つからないときは 1 に戻る
+6. `Activate.ps1` で実行が禁止されたら、同じ窓で一度だけ `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` と打ってから、4 の Activate 以降をやり直す
+7. 最後の `pip install` がエラーなく終わったら、フォルダに `.venv` ができている
+8. PowerShell は閉じてよい。エクスプローラーで **`起動.bat` をダブルクリック**
 
-Mac では `source .venv/bin/activate` のあと `python -m stream_media_viewer`。
+うまくいかないとき: `.venv` フォルダを削除して、4 からやり直す。部品を入れ直すだけのときも同じです。
+
+コマンドで起動したいときは `.\scripts\run.ps1` でも同じアプリが開きます。Mac では `source .venv/bin/activate` のあと `python -m stream_media_viewer`。
 
 **配信者と同じ形（exe）で見るとき**は、先に `.\scripts\build.ps1` を実行し、できた `dist\StreamMediaViewer\StreamMediaViewer.exe` をダブルクリックします。GitHub の zip と同じ種類のファイルです。日々の改修は `起動.bat` の方がすぐ開きます。
 
@@ -205,4 +217,4 @@ Use あ/A to switch Japanese / English. Icons are the main labels; hover for a s
 
 ## For developers
 
-Python 3.10–3.12. Behaviour spec: [docs/product/spec.md](./docs/product/spec.md). On Windows, double-click `起動.bat` in the repo. Same app as streamers: `.\scripts\build.ps1` then `dist\StreamMediaViewer\StreamMediaViewer.exe`. Other setup is in the Japanese section above.
+Python 3.10–3.12. Behaviour spec: [docs/product/spec.md](./docs/product/spec.md). On Windows, first-time setup is in the Japanese **初回だけ** section; after that, double-click `起動.bat`. Same app as streamers: `.\scripts\build.ps1` then `dist\StreamMediaViewer\StreamMediaViewer.exe`.
