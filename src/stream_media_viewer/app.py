@@ -31,6 +31,7 @@ from stream_media_viewer.playback.video import VideoPlayer
 from stream_media_viewer.render.canvas import fit_letterbox, rgb_to_bgr
 from stream_media_viewer.safety.output_gate import OutputGate
 from stream_media_viewer.settings import AppSettings, load_settings, remember_folder, save_settings
+from stream_media_viewer.ui.geometry import geometry_hex, restore_saved_geometry
 from stream_media_viewer.ui.list_row import row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
 from stream_media_viewer.ui.output_window import OutputWindow
@@ -117,6 +118,7 @@ class StreamMediaViewerApp:
         op.chk_audio.setChecked(self.settings.video_audio)
         if self.settings.operator_geometry:
             self.operator.restoreGeometry(bytes.fromhex(self.settings.operator_geometry))
+        restore_saved_geometry(self.output, self.settings.output_pos)
 
     def _on_settings_ui(self) -> None:
         prev_face = self.settings.face_blur
@@ -628,6 +630,7 @@ class StreamMediaViewerApp:
     def persist(self) -> None:
         geo = self.operator.saveGeometry()
         self.settings.operator_geometry = geo.toHex().data().decode("ascii")
+        self.settings.output_pos = geometry_hex(self.output)
         save_settings(self.settings)
 
 
