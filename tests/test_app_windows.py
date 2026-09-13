@@ -315,7 +315,7 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert lay.indexOf(op.date_group) < lay.indexOf(op.chk_hidden)
     assert op.lbl_date_range.text() == "～"
     assert op.chk_hidden.text() == "非表示"
-    assert op.date_from.maximumWidth() <= 104
+    assert op.date_from.maximumWidth() <= 132
     assert op.filter_box.layout().indexOf(op.combo_sort) == -1
     assert op.sort_box.layout().indexOf(op.combo_sort) >= 0
     assert op.combo_sort.count() == 3

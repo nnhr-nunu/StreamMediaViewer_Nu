@@ -155,10 +155,10 @@ class OperatorWindow(QMainWindow):
         self.combo_folder.setMinimumWidth(150)
         self.date_from = CalendarDateEdit()
         self.date_to = CalendarDateEdit()
-        self.date_from.setMinimumWidth(92)
-        self.date_to.setMinimumWidth(92)
-        self.date_from.setMaximumWidth(104)
-        self.date_to.setMaximumWidth(104)
+        self.date_from.setMinimumWidth(118)
+        self.date_to.setMinimumWidth(118)
+        self.date_from.setMaximumWidth(132)
+        self.date_to.setMaximumWidth(132)
         for box in (
             self.chk_star_only,
             self.chk_photos,
