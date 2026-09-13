@@ -35,6 +35,7 @@ class AppSettings:
     face_blur: bool = True
     text_blur: bool = False
     video_audio: bool = False
+    auto_enhance: bool = True
     standby_path: str = ""
     use_standby: bool = False
     operator_geometry: str = ""
@@ -60,6 +61,7 @@ class AppSettings:
             "face_blur": self.face_blur,
             "text_blur": self.text_blur,
             "video_audio": self.video_audio,
+            "auto_enhance": self.auto_enhance,
             "standby_path": self.standby_path,
             "use_standby": self.use_standby,
             "operator_geometry": self.operator_geometry,
@@ -93,6 +95,7 @@ class AppSettings:
             face_blur=bool(data.get("face_blur", True)),
             text_blur=bool(data.get("text_blur", False)),
             video_audio=bool(data.get("video_audio", False)),
+            auto_enhance=bool(data.get("auto_enhance", True)),
             standby_path=str(data.get("standby_path") or ""),
             use_standby=bool(data.get("use_standby", False)),
             operator_geometry=str(data.get("operator_geometry") or ""),
