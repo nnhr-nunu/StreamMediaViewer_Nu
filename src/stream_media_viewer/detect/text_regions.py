@@ -25,16 +25,23 @@ def _merge(boxes: list[Box], iou_min: float = 0.25) -> list[Box]:
     return kept
 
 
-def _from_binary(mask: np.ndarray, min_ratio: float, max_ratio: float) -> list[Box]:
+def _from_binary(
+    mask: np.ndarray,
+    *,
+    min_ratio: float,
+    max_ratio: float,
+    min_w: int,
+    min_h: int,
+) -> list[Box]:
     h, w = mask.shape[:2]
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     boxes: list[Box] = []
     for contour in contours:
         x, y, bw, bh = cv2.boundingRect(contour)
-        if bw < 18 or bh < 8:
+        if bw < min_w or bh < min_h:
             continue
         area = bw * bh
-        if area < 280 or area > (w * h) * 0.28:
+        if area < 280 or area > (w * h) * 0.12:
             continue
         ratio = bw / max(1, bh)
         if ratio < min_ratio or ratio > max_ratio:
@@ -43,8 +50,71 @@ def _from_binary(mask: np.ndarray, min_ratio: float, max_ratio: float) -> list[B
     return boxes
 
 
+def _stroke_count(gray: np.ndarray) -> int:
+    """ROI 内の『文字らしい縦線』の数。窓やポールは 0〜1 になる。"""
+    h, w = gray.shape[:2]
+    if h < 8 or w < 16:
+        return 0
+    if max(h, w) < 40:
+        scale = 40 / max(h, 1)
+        gray = cv2.resize(
+            gray,
+            (max(16, int(w * scale)), max(12, int(h * scale))),
+            interpolation=cv2.INTER_CUBIC,
+        )
+        h, w = gray.shape[:2]
+    blur = cv2.GaussianBlur(gray, (3, 3), 0)
+    block = max(7, (min(h, w) // 2) | 1)
+    bw = cv2.adaptiveThreshold(
+        blur,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        block,
+        4,
+    )
+    fill = float(bw.mean()) / 255.0
+    if fill < 0.06 or fill > 0.62:
+        return 0
+    _n, _labels, stats, _ = cv2.connectedComponentsWithStats(bw, 8)
+    heights: list[int] = []
+    for i in range(1, stats.shape[0]):
+        _x, _y, cw, ch, area = stats[i]
+        if area < 10:
+            continue
+        if ch < h * 0.28 or ch > h * 0.92:
+            continue
+        if cw > max(h * 0.85, 18):
+            continue
+        if cw / max(ch, 1) > 1.05:
+            continue
+        heights.append(int(ch))
+    if len(heights) < 2:
+        return len(heights)
+    if max(heights) > min(heights) * 2.4:
+        return 0
+    return len(heights)
+
+
+def _keep(gray: np.ndarray, box: Box, *, plate: bool) -> bool:
+    h, w = gray.shape[:2]
+    x2 = min(w, box.x + box.w)
+    y2 = min(h, box.y + box.h)
+    if x2 - box.x < 12 or y2 - box.y < 8:
+        return False
+    roi = gray[box.y : y2, box.x : x2]
+    if roi.size == 0:
+        return False
+    if float(roi.std()) < 12:
+        return False
+    need = 3 if plate else 2
+    return _stroke_count(roi) >= need
+
+
 def detect_text_boxes(bgr: np.ndarray) -> list[Box]:
-    """番号（横長）と名札（縦長〜やや横長）を狙う。看板も拾いうる。"""
+    """番号（横長）と名札。中に文字らしい線がある塊だけ残す。"""
+    if bgr.ndim != 3 or bgr.shape[0] < 40 or bgr.shape[1] < 40:
+        return []
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     gray = clahe.apply(gray)
@@ -56,26 +126,17 @@ def detect_text_boxes(bgr: np.ndarray) -> list[Box]:
         thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (17, 3)), iterations=2
     )
     vert = cv2.morphologyEx(
-        thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 13)), iterations=2
+        thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 11)), iterations=1
     )
-    boxes = _from_binary(horiz, 1.8, 8.5)
-    boxes += _from_binary(vert, 0.22, 0.75)
-
     h, w = gray.shape
-    mser = cv2.MSER_create()
-    regions, _ = mser.detectRegions(gray)
-    for region in regions:
-        x, y, bw, bh = cv2.boundingRect(region)
-        if bw < 20 or bh < 10:
-            continue
-        ratio = bw / max(1, bh)
-        area = bw * bh
-        if area < 350 or area > (w * h) * 0.2:
-            continue
-        # プレート寄り（下半分の横長）または名札寄り（上〜中の小さめ縦）
-        plate_like = ratio >= 2.0 and ratio <= 6.5 and y > int(h * 0.28)
-        tag_like = 0.25 <= ratio <= 1.4 and area < (w * h) * 0.08
-        if plate_like or tag_like:
-            boxes.append(Box(x, y, bw, bh))
-
-    return _merge(boxes)
+    plates = [
+        box
+        for box in _from_binary(horiz, min_ratio=2.0, max_ratio=6.8, min_w=36, min_h=10)
+        if box.y > int(h * 0.22) and _keep(gray, box, plate=True)
+    ]
+    tags = [
+        box
+        for box in _from_binary(vert, min_ratio=0.4, max_ratio=1.7, min_w=14, min_h=16)
+        if int(h * 0.12) <= box.y <= int(h * 0.72) and _keep(gray, box, plate=False)
+    ]
+    return _merge(plates + tags)

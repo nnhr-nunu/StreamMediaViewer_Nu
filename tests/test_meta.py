@@ -28,6 +28,8 @@ def test_gps_becomes_nearby_city_name_not_coordinates() -> None:
     assert name == "京都"
     assert "135" not in name
     assert "35" not in name
+    assert place_from_gps(0.0, 0.0) == ""
+    assert place_from_gps(36.0835, 140.0764) == "つくば"
 
 
 def test_mp4_creation_datetime_reads_mvhd(tmp_path: Path) -> None:

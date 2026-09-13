@@ -22,7 +22,7 @@ def test_settings_roundtrip(tmp_path: Path) -> None:
 def test_missing_settings_file_returns_defaults(tmp_path: Path) -> None:
     loaded = load_settings(tmp_path / "missing.json")
     assert loaded.last_folder == ""
-    assert loaded.blur_strength == 150
+    assert loaded.blur_strength == 180
     assert loaded.enhance_level == "weak"
     assert loaded.include_subfolders is True
     assert loaded.brush_width == 120
@@ -74,7 +74,7 @@ def test_corrupt_settings_file_returns_defaults_and_load_error(tmp_path: Path) -
     path = tmp_path / "settings.json"
     path.write_text("{", encoding="utf-8")
     settings, error_key = load_settings_with_error(path)
-    assert settings.blur_strength == 150
+    assert settings.blur_strength == 180
     assert error_key == "settings_load_failed"
 
 

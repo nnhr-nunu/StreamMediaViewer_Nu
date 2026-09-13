@@ -11,7 +11,7 @@ _HINT = "▼"
 
 def _paint_hint(widget, painter: QPainter) -> None:
     painter.setPen(widget.palette().color(widget.foregroundRole()))
-    arrow = widget.rect().adjusted(widget.width() - 26, 0, -4, 0)
+    arrow = widget.rect().adjusted(widget.width() - 16, 0, -2, 0)
     painter.drawText(arrow, Qt.AlignmentFlag.AlignCenter, _HINT)
 
 

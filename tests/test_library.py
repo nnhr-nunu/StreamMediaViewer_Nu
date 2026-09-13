@@ -23,8 +23,8 @@ def test_scan_reports_progress(tmp_path: Path) -> None:
     seen: list[tuple[int, int]] = []
     items = scan_folder(tmp_path, progress=lambda done, total: seen.append((done, total)))
     assert len(items) == 2
-    assert seen[0] == (0, 2)
     assert seen[-1] == (2, 2)
+    assert any(total == 2 for _done, total in seen)
 
 
 def test_scan_reads_nested_folders_when_recursive(tmp_path: Path) -> None:

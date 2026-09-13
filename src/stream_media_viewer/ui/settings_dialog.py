@@ -23,6 +23,7 @@ from PySide6.QtCore import Qt
 from stream_media_viewer import display_version
 from stream_media_viewer.i18n import t
 from stream_media_viewer.render.enhance import parse_enhance_level
+from stream_media_viewer.ui.capture_exclude import exclude_from_capture
 from stream_media_viewer.settings import (
     MAX_BLUR_STRENGTH,
     MIN_BLUR_STRENGTH,
@@ -96,6 +97,10 @@ class SettingsDialog(QDialog):
         root.addWidget(self.version_label)
         root.addWidget(buttons)
         self.resize(460, 320)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        exclude_from_capture(self)
 
     def _pick_standby(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, t(self._lang, "standby"))

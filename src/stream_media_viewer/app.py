@@ -12,7 +12,11 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessageBox
 
 from stream_media_viewer.detect.faces import detect_face_boxes, face_box_at, remember_false_faces
-from stream_media_viewer.detect.false_faces import load_shipped_hashes, try_update_shipped_catalog
+from stream_media_viewer.detect.false_faces import (
+    load_shipped_hashes,
+    try_remove_shipped_hash,
+    try_update_shipped_catalog,
+)
 from stream_media_viewer.detect.protect import protect_for_note, protect_frame_safe
 from stream_media_viewer.errors import install_excepthook, log_exception, user_error_key
 from stream_media_viewer.i18n import t
@@ -129,6 +133,8 @@ class StreamMediaViewerApp:
         self._scan_token = 0
         self._protect_seq = 0
         self._undo: list[list[dict]] = []
+        self._false_undo: list[str] = []
+        self._shipped_start = set(load_shipped_hashes())
         self._video = VideoPlayer()
         self._video.frame_ready.connect(self._on_video_frame)
         self._video.finished.connect(self._on_video_finished)
@@ -173,12 +179,15 @@ class StreamMediaViewerApp:
         op.region_clicked.connect(self._on_preview_region)
         op.hide_item_requested.connect(self._toggle_hidden)
         op.audio_changed.connect(self._on_audio_ui)
+        op.loupe_changed.connect(self.output.set_loupe)
+        op.false_undo_requested.connect(self._undo_false_face)
         op.btn_false_face.toggled.connect(lambda _on=False: self._sync_false_face_button())
         op.rotate_left_requested.connect(lambda: self._rotate_current(270))
         op.rotate_right_requested.connect(lambda: self._rotate_current(90))
         op.timeline.sliderReleased.connect(self._apply_in_out)
         op.timeline_out.sliderReleased.connect(self._apply_in_out)
         op.destroyed.connect(self._on_operator_gone)
+        self.output.hide_requested.connect(self._on_panic)
 
     def _restore_checks(self) -> None:
         op = self.operator
@@ -385,7 +394,15 @@ class StreamMediaViewerApp:
         if token != self._scan_token:
             return
         self.operator.set_scan_progress(done, total)
-        self.operator.meta.setText(f"{t(self.settings.language, 'scanning')}  {done} / {total}")
+        lang = self.settings.language
+        if total <= 0:
+            if done > 0:
+                text = t(lang, "scanning_found").format(n=done)
+            else:
+                text = t(lang, "scanning_search")
+            self.operator.meta.setText(text)
+            return
+        self.operator.meta.setText(f"{t(lang, 'scanning')}  {done} / {total}")
 
     def _on_scan_done(self, items: object, token: int) -> None:
         if token != self._scan_token:
@@ -787,6 +804,13 @@ class StreamMediaViewerApp:
     def _on_send(self) -> None:
         if self._preview is None:
             return
+        item = self._current()
+        if item and item.kind == "image" and item.has_face:
+            answer = QMessageBox.question(
+                self.operator, "", t(self.settings.language, "confirm_faces")
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
         if not self.settings.face_blur and not self.settings.blur_off_confirmed:
             answer = QMessageBox.question(
                 self.operator, "", t(self.settings.language, "confirm_no_blur")
@@ -902,10 +926,12 @@ class StreamMediaViewerApp:
         item = self._current()
         if item is None:
             self.operator.set_false_face_visible(False)
+            self.operator.set_false_undo_visible(False)
             self.operator.preview.setToolTip("")
             return
         note = self.settings.note_for(str(item.path))
         self.operator.set_false_face_visible(bool(item.has_face and not note.skip_faces))
+        self.operator.set_false_undo_visible(bool(self._false_undo))
         if item.has_face and not note.skip_faces and self.operator.btn_false_face.isChecked():
             self.operator.preview.setToolTip(t(self.settings.language, "false_face"))
         else:
@@ -992,16 +1018,33 @@ class StreamMediaViewerApp:
         hit = face_box_at(boxes, nx, ny, width, height)
         if hit is None:
             return False
+        before = set(self.settings.all_false_face_hashes())
         learned = remember_false_faces(
             self.settings.all_false_face_hashes(), oriented, [hit]
         )
+        added = [digest for digest in learned if digest not in before]
+        self._false_undo.extend(added)
         try_update_shipped_catalog(learned)
         bundled = set(load_shipped_hashes())
         self.settings.false_face_hashes = [item for item in learned if item not in bundled]
         self._protect_cache.clear()
         self._reprotect_current()
         self._save_settings()
+        self._sync_false_face_button()
         return True
+
+    def _undo_false_face(self) -> None:
+        if not self._false_undo:
+            return
+        digest = self._false_undo.pop()
+        self.settings.false_face_hashes = [
+            item for item in self.settings.false_face_hashes if item != digest
+        ]
+        try_remove_shipped_hash(digest, protected=self._shipped_start)
+        self._protect_cache.clear()
+        self._reprotect_current()
+        self._save_settings()
+        self._sync_false_face_button()
 
     def _add_mark(self, mark: dict) -> None:
         item = self._current()

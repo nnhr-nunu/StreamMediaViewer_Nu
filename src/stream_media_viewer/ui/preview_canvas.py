@@ -5,6 +5,7 @@ from PySide6.QtGui import QMouseEvent, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QLabel
 
 from stream_media_viewer.detect.blur import DEFAULT_BRUSH_WIDTH
+from stream_media_viewer.ui.overlays import OPERATOR_LOUPE_PX, paint_loupe
 
 _CLICK_PX = 8
 
@@ -30,6 +31,9 @@ class PreviewCanvas(QLabel):
         self._fit_timer = QTimer(self)
         self._fit_timer.setSingleShot(True)
         self._fit_timer.timeout.connect(self._refit)
+        self._loupe = False
+        self._mouse = QPoint(-1, -1)
+        self.setMouseTracking(True)
 
     def set_frame(self, pixmap: QPixmap, *, smooth: bool = True) -> None:
         self._pixmap = pixmap
@@ -50,6 +54,10 @@ class PreviewCanvas(QLabel):
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         self._fit_timer.start(60)
+
+    def set_loupe(self, on: bool) -> None:
+        self._loupe = bool(on)
+        self.update()
 
     def _refit(self) -> None:
         if self._pixmap:
@@ -82,9 +90,12 @@ class PreviewCanvas(QLabel):
             self._stroke = [pt] if pt else []
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        pos = event.position().toPoint()
+        if self._loupe:
+            self._mouse = pos
+            self.update()
         if self._origin is None:
             return
-        pos = event.position().toPoint()
         if self.mode == "rect":
             self._current = QRect(self._origin, pos).normalized()
             self.update()
@@ -93,6 +104,11 @@ class PreviewCanvas(QLabel):
             if pt:
                 self._stroke.append(pt)
                 self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        self._mouse = QPoint(-1, -1)
+        super().leaveEvent(event)
+        self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() != Qt.MouseButton.LeftButton:
@@ -166,3 +182,5 @@ class PreviewCanvas(QLabel):
                 pts.append(QPoint(int(box.x() + x * box.width()), int(box.y() + y * box.height())))
             for a, b in zip(pts, pts[1:], strict=False):
                 painter.drawLine(a, b)
+        if self._loupe and self._pixmap is not None and not self._pixmap.isNull():
+            paint_loupe(painter, self._pixmap, box, self._mouse, diameter=OPERATOR_LOUPE_PX)

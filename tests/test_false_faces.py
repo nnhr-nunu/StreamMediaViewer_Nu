@@ -42,4 +42,9 @@ def test_try_update_shipped_catalog_writes(tmp_path: Path, monkeypatch) -> None:
     assert try_update_shipped_catalog(["abc"]) is True
     load_shipped_hashes.cache_clear()
     assert "abc" in load_shipped_hashes()
+    from stream_media_viewer.detect.false_faces import try_remove_shipped_hash
+
+    assert try_remove_shipped_hash("abc", protected=set()) is True
+    load_shipped_hashes.cache_clear()
+    assert "abc" not in load_shipped_hashes()
     load_shipped_hashes.cache_clear()
