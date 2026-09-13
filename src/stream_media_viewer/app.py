@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import cv2
 import numpy as np
 from PySide6.QtCore import QDate, QThread, Signal
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
@@ -18,6 +19,10 @@ from stream_media_viewer.playback.preload import (
     cache_folder,
     cache_is_ready,
     cache_key,
+    cache_size_bytes,
+    clear_preload_cache,
+    estimate_item_bytes,
+    format_bytes,
     read_meta,
 )
 from stream_media_viewer.playback.video import VideoPlayer
@@ -72,11 +77,14 @@ class StreamMediaViewerApp:
         self._playing_to_output = False
         self._live_path = ""
         self._preload: PreloadWorker | None = None
+        self._folder_queue: list[MediaItem] = []
+        self._folder_total = 0
         self._wire()
         self._restore_checks()
         if self.settings.last_folder:
             self._load_folder(Path(self.settings.last_folder))
         self._sync_windows()
+        self._refresh_cache_label()
 
     def _wire(self) -> None:
         op = self.operator
@@ -94,6 +102,8 @@ class StreamMediaViewerApp:
         op.settings_changed.connect(self._on_settings_ui)
         op.standby_requested.connect(self._pick_standby)
         op.prepare_requested.connect(self._start_preload)
+        op.prepare_folder_requested.connect(self._prepare_folder)
+        op.clear_cache_requested.connect(self._clear_cache)
         op.timeline.sliderReleased.connect(self._apply_in_out)
         op.timeline_out.sliderReleased.connect(self._apply_in_out)
 
@@ -207,7 +217,8 @@ class StreamMediaViewerApp:
         self.operator.list.setCurrentRow(self._index)
 
     def _reload_current(self) -> None:
-        self._stop_preload()
+        if not self._folder_queue:
+            self._stop_preload()
         item = self._current()
         self._video.close()
         self._playing_to_output = False
@@ -269,7 +280,7 @@ class StreamMediaViewerApp:
         self.gate.mark_processed()
         self.operator.refresh_status()
         item = self._current()
-        if item and item.kind == "video":
+        if item and item.kind == "video" and not self._folder_queue:
             self._start_preload()
 
     def _on_send(self) -> None:
@@ -386,8 +397,9 @@ class StreamMediaViewerApp:
         note.out_ms = max(self.operator.timeline.value(), self.operator.timeline_out.value())
         self._video.in_ms = note.in_ms
         self._video.out_ms = note.out_ms
-        self._stop_preload()
-        self._start_preload()
+        if not self._folder_queue:
+            self._stop_preload()
+            self._start_preload()
 
     def _key_for(self, item: MediaItem) -> str:
         note = self.settings.note_for(str(item.path))
@@ -416,15 +428,22 @@ class StreamMediaViewerApp:
         self._preload = None
 
     def _start_preload(self) -> None:
-        item = self._current()
-        if item is None or item.kind != "video":
+        if self._folder_queue:
             return
+        item = self._current()
+        if item is None:
+            return
+        self._start_preload_for(item)
+
+    def _start_preload_for(self, item: MediaItem) -> None:
         note = self.settings.note_for(str(item.path))
         key = self._key_for(item)
         lang = self.settings.language
         prefix = self.operator.meta.text().split(" · ")[0]
         if cache_is_ready(key):
             self.operator.meta.setText(f"{prefix} · {t(lang, 'prepared')}")
+            if self._folder_queue:
+                self._advance_folder_queue()
             return
         if self._preload is not None and self._preload.isRunning():
             return
@@ -442,17 +461,91 @@ class StreamMediaViewerApp:
 
     def _on_preload_progress(self, done: int, total: int) -> None:
         prefix = self.operator.meta.text().split(" · ")[0]
+        if self._folder_queue:
+            finished = self._folder_total - len(self._folder_queue)
+            folder = t(self.settings.language, "folder_progress").format(
+                done=finished + 1, total=max(1, self._folder_total)
+            )
+            self.operator.meta.setText(f"{prefix} · {folder} ({done}/{max(1, total)})")
+            return
         label = t(self.settings.language, "preparing")
         self.operator.meta.setText(f"{prefix} · {label} {done}/{max(1, total)}")
 
     def _on_preload_done(self, _key: str) -> None:
         prefix = self.operator.meta.text().split(" · ")[0]
         self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'prepared')}")
+        self._refresh_cache_label()
+        self._advance_folder_queue()
+
+    def _advance_folder_queue(self) -> None:
+        if not self._folder_queue:
+            self._refresh_cache_label()
+            return
+        self._folder_queue.pop(0)
+        if not self._folder_queue:
+            self._refresh_cache_label()
+            return
+        self._start_preload_for(self._folder_queue[0])
+
+    def _prepare_folder(self) -> None:
+        if not self._items:
+            return
+        lang = self.settings.language
+        pending: list[MediaItem] = []
+        total_bytes = 0
+        for item in self._items:
+            if cache_is_ready(self._key_for(item)):
+                continue
+            pending.append(item)
+            note = self.settings.note_for(str(item.path))
+            duration_ms = 0
+            fps = 30.0
+            if item.kind == "video":
+                cap = cv2.VideoCapture(str(item.path))
+                fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
+                frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+                cap.release()
+                full_ms = int(1000 * frames / max(fps, 1.0)) if frames else 0
+                end = note.out_ms if note.out_ms else full_ms
+                duration_ms = max(0, end - note.in_ms)
+            total_bytes += estimate_item_bytes(item.kind, duration_ms, fps)
+        if not pending:
+            QMessageBox.information(
+                self.operator, "", t(lang, "prepared")
+            )
+            self._refresh_cache_label()
+            return
+        ask = t(lang, "prepare_folder_ask").format(size=format_bytes(total_bytes))
+        if QMessageBox.question(self.operator, "", ask) != QMessageBox.StandardButton.Yes:
+            return
+        self._stop_preload()
+        self._folder_queue = pending
+        self._folder_total = len(pending)
+        self._start_preload_for(pending[0])
+
+    def _clear_cache(self) -> None:
+        lang = self.settings.language
+        size = format_bytes(cache_size_bytes())
+        ask = t(lang, "clear_cache_ask").format(size=size)
+        if QMessageBox.question(self.operator, "", ask) != QMessageBox.StandardButton.Yes:
+            return
+        self._stop_preload()
+        self._folder_queue = []
+        clear_preload_cache()
+        self._video.set_cache(None, 30)
+        self._refresh_cache_label()
+
+    def _refresh_cache_label(self) -> None:
+        size = format_bytes(cache_size_bytes())
+        self.operator.cache_label.setText(
+            t(self.settings.language, "cache_label").format(size=size)
+        )
 
     def _toggle_lang(self) -> None:
         self.settings.language = "en" if self.settings.language == "ja" else "ja"
         self.operator.lang = self.settings.language
         self.operator.retranslate()
+        self._refresh_cache_label()
         self._refresh_list()
         self._reload_current()
 

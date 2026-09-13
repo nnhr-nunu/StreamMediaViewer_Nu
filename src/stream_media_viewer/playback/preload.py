@@ -8,16 +8,54 @@ from typing import Any
 import cv2
 from PySide6.QtCore import QThread, Signal
 
-from stream_media_viewer.config import user_config_dir
+from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
 from stream_media_viewer.detect.protect import protect_frame
 from stream_media_viewer.render.canvas import fit_letterbox
 from stream_media_viewer.settings import AppSettings
 
 
 def preload_root() -> Path:
-    path = user_config_dir() / "preload"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    root = user_config_dir() / "preload"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+BYTES_PER_FRAME = 120_000
+
+
+def format_bytes(n: int) -> str:
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 * 1024:
+        return f"{n / 1024:.0f} KB"
+    if n < 1024 * 1024 * 1024:
+        return f"{n / (1024 * 1024):.1f} MB"
+    return f"{n / (1024 * 1024 * 1024):.1f} GB"
+
+
+def cache_size_bytes() -> int:
+    root = preload_root()
+    total = 0
+    for path in root.rglob("*"):
+        if path.is_file():
+            total += path.stat().st_size
+    return total
+
+
+def clear_preload_cache() -> None:
+    import shutil
+
+    root = preload_root()
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+
+
+def estimate_item_bytes(kind: str, duration_ms: int, fps: float = 30.0) -> int:
+    if kind != "video":
+        return BYTES_PER_FRAME
+    seconds = max(1.0, duration_ms / 1000.0)
+    rate = fps if fps > 1 else 30.0
+    return int(seconds * rate * BYTES_PER_FRAME)
 
 
 def cache_key(
@@ -98,6 +136,10 @@ class PreloadWorker(QThread):
         if dest.exists():
             shutil.rmtree(dest, ignore_errors=True)
         dest.mkdir(parents=True, exist_ok=True)
+        suffix = self._path.suffix.lower()
+        if suffix not in SUPPORTED_VIDEO_SUFFIXES:
+            self._run_image(dest)
+            return
         cap = cv2.VideoCapture(str(self._path))
         fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
         if fps < 1:
@@ -136,5 +178,35 @@ class PreloadWorker(QThread):
             json.dumps({"count": index, "fps": fps, "in_ms": self._in_ms, "out_ms": self._out_ms}),
             encoding="utf-8",
         )
+        self.finished_ok.emit(self._key)
+
+    def _run_image(self, dest: Path) -> None:
+        import shutil
+
+        import numpy as np
+
+        from stream_media_viewer.library.scan import load_rgb_image
+        from stream_media_viewer.render.canvas import rgb_to_bgr
+
+        image = load_rgb_image(self._path)
+        if image is None:
+            shutil.rmtree(dest, ignore_errors=True)
+            self.finished_ok.emit(self._key)
+            return
+        bgr = rgb_to_bgr(np.array(image))
+        out, _, _ = protect_frame(
+            bgr,
+            face_blur=self._settings.face_blur,
+            text_blur=self._settings.text_blur,
+            marks=self._marks,
+            strength=self._settings.blur_strength,
+        )
+        fitted = fit_letterbox(out)
+        cv2.imwrite(str(dest / "000000.jpg"), fitted, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
+        (dest / "meta.json").write_text(
+            json.dumps({"count": 1, "fps": 1, "in_ms": 0, "out_ms": None}),
+            encoding="utf-8",
+        )
+        self.progress.emit(1, 1)
         self.finished_ok.emit(self._key)
 
