@@ -9,7 +9,8 @@ import cv2
 from PySide6.QtCore import QThread, Signal
 
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
-from stream_media_viewer.detect.protect import protect_frame
+from stream_media_viewer.detect.protect import protect_frame_safe
+from stream_media_viewer.errors import log_exception
 from stream_media_viewer.render.canvas import fit_letterbox
 from stream_media_viewer.render.enhance import enhance_bgr
 from stream_media_viewer.settings import AppSettings
@@ -157,6 +158,13 @@ class PreloadWorker(QThread):
         self._folder_id = folder_id
 
     def run(self) -> None:
+        try:
+            self._run()
+        except Exception as exc:
+            log_exception(exc)
+            self.finished_ok.emit(self._key)
+
+    def _run(self) -> None:
         import shutil
 
         dest = item_cache_dir(self._folder_id, self._key)
@@ -179,6 +187,8 @@ class PreloadWorker(QThread):
             start_f = int(self._in_ms / 1000 * fps)
             end_f = int((self._out_ms or 10**9) / 1000 * fps)
             estimated = max(1, end_f - start_f)
+        saw_face = False
+        saw_text = False
         while not self.isInterruptionRequested():
             pos = int(cap.get(cv2.CAP_PROP_POS_MSEC) or 0)
             if self._out_ms is not None and pos >= self._out_ms:
@@ -186,13 +196,17 @@ class PreloadWorker(QThread):
             ok, frame = cap.read()
             if not ok:
                 break
-            out, _, _ = protect_frame(
+            out, faces, texts = protect_frame_safe(
                 frame,
                 face_blur=self._settings.face_blur,
                 text_blur=self._settings.text_blur,
                 marks=self._marks,
                 strength=self._settings.blur_strength,
             )
+            if out is None:
+                continue
+            saw_face = saw_face or faces
+            saw_text = saw_text or texts
             fitted = fit_letterbox(
                 enhance_bgr(out, level=self._settings.enhance_level)
             )
@@ -202,9 +216,20 @@ class PreloadWorker(QThread):
         cap.release()
         if self.isInterruptionRequested() or index < 1:
             shutil.rmtree(dest, ignore_errors=True)
+            if not self.isInterruptionRequested():
+                self.finished_ok.emit(self._key)
             return
         (dest / "meta.json").write_text(
-            json.dumps({"count": index, "fps": fps, "in_ms": self._in_ms, "out_ms": self._out_ms}),
+            json.dumps(
+                {
+                    "count": index,
+                    "fps": fps,
+                    "in_ms": self._in_ms,
+                    "out_ms": self._out_ms,
+                    "has_face": saw_face,
+                    "has_text_region": saw_text,
+                }
+            ),
             encoding="utf-8",
         )
         self.finished_ok.emit(self._key)
@@ -223,17 +248,30 @@ class PreloadWorker(QThread):
             self.finished_ok.emit(self._key)
             return
         bgr = rgb_to_bgr(np.array(image))
-        out, _, _ = protect_frame(
+        out, faces, texts = protect_frame_safe(
             bgr,
             face_blur=self._settings.face_blur,
             text_blur=self._settings.text_blur,
             marks=self._marks,
             strength=self._settings.blur_strength,
         )
+        if out is None:
+            shutil.rmtree(dest, ignore_errors=True)
+            self.finished_ok.emit(self._key)
+            return
         fitted = fit_letterbox(enhance_bgr(out, level=self._settings.enhance_level))
         cv2.imwrite(str(dest / "000000.jpg"), fitted, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
         (dest / "meta.json").write_text(
-            json.dumps({"count": 1, "fps": 1, "in_ms": 0, "out_ms": None}),
+            json.dumps(
+                {
+                    "count": 1,
+                    "fps": 1,
+                    "in_ms": 0,
+                    "out_ms": None,
+                    "has_face": faces,
+                    "has_text_region": texts,
+                }
+            ),
             encoding="utf-8",
         )
         self.progress.emit(1, 1)

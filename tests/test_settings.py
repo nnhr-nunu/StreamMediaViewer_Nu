@@ -21,6 +21,19 @@ def test_missing_settings_file_returns_defaults(tmp_path: Path) -> None:
     assert loaded.enhance_level == "weak"
 
 
+def test_settings_roundtrip_keeps_detection_flags(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    settings = AppSettings()
+    note = settings.note_for("D:/media/a.jpg")
+    note.has_face = True
+    note.has_text_region = True
+    save_settings(settings, path)
+    loaded = load_settings(path)
+    restored = loaded.note_for("D:/media/a.jpg")
+    assert restored.has_face is True
+    assert restored.has_text_region is True
+
+
 def test_old_auto_enhance_true_becomes_weak(tmp_path: Path) -> None:
     path = tmp_path / "settings.json"
     path.write_text('{"auto_enhance": false}', encoding="utf-8")

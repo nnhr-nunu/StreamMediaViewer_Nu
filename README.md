@@ -45,7 +45,9 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 ## 顔や個人情報
 
 - 顔のぼかしは初期設定で有効です。
-- 車の番号や名札の自動ぼかし機能は、必要に応じてONにしてください。
+- 車の番号や名札の自動ぼかし機能は、必要に応じてONにしてください。外れやすいので、配信前に手元で確認し、足りなければ四角や筆で足してください。
+- 開けないファイルは一覧に出しません。操作画面に「このファイルは開けません」と出ます。
+- 顔がありそうな印は、一度確認したあと残ります。
 
 ## よくある質問
 
@@ -56,6 +58,10 @@ Mac で「開発元が未確認」と出たら、ファイルを右クリック�
 1. 取り込み方法を「Windows 10 (1903 以降)」にしてください（Macは初期設定のままで試してください）。
 2. 「ウィンドウが見つからないときは何も出さない」があればONにしてください。
 3. それでも残るときは、その取り込みを一度オフにして、もう一度オンにする
+
+### Q. 設定やエラーの記録はどこにありますか
+
+**A.** ダウンロードした zip から起動しているときは、`StreamMediaViewer.exe`（Mac はアプリ）と同じフォルダの `settings.json` と `error.log` です。開発用にソースから起動しているときは、Windows は `%LOCALAPPDATA%\StreamMediaViewer_Nu\`、Mac は `~/Library/Application Support/StreamMediaViewer_Nu/` です。写真フォルダの中には書き込みません。
 
 ## 開発者・お問い合わせ
 
@@ -111,7 +117,9 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 ## Privacy
 
 - Face blur is on by default.
-- Turn on automatic plate / name-tag blur when needed.
+- Turn on automatic plate / name-tag blur when needed. It can miss; review in the operator window and add a box or brush before sending.
+- Files that cannot be opened are skipped in the list. The operator window shows “Can't open this file”.
+- The “has faces” mark stays after you have reviewed a file.
 
 ## FAQ
 
@@ -122,6 +130,10 @@ On Mac, if Gatekeeper blocks it, right-click the app → Open.
 1. Set the capture method to Windows 10 (1903+) when available.
 2. Enable “show nothing when the window is missing” if available.
 3. Toggle the source off and on
+
+### Q. Where are settings and error logs?
+
+**A.** When you start from the downloaded zip, `settings.json` and `error.log` sit next to `StreamMediaViewer.exe` (or the Mac app). When you start from source, they are in `%LOCALAPPDATA%\StreamMediaViewer_Nu\` on Windows and `~/Library/Application Support/StreamMediaViewer_Nu/` on Mac. Nothing is written into the photo folder.
 
 ## Developer and contact
 

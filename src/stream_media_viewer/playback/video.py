@@ -47,6 +47,10 @@ class VideoPlayer(QObject):
         self._source_path = path
         self._cache_dir = None
         self._cap = cv2.VideoCapture(path)
+        if not self._cap.isOpened():
+            self._cap.release()
+            self._cap = None
+            return 0.0
         if self._audio is not None:
             self._audio.setSource(QUrl.fromLocalFile(path))
         fps = float(self._cap.get(cv2.CAP_PROP_FPS) or 30.0)
@@ -111,6 +115,8 @@ class VideoPlayer(QObject):
 
     def close(self) -> None:
         self.pause()
+        self._last_ok = None
+        self._protect = None
         if self._cap is not None:
             self._cap.release()
             self._cap = None
@@ -118,11 +124,14 @@ class VideoPlayer(QObject):
             self._audio.stop()
             self._audio.setSource(QUrl())
 
-    def _apply(self, frame: np.ndarray) -> np.ndarray:
+    def _apply(self, frame: np.ndarray) -> np.ndarray | None:
         if self._protect is None:
             self._last_ok = frame
             return frame
-        protected = self._protect(frame)
+        try:
+            protected = self._protect(frame)
+        except Exception:
+            return self._last_ok
         self._last_ok = protected
         return protected
 
@@ -167,6 +176,9 @@ class VideoPlayer(QObject):
             self.finished.emit()
             return
         protected = self._apply(frame)
+        if protected is None:
+            self.pause()
+            return
         self._sync_audio_clock()
         self.frame_ready.emit(protected)
 
