@@ -1,8 +1,8 @@
 # StreamMediaViewer(ぬ)
 
-配信で旅行の写真や動画を見せるときに、**顔がそのまま映らないようにしてから**出すアプリです。
+配信で写真や動画を見せる前に顔をぼかし、確認したものだけを視聴者へ送るアプリです。
 
-自分が見る画面と、視聴者に出す画面は別です。あなたが「送る」を押すまで、視聴者側には出ません。パソコンに Python を入れる必要はありません。
+自分が確認するウィンドウと、視聴者に見せるウィンドウは別です。「送る」を押すまで、視聴者には表示されません。Python のインストールは必要ありません。
 
 ## 入手
 
@@ -15,26 +15,24 @@
 
 更新のたびに、同じページのファイルが新しいものに入れ替わります。Mac で「開発元が未確認」と出たら、ファイルを右クリックして「開く」を選んでください。
 
-## どんなパソコンが向いているか
+## 用意するもの
 
 - Windows 10 以降、または macOS 12 以降
-- 画面が2枚あると操作しやすい（自分用と、配信ソフト用）
-- 配信ソフトは **OBS Studio** が無難です（ほかでも、「特定の窓だけ取り込む」ができれば使えます）
-- 写真・動画は SSD に置いた方が速いです
-- 開けるもの: 写真は JPEG / PNG / WebP / BMP / iPhone の HEIC。動画は MP4 / MOV / MKV / WebM / AVI
-- ゲーム配信でパソコンが常に重いときは、下の「配信前の下準備」を使ってください
+- 写真や動画が入ったフォルダ
+- 配信ソフト（OBS Studio など）
+- 2画面あると、自分の確認画面と配信画面を分けて使えます
 
-## 使い方（3分）
+## 使い方
 
-1. アプリを起動する。最初は視聴者向けの窓は出ていません
-2. 📁 で、**今日使うフォルダを1つ**開く（2回目以降は、最近使ったフォルダからも選べます）
-3. 左の一覧で写真を選ぶ。これは自分の確認用です。この時点では配信に乗りません
-4. 顔がぼけているか目で見る。足りなければ ▢（四角）や 🖌（筆）で足す。上の **✨弱** が自動補正です。押すたびに オフ → 弱 → 強。最初は弱です。元のファイルは変わりません
-5. ⬆ または Enter で送る。ここで初めて、横長フルHD（1920×1080）の窓が出ます
-6. OBS で「ウィンドウの取り込み」を追加し、名前が `StreamMediaViewer(ぬ) - 配信出力` のものを選ぶ。この取り込みの**下**に、ゲームやカメラを置いてください（写真を出していないときは、下の画面が見えます）。配信用の窓を 2 枚目の画面へ動かした位置は、次に起動しても同じ場所に出ます
-7. 危ないと思ったら **Esc**、またはテンキーの **0**。視聴者向けの窓が消えます。もう一度送るまで出ません
+1. アプリを起動します。最初は視聴者向けのウィンドウは表示されません。
+2. 📁 で、今日使う写真や動画のフォルダを開きます。最近使ったフォルダからも選べます。
+3. 一覧からファイルを選び、手元の画面で確認します。この時点では配信に表示されません。
+4. 顔のぼかしを確認し、足りなければ ▢（四角）や 🖌（筆）で追加します。✨は自動補正で、押すたびに「オフ → 弱 → 強」と切り替わります。
+5. ⬆ または Enter で送ります。送ったものだけ、視聴者向けのウィンドウに表示されます。
+6. OBS で「ウィンドウの取り込み」を追加し、`StreamMediaViewer(ぬ) - 配信出力` を選びます。配信画面では、この取り込みをゲームやカメラより上に置きます。
+7. 危ないと思ったら **Esc** またはテンキーの **0** を押します。視聴者向けのウィンドウが隠れ、もう一度送るまで表示されません。
 
-画面右上の あ/A で、表示を日本語と英語で切り替えます。ボタンは絵が本体です。マウスを乗せると短い説明が出ます。
+画面右上の あ/A で日本語と英語を切り替えられます。ボタンにマウスを乗せると説明が表示されます。
 
 ## よく使うキー
 
@@ -43,106 +41,45 @@
 | 前のファイル | 4 | A | ◀ |
 | 次のファイル | 6 | D | ▶▶ |
 | 視聴者に出す | Enter | Enter | ⬆ |
-| 今すぐ消す | 0 | Esc | ⬛ |
+| 視聴者向けを隠す | 0 | Esc | ⬛ |
 | 動画の再生／停止 | 5 | Space | ▶ |
 | よく使う印（星） | | F | ☆ |
 | さっきのぼかしを取り消す | | Ctrl+Z（Mac では Command+Z のことがあります） | ↩ |
-| 今の動画だけ先に下準備 | | | ⏳ |
-| フォルダ内をまとめて下準備 | | | 📂⏳ |
-| 下準備だけ消して空き容量を戻す（元の写真・動画は消えない） | | | 🗑 |
+| 今の動画を配信前に下準備 | | | ⏳ |
+| フォルダを配信前に下準備 | | | 📂⏳ |
+| 下準備を消して空き容量を戻す | | | 🗑 |
 
-## 動画と、配信前の下準備
+## 動画と配信前の下準備
 
-- 自分で再生している最中は、視聴者には見えません。音も、自分で確認しているだけでは出ません
-- 送ると、決めた区間の最初から再生します。棒は2本で、**始まり**（緑）と**終わり**（オレンジ）と書いてあります。写真を見ているときは、この棒は出ません
-- 「繰返」はその1本の動画だけ、同じ区間を繰り返します
-- **⏳** は、今選んでいる動画だけ先に下準備します。選んだときも、裏で同じ作業を始めます
-- **📂⏳** は、今開いているフォルダの写真と動画を、配信前にまとめて下準備します。押すと、おおよその空き容量の目安が出ます。写真はあまり増えません。容量のほとんどは動画です（目安: 1分あたり数百MB になることがあります）
-- 下準備は、顔をぼかしたあとの控えを **写真フォルダの外** に置いておくことです。元の写真・動画は増えませんし、上書きもしません
-- **🗑 はゴミ箱ではありません。** フォルダの中の写真や動画は1枚も消しません。消えるのは下準備だけです。確認で「このフォルダの下準備だけ」か「下準備を全部消す」を選べます。星・再生の区間・手で足したぼかしは残ります。画面上に「下準備 ○○ / 全体 ○○」と出ます
-- 左の一覧: **⬆** はいま視聴者に出しているもの、**✓** は下準備できたものです
+- 再生中の動画は、送るまで視聴者には表示されません。確認中の音も配信には出ません。
+- 送ると、指定した区間の最初から再生します。「始まり」と「終わり」の位置をそれぞれ調整できます。
+- 「繰返」をオンにすると、その動画の指定区間を繰り返します。
+- **⏳** は選択中の動画を先に下準備します。ファイルを選んだときも、自動で下準備が始まります。
+- **📂⏳** は、開いているフォルダの写真と動画をまとめて下準備します。開始前に、おおよその必要容量を確認できます。
+- 下準備では、顔をぼかしたあとのデータを元のフォルダとは別の場所に保存します。元の写真や動画は変更しません。
+- **🗑 は元の写真や動画を削除しません。** 消えるのはアプリが作った下準備だけです。「このフォルダだけ」か「すべて」を選べます。
+- 一覧の **⬆** は現在配信中、**✓** は下準備が完了したファイルです。
 
 ## 顔や個人情報
 
 - 顔をぼかす機能は、最初からオンです。オフにしたあと、最初に送るときだけ「このまま出しますか？」と聞きます
-- 車の番号や名札を探す機能は、最初はオフです。オンにしても見落とすことがあるので、自分の目と、四角・筆を優先してください
-- 視聴者に出す絵からは、撮影場所の情報を外します。自分の画面では、日付や「場所あり」は使えます
-- 元のファイルはそのまま残ります
+- 車の番号や名札を探す機能は、最初はオフです。見落とすことがあるため、自分の目と四角・筆での確認を優先してください。
+- 視聴者に表示する画像からは、撮影場所の情報を取り除きます。
+- 元の写真や動画はそのまま残ります。
 
 ## 視聴者側に前の絵が残るとき
 
-OBS が、窓が消えたあとも前の絵を覚えていることがあります。
+OBS が、ウィンドウが隠れたあとも前の画像を表示し続けることがあります。
 
-1. 取り込み方を「Windows 10 (1903 以降)」にする（Mac は初期設定のままで試す）
-2. 「窓が見つからないときは何も出さない」があればオンにする
+1. 取り込み方法を「Windows 10 (1903 以降)」にする（Mac は初期設定のままで試す）
+2. 「ウィンドウが見つからないときは何も出さない」があればオンにする
 3. それでも残るときは、その取り込みを一度オフにして、もう一度オンにする
-
-## 開発者向け
-
-Python 3.10〜3.12。[docs/product/spec.md](./docs/product/spec.md) が動きの正本です。
-
-**配布の exe には、この作業は不要です。** zip を展開して `StreamMediaViewer.exe` を押せば足ります。
-
-**ソース（このフォルダのコード）を `起動.bat` で見るときだけ**、最初に一度、このパソコン用の実行環境を作ります。名前は `.venv` というフォルダです。中に Python と、このアプリが使う部品が入ります。2回目からは `起動.bat` だけで大丈夫です。
-
-### 初回だけ（Windows）
-
-1. [Python 3.12](https://www.python.org/downloads/) を入れる。インストール画面で **「Add python.exe to PATH」** にチェックを付ける
-2. エクスプローラーで `D:\Dev\StreamMediaViewer_Nu` を開く
-3. アドレスバーに `pwsh` と打って Enter（PowerShell がそのフォルダで開く）
-4. 次を上から順にコピペして Enter。1行終わるのを待ってから次へ
-
-```powershell
-python --version
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -U pip
-pip install -e ".[dev]"
-```
-
-5. `python --version` が `3.10`〜`3.12` なら前へ進んでよい。違う・見つからないときは 1 に戻る
-6. `Activate.ps1` で実行が禁止されたら、同じ窓で一度だけ `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` と打ってから、4 の Activate 以降をやり直す
-7. 最後の `pip install` がエラーなく終わったら、フォルダに `.venv` ができている
-8. PowerShell は閉じてよい。エクスプローラーで **`起動.bat` をダブルクリック**
-
-うまくいかないとき: `.venv` フォルダを削除して、4 からやり直す。部品を入れ直すだけのときも同じです。
-
-コマンドで起動したいときは `.\scripts\run.ps1` でも同じアプリが開きます。Mac では `source .venv/bin/activate` のあと `python -m stream_media_viewer`。
-
-**配信者と同じ形（exe）で見るとき**は、先に `.\scripts\build.ps1` を実行し、できた `dist\StreamMediaViewer\StreamMediaViewer.exe` をダブルクリックします。GitHub の zip と同じ種類のファイルです。日々の改修は `起動.bat` の方がすぐ開きます。
-
-動作確認の見方:
-
-1. 手元の窓だけ先に出る。配信用の窓は「送る」まで出ない（緊急のあとも同じ）
-2. 📁 で写真フォルダを開き、顔がぼけているか手元で見る
-3. **✨弱** を押して オフ／弱／強 が切り替わり、手元の色が変わること。フォルダ内の元ファイルの更新日時は変わらないこと
-4. ⬆ で配信用の窓が出る。OBS で取り込むなら、その窓を 2 枚目の画面へ動かして確認する
-5. Esc で配信用の窓が消える。もう一度送るまで出ない
-
-自動テスト:
-
-```powershell
-pytest
-```
-
-Windows で配布用ファイルを作る: `.\scripts\build.ps1`
-
-別のパソコンでリポジトリから始めるとき:
-
-```powershell
-git clone https://github.com/nnhr-nunu/StreamMediaViewer_Nu.git
-cd StreamMediaViewer_Nu
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -U pip
-pip install -e ".[dev]"
-```
 
 ---
 
 # StreamMediaViewer (Nu) — English
 
-A Windows/Mac app for showing travel photos and videos on stream **after faces are blurred**. You get a private preview. Viewers only see a clip after you press Send. No Python install needed.
+A Windows/Mac app that blurs faces before you show photos and videos on stream. You get a private preview, and viewers only see what you send. No Python install needed.
 
 ## Download
 
@@ -158,21 +95,19 @@ The same page is updated when we ship a new build. On Mac, if Gatekeeper blocks 
 ## What you need
 
 - Windows 10+ or macOS 12+
-- Two monitors help (one for you, one for the stream capture)
-- **OBS Studio** is the usual capture app (anything that can capture a single window works)
-- Keep media on an SSD if you can
-- Photos: JPEG / PNG / WebP / BMP / iPhone HEIC. Video: MP4 / MOV / MKV / WebM / AVI
-- If the PC is already maxed out by a game, use folder prep before going live
+- A folder containing the photos or videos you want to show
+- A streaming app such as **OBS Studio**
+- Two screens are helpful, but not required
 
 ## Start in 3 minutes
 
-1. Launch the app. The viewer window stays hidden at first
-2. Click 📁 and pick **one folder for today’s stream** (later you can pick from recent folders)
-3. Click a file on the left. That is **your** preview only
-4. Check the blur. Add more with the box or brush tools if needed. Click **✨ Soft** to cycle Off → Soft → Strong. Soft is the default. Original files never change
-5. Press ⬆ or Enter to send. A 1920×1080 window appears
-6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力`. Put game/camera **under** that source so they show when nothing is sent. If you move the output window to a second screen, it comes back there next time you launch
-7. Emergency: **Esc** or numpad **0**. The viewer window hides until you send again
+1. Launch the app. The viewer window is hidden at first.
+2. Click 📁 and choose the folder for today’s stream. Recent folders are available too.
+3. Select a file on the left. This is your private preview.
+4. Check the blur. Add more with the box or brush tools if needed. Click **✨ Soft** to cycle Off → Soft → Strong.
+5. Press ⬆ or Enter to send. Only the sent file appears for viewers.
+6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力` and place it above your game or camera source.
+7. Emergency: press **Esc** or numpad **0**. The output window hides until you send again.
 
 Use あ/A to switch Japanese / English. Icons are the main labels; hover for a short tip.
 
@@ -183,24 +118,23 @@ Use あ/A to switch Japanese / English. Icons are the main labels; hover for a s
 | Previous | 4 | A | ◀ |
 | Next | 6 | D | ▶▶ |
 | Send to viewers | Enter | Enter | ⬆ |
-| Hide now | 0 | Esc | ⬛ |
+| Hide output | 0 | Esc | ⬛ |
 | Play / pause | 5 | Space | ▶ |
 | Star | | F | ☆ |
 | Undo blur | | Ctrl+Z (Command+Z on some Macs) | ↩ |
-| Prep this video | | | ⏳ |
-| Prep the whole folder | | | 📂⏳ |
-| Remove prep copies only (originals stay) | | | 🗑 |
+| Prep this video before streaming | | | ⏳ |
+| Prep the whole folder before streaming | | | 📂⏳ |
+| Remove prep data | | | 🗑 |
 
 ## Video and preparing ahead of time
 
-- Preview playback is not sent. Preview is silent
-- After Send, the chosen range plays from the start. Two sliders are labeled **Start** (green) and **End** (orange). They hide when you are looking at a photo
-- Loop applies to that file only
-- **⏳** preps the current video (also starts in the background when you select it)
-- **📂⏳** preps every photo and video in the open folder. You will see a rough disk estimate first. Photos are small; video is most of the size (often hundreds of MB per minute)
-- Prep copies are blurred frames stored **outside** your photo folder. Originals are never overwritten
-- **🗑 is not a file trash can.** It never deletes photos or videos in the folder. It only removes prep copies. You can choose this folder’s prep or all prep copies. Stars, in/out range, and hand-drawn blur stay. The top shows prep size vs all
-- In the list, **⬆** is what viewers see now, **✓** means prep is ready
+- Preview playback is private and silent.
+- After Send, the chosen range plays from the start. The sliders are labeled **Start** and **End**.
+- Loop applies to that file only.
+- **⏳** preps the current video. **📂⏳** preps the whole open folder.
+- Prep data is stored outside your photo folder. Originals are never changed.
+- **🗑 is not a file trash can.** It removes prep data only. You can choose this folder or all folders.
+- In the list, **⬆** is what viewers see now, and **✓** means prep is ready.
 
 ## Privacy
 
@@ -214,7 +148,3 @@ Use あ/A to switch Japanese / English. Icons are the main labels; hover for a s
 1. Set capture method to Windows 10 (1903+) when available
 2. Enable “show nothing when the window is missing” if you have that option
 3. Toggle the source off and on
-
-## For developers
-
-Python 3.10–3.12. Behaviour spec: [docs/product/spec.md](./docs/product/spec.md). On Windows, first-time setup is in the Japanese **初回だけ** section; after that, double-click `起動.bat`. Same app as streamers: `.\scripts\build.ps1` then `dist\StreamMediaViewer\StreamMediaViewer.exe`.
