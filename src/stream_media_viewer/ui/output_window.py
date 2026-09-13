@@ -1,12 +1,15 @@
-"""OBS 取り込み用の配信出力ウィンドウ。既定は全黒マスク。"""
+"""OBS 取り込み用。未送信・緊急は隠す。文字は出さない。"""
 
 from __future__ import annotations
 
+import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
 
 from stream_media_viewer import OUTPUT_WINDOW_TITLE
+from stream_media_viewer.render.canvas import OUTPUT_HEIGHT, OUTPUT_WIDTH
 from stream_media_viewer.safety.output_gate import OutputGate
+from stream_media_viewer.ui.pixmaps import bgr_to_pixmap
 
 
 class OutputWindow(QMainWindow):
@@ -14,24 +17,25 @@ class OutputWindow(QMainWindow):
         super().__init__()
         self._gate = gate
         self.setWindowTitle(OUTPUT_WINDOW_TITLE)
-        self.resize(1280, 720)
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, False)
-
+        self.setFixedSize(OUTPUT_WIDTH, OUTPUT_HEIGHT)
         root = QWidget()
         layout = QVBoxLayout(root)
         layout.setContentsMargins(0, 0, 0, 0)
-
         self.canvas = QLabel()
         self.canvas.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.canvas.setMinimumSize(640, 360)
+        self.canvas.setStyleSheet("background: #000000;")
         layout.addWidget(self.canvas)
         self.setCentralWidget(root)
         self.refresh()
 
-    def refresh(self) -> None:
-        # 配信画面には状態もファイル名も出さない
+    def show_frame(self, bgr: np.ndarray) -> None:
+        pix = bgr_to_pixmap(bgr)
+        self.canvas.setPixmap(pix)
         self.canvas.setText("")
-        if self._gate.masked:
-            self.canvas.setStyleSheet("background: #000000;")
+
+    def refresh(self) -> None:
+        self.canvas.setText("")
+        if self._gate.window_visible:
+            self.show()
         else:
-            self.canvas.setStyleSheet("background: #101010;")
+            self.hide()
