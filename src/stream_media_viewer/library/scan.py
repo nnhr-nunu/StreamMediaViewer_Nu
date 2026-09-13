@@ -71,13 +71,17 @@ def scan_folder(
     *,
     recursive: bool = True,
     progress: Callable[[int, int], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> list[MediaItem]:
     if not folder.is_dir():
         return []
     items: list[MediaItem] = []
     suffixes = SUPPORTED_IMAGE_SUFFIXES | SUPPORTED_VIDEO_SUFFIXES
     paths: list[Path] = []
+    found = 0
     for path in _iter_files(folder, recursive=recursive):
+        if should_stop and should_stop():
+            return []
         if not path.is_file() or _hidden_part(path, folder):
             continue
         suffix = path.suffix.lower()
@@ -89,10 +93,15 @@ def scan_folder(
         if kind == "image" and not _image_header_ok(path):
             continue
         paths.append(path)
+        found += 1
+        if progress and found % 8 == 0:
+            progress(found, 0)
     total = len(paths)
     if progress:
         progress(0, total)
     for index, path in enumerate(paths, start=1):
+        if should_stop and should_stop():
+            return []
         suffix = path.suffix.lower()
         kind = "video" if suffix in SUPPORTED_VIDEO_SUFFIXES else "image"
         if kind == "image":

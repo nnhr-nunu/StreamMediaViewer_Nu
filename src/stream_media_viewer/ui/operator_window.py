@@ -37,6 +37,7 @@ from stream_media_viewer.library.sort import parse_list_sort
 from stream_media_viewer.render.enhance import parse_enhance_level
 from stream_media_viewer.safety.output_gate import OutputGate, OutputReason
 from stream_media_viewer.ui.drop_hint import CalendarDateEdit, DropHintCombo
+from stream_media_viewer.ui.capture_exclude import exclude_from_capture
 from stream_media_viewer.ui.list_thumb import with_video_mark
 from stream_media_viewer.ui.preview_canvas import PreviewCanvas
 from stream_media_viewer.ui.styles import DARK_QSS
@@ -50,6 +51,7 @@ _CAPTION_H = 40
 _ROLE_PIX = Qt.ItemDataRole.UserRole
 _ROLE_KIND = Qt.ItemDataRole.UserRole + 1
 _ROLE_ROT = Qt.ItemDataRole.UserRole + 2
+_ROLE_PATH = Qt.ItemDataRole.UserRole + 3
 
 
 def _bar_button() -> QToolButton:
@@ -92,6 +94,8 @@ class OperatorWindow(QMainWindow):
     region_clicked = Signal(float, float)
     hide_item_requested = Signal(int)
     audio_changed = Signal()
+    loupe_changed = Signal(bool)
+    false_undo_requested = Signal()
     brush_width_changed = Signal(int)
 
     def __init__(self, gate: OutputGate) -> None:
@@ -113,8 +117,13 @@ class OperatorWindow(QMainWindow):
         self.chk_text = QCheckBox()
         self.btn_enhance = _bar_button()
         self.btn_enhance.setMinimumWidth(96)
+        self.btn_loupe = _bar_button()
+        self.btn_loupe.setCheckable(True)
         self.enhance_level = "weak"
         self._playing = False
+        self._fit_cache: dict[tuple, QPixmap] = {}
+        self._list_paths: list[str] = []
+        self._fit_icon_size = 0
         self.btn_prep_photos = _bar_button()
         self.btn_prep_videos = _bar_button()
         self.btn_clear_cache = _bar_button()
@@ -125,6 +134,7 @@ class OperatorWindow(QMainWindow):
         top.addWidget(self.chk_face)
         top.addWidget(self.chk_text)
         top.addWidget(self.btn_enhance)
+        top.addWidget(self.btn_loupe)
         top.addWidget(self.btn_prep_photos)
         top.addWidget(self.btn_prep_videos)
         top.addWidget(self.btn_clear_cache)
@@ -135,8 +145,8 @@ class OperatorWindow(QMainWindow):
 
         self.filter_box = QGroupBox()
         filters = QHBoxLayout(self.filter_box)
-        filters.setSpacing(16)
-        filters.setContentsMargins(10, 8, 12, 8)
+        filters.setSpacing(8)
+        filters.setContentsMargins(8, 6, 8, 6)
         self.chk_star_only = QCheckBox()
         self.chk_photos = QCheckBox()
         self.chk_videos = QCheckBox()
@@ -148,10 +158,10 @@ class OperatorWindow(QMainWindow):
         self.combo_folder.setMinimumWidth(150)
         self.date_from = CalendarDateEdit()
         self.date_to = CalendarDateEdit()
-        self.date_from.setMinimumWidth(112)
-        self.date_to.setMinimumWidth(112)
-        self.date_from.setMaximumWidth(128)
-        self.date_to.setMaximumWidth(128)
+        self.date_from.setMinimumWidth(92)
+        self.date_to.setMinimumWidth(92)
+        self.date_from.setMaximumWidth(104)
+        self.date_to.setMaximumWidth(104)
         for box in (
             self.chk_star_only,
             self.chk_photos,
@@ -311,8 +321,11 @@ class OperatorWindow(QMainWindow):
         self.btn_false_face.setMinimumWidth(120)
         self.btn_false_face.setVisible(False)
         self.btn_false_face.setCheckable(True)
-        self.btn_prep_photos.setMinimumWidth(80)
-        self.btn_prep_videos.setMinimumWidth(80)
+        self.btn_false_undo = _bar_button()
+        self.btn_false_undo.setMinimumWidth(96)
+        self.btn_false_undo.setVisible(False)
+        self.btn_prep_photos.setMinimumWidth(108)
+        self.btn_prep_videos.setMinimumWidth(108)
         self.btn_clear_cache.setMinimumWidth(120)
         self.btn_play = _bar_button()
         self.btn_prep = _bar_button()
@@ -353,6 +366,7 @@ class OperatorWindow(QMainWindow):
         bar.addWidget(self.btn_play)
         bar.addWidget(self.btn_prep)
         bar.addWidget(self.btn_false_face)
+        bar.addWidget(self.btn_false_undo)
         bar.addWidget(self.btn_lang)
         bar.addWidget(self.btn_help)
         outer.addWidget(bar_host)
@@ -410,6 +424,8 @@ class OperatorWindow(QMainWindow):
         self.slider_brush.valueChanged.connect(self._on_brush_width)
         self.btn_star.toggled.connect(self._on_star_toggled)
         self.btn_enhance.clicked.connect(self.enhance_cycle_requested.emit)
+        self.btn_loupe.toggled.connect(self._on_loupe)
+        self.btn_false_undo.clicked.connect(self.false_undo_requested.emit)
         self.btn_settings.clicked.connect(self.settings_requested.emit)
         self.list.currentRowChanged.connect(self.item_selected.emit)
         self.preview.mark_added.connect(self.mark_added.emit)
@@ -494,6 +510,14 @@ class OperatorWindow(QMainWindow):
         self.btn_star.setText("⭐" if on else "☆")
         self.btn_star.setToolTip(t(self.lang, "star"))
 
+    def _on_loupe(self, on: bool) -> None:
+        self.preview.set_loupe(on)
+        self.loupe_changed.emit(on)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        exclude_from_capture(self)
+
     def retranslate(self) -> None:
         lang = self.lang
         _caption(self.btn_folder, "📁", t(lang, "btn_folder"), t(lang, "open_folder"))
@@ -513,18 +537,22 @@ class OperatorWindow(QMainWindow):
         _caption(self.btn_clear_marks, "✕", t(lang, "btn_clear_marks"), t(lang, "clear_marks"))
         self.lbl_brush.setText(t(lang, "brush_width"))
         _caption(self.btn_prep, "⏳", t(lang, "btn_prep"), t(lang, "prepare"))
-        _caption(self.btn_prep_photos, "📸", t(lang, "btn_prep_photos"), t(lang, "prepare_photos"))
-        _caption(self.btn_prep_videos, "🎦", t(lang, "btn_prep_videos"), t(lang, "prepare_videos"))
+        self.btn_prep_photos.setText(f"📸{t(lang, 'btn_prep_photos')}\n{t(lang, 'btn_prep_action')}")
+        self.btn_prep_photos.setToolTip(t(lang, "prepare_photos"))
+        self.btn_prep_videos.setText(f"🎦{t(lang, 'btn_prep_videos')}\n{t(lang, 'btn_prep_action')}")
+        self.btn_prep_videos.setToolTip(t(lang, "prepare_videos"))
         _caption(self.btn_clear_cache, "🧹", t(lang, "btn_clear"), t(lang, "clear_cache"))
         _caption(self.btn_settings, "⚙", t(lang, "btn_settings"), t(lang, "settings"))
         _caption(self.btn_lang, "あ/A", t(lang, "btn_lang"), t(lang, "language"))
         _caption(self.btn_help, "?", t(lang, "btn_help"), t(lang, "shortcuts"))
         self._sync_false_face_caption()
+        _caption(self.btn_false_undo, "↩", t(lang, "btn_false_undo"), t(lang, "false_undo"))
         self.filter_box.setTitle("🔍 " + t(lang, "filters_title"))
         self.sort_box.setTitle(t(lang, "sort_title"))
         self.chk_face.setText(t(lang, "face_blur"))
         self.chk_text.setText(t(lang, "text_blur"))
         self.set_enhance_level(self.enhance_level)
+        _caption(self.btn_loupe, "🔍", t(lang, "btn_loupe"), t(lang, "loupe"))
         self.chk_loop.setText(t(lang, "loop"))
         self.chk_audio.setText(t(lang, "audio"))
         self.chk_audio.setToolTip(t(lang, "audio_hint"))
@@ -678,9 +706,7 @@ class OperatorWindow(QMainWindow):
         self.scan_progress.setVisible(scanning)
         self.scan_count.setVisible(scanning)
         if scanning:
-            self.scan_progress.setMaximum(max(1, total or 1))
-            self.scan_progress.setValue(max(0, done or 0))
-            self.scan_count.setText(f"{done} / {total}")
+            self._apply_scan_progress(done or 0, total or 0)
         self._preview_stack.setCurrentWidget(self.guide_page)
         self.btn_star.setVisible(False)
 
@@ -689,8 +715,18 @@ class OperatorWindow(QMainWindow):
             return
         self.scan_progress.setVisible(True)
         self.scan_count.setVisible(True)
-        self.scan_progress.setMaximum(max(1, total))
-        self.scan_progress.setValue(max(0, done))
+        self._apply_scan_progress(done, total)
+
+    def _apply_scan_progress(self, done: int, total: int) -> None:
+        if total <= 0:
+            self.scan_progress.setRange(0, 0)
+            if done > 0:
+                self.scan_count.setText(t(self.lang, "scanning_found").format(n=done))
+            else:
+                self.scan_count.setText(t(self.lang, "scanning_search"))
+            return
+        self.scan_progress.setRange(0, total)
+        self.scan_progress.setValue(max(0, min(done, total)))
         self.scan_count.setText(f"{done} / {total}")
 
     def reveal_preview(self) -> None:
@@ -705,6 +741,24 @@ class OperatorWindow(QMainWindow):
         tips: list[str] | None = None,
         rotations: list[int] | None = None,
     ) -> None:
+        paths = [str(item.path) for item in items]
+        same = paths == self._list_paths and self.list.count() == len(paths)
+        if same:
+            for index, label in enumerate(labels):
+                row = self.list.item(index)
+                if row is None:
+                    break
+                row.setText(label)
+                if tips and index < len(tips):
+                    row.setToolTip(tips[index])
+                rot = rotations[index] if rotations and index < len(rotations) else 0
+                if int(row.data(_ROLE_ROT) or 0) != int(rot):
+                    self.set_row_rotation(index, rot)
+                pixmap = icons[index] if icons and index < len(icons) else None
+                if pixmap is not None and row.data(_ROLE_PIX) is not pixmap:
+                    self.set_row_icon(index, pixmap, video=items[index].kind == "video")
+            return
+        self._list_paths = paths
         self.list.blockSignals(True)
         self.list.clear()
         for index, label in enumerate(labels):
@@ -714,6 +768,7 @@ class OperatorWindow(QMainWindow):
                 row.setData(_ROLE_PIX, pixmap)
             kind = items[index].kind if index < len(items) else "image"
             row.setData(_ROLE_KIND, kind)
+            row.setData(_ROLE_PATH, paths[index] if index < len(paths) else "")
             rot = rotations[index] if rotations and index < len(rotations) else 0
             row.setData(_ROLE_ROT, int(rot))
             fitted = self._row_icon(row)
@@ -732,6 +787,10 @@ class OperatorWindow(QMainWindow):
             return
         item.setData(_ROLE_PIX, pixmap)
         item.setData(_ROLE_KIND, "video" if video else "image")
+        self._fit_cache.pop(
+            (str(item.data(_ROLE_PATH) or ""), self.list.iconSize().width(), int(item.data(_ROLE_ROT) or 0), item.data(_ROLE_KIND)),
+            None,
+        )
         fitted = self._row_icon(item)
         if fitted is None or fitted.isNull():
             return
@@ -752,14 +811,24 @@ class OperatorWindow(QMainWindow):
         if not isinstance(stored, QPixmap) or stored.isNull():
             return None
         rotation = int(item.data(_ROLE_ROT) or 0)
+        kind = item.data(_ROLE_KIND)
+        path = str(item.data(_ROLE_PATH) or "")
+        size = self.list.iconSize().width()
+        key = (path, size, rotation, kind)
+        cached = self._fit_cache.get(key)
+        if cached is not None and not cached.isNull():
+            return cached
         if rotation:
             stored = stored.transformed(
                 QTransform().rotate(rotation),
-                Qt.TransformationMode.SmoothTransformation,
+                Qt.TransformationMode.FastTransformation,
             )
-        if item.data(_ROLE_KIND) == "video":
-            stored = with_video_mark(stored, self.list.iconSize().width())
-        return self._fit_icon(stored)
+        if kind == "video":
+            stored = with_video_mark(stored, size)
+        fitted = self._fit_icon(stored)
+        if fitted is not None:
+            self._fit_cache[key] = fitted
+        return fitted
 
     def _fit_icon(self, pixmap: QPixmap | None) -> QPixmap | None:
         if pixmap is None or pixmap.isNull():
@@ -770,7 +839,7 @@ class OperatorWindow(QMainWindow):
         return pixmap.scaled(
             size,
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
+            Qt.TransformationMode.FastTransformation,
         )
 
     def resizeEvent(self, event) -> None:  # noqa: N802
@@ -786,6 +855,9 @@ class OperatorWindow(QMainWindow):
         inner = max(160, list_w - 24)
         cell_w = inner // cols
         icon = max(140, min(520, cell_w - 6))
+        if icon != self._fit_icon_size:
+            self._fit_cache.clear()
+            self._fit_icon_size = icon
         cell_h = icon + _CAPTION_H
         self.list.setIconSize(QSize(icon, icon))
         self.list.setGridSize(QSize(cell_w, cell_h))
@@ -804,6 +876,9 @@ class OperatorWindow(QMainWindow):
 
     def set_false_face_visible(self, visible: bool) -> None:
         self.btn_false_face.setVisible(visible)
+
+    def set_false_undo_visible(self, visible: bool) -> None:
+        self.btn_false_undo.setVisible(visible)
 
     def _shortcuts_dialog(self) -> QDialog:
         dialog = QDialog(self)

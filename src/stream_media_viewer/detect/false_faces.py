@@ -58,6 +58,18 @@ def save_shipped_hashes(hashes: list[str], path: Path | None = None) -> None:
     load_shipped_hashes.cache_clear()
 
 
+def try_remove_shipped_hash(digest: str, *, protected: set[str] | frozenset[str]) -> bool:
+    key = str(digest).strip()
+    if not key or key in protected or getattr(sys, "frozen", False):
+        return False
+    current = [item for item in load_shipped_hashes() if item != key]
+    try:
+        save_shipped_hashes(current)
+    except OSError:
+        return False
+    return True
+
+
 def try_update_shipped_catalog(hashes: list[str]) -> bool:
     """ソース起動のときだけ同梱ファイルを更新する。exe では書き換えない。"""
     if getattr(sys, "frozen", False):

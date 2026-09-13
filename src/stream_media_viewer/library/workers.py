@@ -27,6 +27,7 @@ class ScanWorker(QThread):
                 self._folder,
                 recursive=self._recursive,
                 progress=lambda done, total: self.progress.emit(done, total),
+                should_stop=self.isInterruptionRequested,
             )
             self.finished_items.emit(items)
         except Exception as exc:

@@ -66,23 +66,23 @@ QSlider#rangeIn::handle:horizontal {
 QSlider#rangeOut::handle:horizontal {
   background: #e8a070;
 }
-QCheckBox { spacing: 10px; padding: 4px 12px 4px 4px; }
+QCheckBox { spacing: 4px; padding: 2px 6px 2px 2px; }
 QComboBox, QDateEdit {
   background: #1b1b1b;
   color: #e8e8e8;
   border: 1px solid #555;
   border-radius: 8px;
-  padding: 4px 32px 4px 10px;
+  padding: 4px 18px 4px 8px;
   min-height: 32px;
 }
 QDateEdit {
-  min-width: 118px;
-  max-width: 128px;
+  min-width: 92px;
+  max-width: 104px;
 }
 QComboBox::drop-down, QDateEdit::drop-down {
   subcontrol-origin: padding;
   subcontrol-position: center right;
-  width: 28px;
+  width: 16px;
   border: none;
   background: transparent;
 }

@@ -18,6 +18,7 @@ STRINGS = {
         "btn_prep": "下準備",
         "btn_prep_photos": "写真",
         "btn_prep_videos": "動画",
+        "btn_prep_action": "事前処理",
         "btn_clear": "事前処理データを削除",
         "btn_clear_marks": "クリア",
         "btn_settings": "設定",
@@ -28,12 +29,16 @@ STRINGS = {
         "btn_help": "キー説明",
         "btn_lang": "言語",
         "btn_false_face": "誤検出修正",
+        "btn_false_undo": "取り消し",
+        "btn_loupe": "拡大",
         "toggle_on": "ON",
         "toggle_off": "OFF",
         "false_face": (
             "ONのとき、間違っているぼかしの上をクリックすると、そのぼかしだけ消します。"
             "本物の顔のぼかしは残ります"
         ),
+        "false_undo": "直前の誤検出の取り消しを戻す",
+        "loupe": "確認画面と配信用の窓で、カーソル付近を拡大する",
         "btn_rot_left": "左90°",
         "btn_rot_right": "右90°",
         "rot_left": "左に90度回す。元のファイルは変わりません",
@@ -47,7 +52,8 @@ STRINGS = {
             "再生／停止: Space / 5（動画）\n"
             "ブックマーク: F\n"
             "手動ぼかしを戻す: Ctrl+Z\n"
-            "一覧の縮小画を右クリック: 非表示にする"
+            "一覧の縮小画を右クリック: 非表示にする\n"
+            "拡大: 🔍ボタン。配信用の窓ではカーソルが光ります"
         ),
         "sort_date_asc": "古い順",
         "sort_date_desc": "新しい順",
@@ -105,11 +111,14 @@ STRINGS = {
             "4. 「隠す」で配信用の窓を消す"
         ),
         "scanning": "読み込み中…",
+        "scanning_search": "ファイルを探しています…",
+        "scanning_found": "{n} 件見つかりました。続きを読み込み中…",
         "standby_pick": "待機画像を選ぶ",
         "standby_none": "なし",
         "clear_marks": "この写真の手動ぼかしを全部消す",
         "folder_empty": "このフォルダに写真・動画がありません",
         "confirm_no_blur": "顔のぼかしなしで配信出力に表示します。よろしいですか？",
+        "confirm_faces": "顔ありの写真を配信出力に表示します。よろしいですか？",
         "pick_folder": "写真・動画のフォルダを選択",
         "empty": "写真・動画のフォルダを選択してください",
         "processing": "確認用の画像を作成中…",
@@ -162,6 +171,7 @@ STRINGS = {
         "btn_prep": "Prep",
         "btn_prep_photos": "Photos",
         "btn_prep_videos": "Videos",
+        "btn_prep_action": "Pre-blur",
         "btn_clear": "Delete pre-blur data",
         "btn_clear_marks": "Clear",
         "btn_settings": "Settings",
@@ -172,12 +182,16 @@ STRINGS = {
         "btn_help": "Keys",
         "btn_lang": "Language",
         "btn_false_face": "Not a face",
+        "btn_false_undo": "Undo",
+        "btn_loupe": "Zoom",
         "toggle_on": "ON",
         "toggle_off": "OFF",
         "false_face": (
             "When this is ON, click a wrong blur to remove only that blur. "
             "Real face blurs stay"
         ),
+        "false_undo": "Undo the last false-face correction",
+        "loupe": "Magnify around the cursor on the review and output windows",
         "btn_rot_left": "Left 90°",
         "btn_rot_right": "Right 90°",
         "rot_left": "Rotate 90° left. The original file stays unchanged",
@@ -191,7 +205,8 @@ STRINGS = {
             "Play / pause: Space / 5 (videos)\n"
             "Bookmark: F\n"
             "Undo manual blur: Ctrl+Z\n"
-            "Right-click a list thumbnail: Hide"
+            "Right-click a list thumbnail: Hide\n"
+            "Magnifier: 🔍. On output the cursor glows"
         ),
         "sort_date_asc": "Oldest first",
         "sort_date_desc": "Newest first",
@@ -252,11 +267,14 @@ STRINGS = {
             "4. Hide to close the output window"
         ),
         "scanning": "Loading…",
+        "scanning_search": "Looking for files…",
+        "scanning_found": "Found {n}. Still loading…",
         "standby_pick": "Choose standby image",
         "standby_none": "None",
         "clear_marks": "Remove all hand-drawn blur on this photo",
         "folder_empty": "No photos or videos in this folder",
         "confirm_no_blur": "Show in output without face blur?",
+        "confirm_faces": "Show a photo with faces in output?",
         "pick_folder": "Choose a photo/video folder",
         "empty": "Choose a photo/video folder",
         "processing": "Creating preview…",

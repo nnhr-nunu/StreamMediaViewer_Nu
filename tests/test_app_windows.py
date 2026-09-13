@@ -314,7 +314,7 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert lay.indexOf(op.date_group) < lay.indexOf(op.chk_hidden)
     assert op.lbl_date_range.text() == "～"
     assert op.chk_hidden.text() == "非表示"
-    assert op.date_from.maximumWidth() <= 128
+    assert op.date_from.maximumWidth() <= 104
     assert op.filter_box.layout().indexOf(op.combo_sort) == -1
     assert op.sort_box.layout().indexOf(op.combo_sort) >= 0
     assert op.combo_sort.count() == 3
@@ -322,6 +322,7 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert "動画" in op.btn_prep_videos.text()
     assert "自動補正" in op.btn_enhance.text()
     assert "標準" in op.btn_enhance.text()
+    assert "拡大" in op.btn_loupe.text()
     assert "事前処理データ" in op.btn_clear_cache.text()
     assert op.chk_star_only.text() == "⭐"
     assert op.manual_tools.isHidden()
@@ -366,6 +367,9 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     op.show_guide("読み込み中…", done=1, total=4)
     assert not op.scan_progress.isHidden()
     assert op.scan_count.text() == "1 / 4"
+    op.show_guide("読み込み中…", done=0, total=0)
+    assert "0 / 0" not in op.scan_count.text()
+    assert "0 / 1" not in op.scan_count.text()
     op.set_places(["京都"], "")
     assert op.combo_place.findData("__none__") >= 0
 
