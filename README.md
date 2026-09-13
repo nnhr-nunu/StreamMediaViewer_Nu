@@ -8,7 +8,7 @@
 
 **[最新のファイルはここ](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/latest)**
 
-| パソコン | 取るファイル | 起動 |
+| OS | ダウンロードするファイル | 起動方法 |
 | -------- | ------------ | ---- |
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | 展開して `StreamMediaViewer.exe` をダブルクリック |
 | Mac | `StreamMediaViewer-macOS.zip` | 展開して `StreamMediaViewer`（または `.app`）を開く |

@@ -97,7 +97,9 @@ class AppSettings:
             text_blur=bool(data.get("text_blur", False)),
             video_audio=bool(data.get("video_audio", False)),
             enhance_level=parse_enhance_level(
-                data["enhance_level"] if "enhance_level" in data else data.get("auto_enhance", "weak")
+                data["enhance_level"]
+                if "enhance_level" in data
+                else data.get("auto_enhance", "weak")
             ),
             standby_path=str(data.get("standby_path") or ""),
             use_standby=bool(data.get("use_standby", False)),
