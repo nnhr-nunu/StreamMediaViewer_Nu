@@ -1,23 +1,34 @@
 DARK_QSS = """
-QMainWindow, QWidget {
+QMainWindow, QDialog {
   background: #121212;
   color: #e8e8e8;
   font-size: 14px;
+}
+QMainWindow > QWidget, QDialog > QWidget {
+  background: #121212;
+  color: #e8e8e8;
+}
+QWidget {
+  color: #e8e8e8;
+  font-size: 14px;
+}
+QLabel, QCheckBox, QGroupBox, QFormLayout, QDialogButtonBox {
+  background: transparent;
 }
 QListWidget {
   background: #1b1b1b;
   border: none;
   outline: none;
-  padding: 8px;
+  padding: 4px;
 }
 QListWidget::item {
   color: #cfcfcf;
   font-size: 12px;
-  padding: 4px;
+  padding: 0px;
 }
 QListWidget::item:selected {
   background: #3d2a4f;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 QToolButton, QPushButton {
   background: #2a2a2a;
@@ -27,6 +38,10 @@ QToolButton, QPushButton {
   min-width: 56px;
   min-height: 48px;
   color: #f0f0f0;
+}
+QDialog QPushButton {
+  min-height: 36px;
+  min-width: 72px;
 }
 QToolButton:hover, QPushButton:hover {
   background: #3a3a3a;
@@ -52,27 +67,60 @@ QSlider#rangeOut::handle:horizontal {
   background: #e8a070;
 }
 QCheckBox { spacing: 10px; padding: 4px 12px 4px 4px; }
-QComboBox, QDateEdit, QDialog {
+QComboBox, QDateEdit {
   background: #1b1b1b;
   color: #e8e8e8;
-  border: 1px solid #333;
+  border: 1px solid #555;
   border-radius: 8px;
-  padding: 4px 28px 4px 10px;
+  padding: 4px 32px 4px 10px;
   min-height: 32px;
 }
 QDateEdit {
-  min-width: 150px;
+  min-width: 168px;
 }
 QComboBox::drop-down, QDateEdit::drop-down {
   subcontrol-origin: padding;
   subcontrol-position: center right;
-  width: 22px;
+  width: 28px;
   border: none;
+  background: transparent;
+}
+QComboBox::down-arrow, QDateEdit::down-arrow {
+  image: none;
+  width: 0;
+  height: 0;
 }
 QComboBox QAbstractItemView {
   background: #1b1b1b;
   color: #e8e8e8;
   selection-background-color: #3d2a4f;
+  border: 1px solid #555;
+}
+QCalendarWidget {
+  background: #1b1b1b;
+  color: #e8e8e8;
+}
+QCalendarWidget QWidget {
+  background: #1b1b1b;
+  color: #e8e8e8;
+  alternate-background-color: #1b1b1b;
+}
+QCalendarWidget QAbstractItemView {
+  background: #1b1b1b;
+  color: #e8e8e8;
+  selection-background-color: #6b3fa0;
+  selection-color: #f5f5f5;
+  outline: none;
+}
+QCalendarWidget QToolButton {
+  min-width: 28px;
+  min-height: 28px;
+  background: transparent;
+  color: #e8e8e8;
+}
+QCalendarWidget QMenu {
+  background: #1b1b1b;
+  color: #e8e8e8;
 }
 QGroupBox {
   border: 1px solid #333;
@@ -80,12 +128,14 @@ QGroupBox {
   margin-top: 12px;
   padding: 8px 8px 4px 8px;
   color: #e8e8e8;
+  background: transparent;
 }
 QGroupBox::title {
   subcontrol-origin: margin;
   left: 12px;
   padding: 0 6px;
   color: #c9a0ff;
+  background: transparent;
 }
 QFrame#manualTools {
   background: #1a1520;
@@ -119,11 +169,22 @@ QProgressBar::chunk {
 QLabel#guide {
   color: #e8e8e8;
   font-size: 16px;
-  background: #121212;
+  background: transparent;
   padding: 28px;
 }
 QLabel#preview {
   background: #000;
   border-radius: 12px;
+}
+QLabel#meta, QLabel#shortcutsBody {
+  background: transparent;
+}
+QLineEdit {
+  background: #1b1b1b;
+  color: #e8e8e8;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 6px 10px;
+  min-height: 28px;
 }
 """
