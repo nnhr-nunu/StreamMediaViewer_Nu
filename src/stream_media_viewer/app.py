@@ -18,6 +18,7 @@ from stream_media_viewer.library.filters import passes_filters
 from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.protect_cache import ProtectFrameCache
 from stream_media_viewer.library.scan import load_rgb_image
+from stream_media_viewer.library.sort import sorted_items
 from stream_media_viewer.library.workers import ScanWorker, ThumbWorker
 from stream_media_viewer.playback.preload import (
     PreloadWorker,
@@ -158,6 +159,7 @@ class StreamMediaViewerApp:
         op.slider_brush.setValue(self.settings.brush_width)
         op.slider_brush.blockSignals(False)
         op.preview.brush_width = self.settings.brush_width
+        op.set_sort(self.settings.list_sort)
         op.date_from.blockSignals(True)
         op.date_to.blockSignals(True)
         if self.settings.date_from:
@@ -187,6 +189,7 @@ class StreamMediaViewerApp:
     def _on_filters_ui(self) -> None:
         self.settings.date_from = self.operator.date_from.date().toString("yyyy-MM-dd")
         self.settings.date_to = self.operator.date_to.date().toString("yyyy-MM-dd")
+        self.settings.list_sort = self.operator.selected_sort()
         self._refresh_list()
 
     def _on_loop_ui(self) -> None:
@@ -368,7 +371,7 @@ class StreamMediaViewerApp:
         self._thumb_pix[src] = pix
         for row, index in enumerate(self._visible):
             if str(self._items[index].path) == src:
-                self.operator.set_row_icon(row, pix)
+                self.operator.set_row_icon(row, pix, video=self._items[index].kind == "video")
                 break
 
     def _on_operator_gone(self, *_args: object) -> None:
@@ -421,8 +424,8 @@ class StreamMediaViewerApp:
             photos=op.chk_photos.isChecked(),
             videos=op.chk_videos.isChecked(),
             faces=op.chk_faces.isChecked(),
-            gps_yes=op.chk_gps.isChecked(),
-            gps_no=op.chk_no_gps.isChecked(),
+            gps_yes=False,
+            gps_no=False,
             place=op.selected_place(),
             dates=op.chk_dates.isChecked(),
             date_from=op.date_from.date().toPython(),
@@ -443,6 +446,7 @@ class StreamMediaViewerApp:
         folders = sorted({item.relative_folder for item in self._items if item.relative_folder})
         self.operator.set_places(places, selected_place)
         self.operator.set_folders(folders, selected_folder)
+        self._items = sorted_items(self._items, self.operator.selected_sort())
         self._visible = [i for i, item in enumerate(self._items) if self._passes_filter(item)]
         labels: list[str] = []
         icons: list[QPixmap | None] = []

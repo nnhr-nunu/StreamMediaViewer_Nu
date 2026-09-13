@@ -11,6 +11,7 @@ from typing import Any
 from stream_media_viewer.config import SETTINGS_FILENAME, user_config_dir
 from stream_media_viewer.detect.blur import DEFAULT_BRUSH_WIDTH, MAX_BRUSH_WIDTH, MIN_BRUSH_WIDTH
 from stream_media_viewer.library.item import FileNote
+from stream_media_viewer.library.sort import parse_list_sort
 from stream_media_viewer.render.enhance import parse_enhance_level
 
 RECENT_FOLDER_LIMIT = 8
@@ -69,6 +70,7 @@ class AppSettings:
     recent_folders: list[str] = field(default_factory=list)
     include_subfolders: bool = True
     brush_width: int = DEFAULT_BRUSH_WIDTH
+    list_sort: str = "date_asc"
 
     def note_for(self, path: str) -> FileNote:
         note = self.notes.get(path)
@@ -96,6 +98,7 @@ class AppSettings:
             "recent_folders": list(self.recent_folders),
             "include_subfolders": self.include_subfolders,
             "brush_width": self.brush_width,
+            "list_sort": self.list_sort,
             "notes": {key: note.to_dict() for key, note in self.notes.items()},
         }
 
@@ -137,6 +140,7 @@ class AppSettings:
             recent_folders=recent_folders,
             include_subfolders=bool(data.get("include_subfolders", True)),
             brush_width=clamp_brush_width(data.get("brush_width", DEFAULT_BRUSH_WIDTH)),
+            list_sort=parse_list_sort(data.get("list_sort")),
         )
 
 

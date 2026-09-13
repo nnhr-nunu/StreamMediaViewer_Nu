@@ -131,7 +131,7 @@ def test_photo_and_video_show_different_controls(qtbot) -> None:
     assert not app.operator.chk_loop.isHidden()
     bar = app.operator.btn_prev.parentWidget().layout()
     assert bar.indexOf(app.operator.btn_next) < bar.indexOf(app.operator.btn_send)
-    assert bar.indexOf(app.operator.btn_brush) < bar.indexOf(app.operator.btn_play)
+    assert bar.indexOf(app.operator.btn_manual) < bar.indexOf(app.operator.btn_play)
     assert bar.indexOf(app.operator.btn_play) < bar.indexOf(app.operator.btn_prep)
 
 
@@ -151,7 +151,7 @@ def test_common_buttons_stay_put_when_video_controls_appear(qtbot) -> None:
     assert app.operator.btn_next.x() == next_x
     assert app.operator.btn_send.x() == send_x
     assert app.operator.btn_panic.x() == panic_x
-    assert app.operator.btn_play.x() > app.operator.btn_brush.x()
+    assert app.operator.btn_play.x() > app.operator.btn_manual.x()
 
 
 def test_list_caption_omits_filename_and_shows_place(qtbot) -> None:
@@ -201,16 +201,25 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert not hasattr(op, "btn_standby")
     assert "絞り込み" in op.filter_box.title()
     assert op.btn_star.isCheckable()
-    assert "手動ぼかし" in op.btn_brush.text()
+    assert "手動ぼかし" in op.btn_manual.text()
+    assert not hasattr(op, "chk_gps")
+    assert op.combo_sort.count() == 3
     assert "全部下準備" in op.btn_folder_prep.text()
     assert "下準備だけ消す" in op.btn_clear_cache.text()
+    assert op.btn_brush.isHidden()
+    assert op.btn_rect.isHidden()
     assert op.btn_undo.isHidden()
     assert op.slider_brush.isHidden()
     assert op.btn_clear_marks.isHidden()
-    op._mode("stroke")
+    op._set_manual(True)
+    assert not op.btn_brush.isHidden()
+    assert not op.btn_rect.isHidden()
     assert not op.btn_undo.isHidden()
     assert not op.slider_brush.isHidden()
-    assert not op.btn_clear_marks.isHidden()
+    assert op.preview.mode == "stroke"
+    op._tool("rect")
+    assert op.preview.mode == "rect"
+    assert op.slider_brush.isHidden()
     op.show_guide("読み込み中…", done=1, total=4)
     assert not op.scan_progress.isHidden()
     assert op.scan_count.text() == "1 / 4"
@@ -239,3 +248,41 @@ def test_row_label_says_has_face_not_warning(qtbot) -> None:
     label = app._row_label(item)
     assert "顔あり" in label
     assert "⚠" not in label
+
+
+def test_hide_keeps_send_enabled_when_ready(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    app.gate.begin_load()
+    app.gate.mark_processed()
+    assert app.gate.send_to_output() is True
+    app.operator.refresh_status()
+    app._on_panic()
+    assert app.operator.btn_send.isEnabled()
+    assert app.gate.send_to_output() is True
+
+
+def test_date_checkbox_sits_left_of_date_fields(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    lay = app.operator.filter_box.layout()
+    assert lay.indexOf(app.operator.chk_dates) == lay.indexOf(app.operator.date_from) - 1
+    assert lay.indexOf(app.operator.date_from) == lay.indexOf(app.operator.date_to) - 1
+
+
+def test_list_is_one_large_thumb_per_row(qtbot) -> None:
+    from PySide6.QtGui import QPixmap
+
+    from stream_media_viewer.ui.list_thumb import with_video_mark
+
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    op = app.operator
+    assert op.list.isWrapping() is True
+    assert op.list.gridSize().width() >= 270
+    badge = with_video_mark(None, 80)
+    assert badge.width() == 80
+    assert not badge.isNull()
+    pix = QPixmap(80, 80)
+    marked = with_video_mark(pix, 80)
+    assert marked.width() == 80

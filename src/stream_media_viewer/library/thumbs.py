@@ -10,7 +10,7 @@ from PIL import Image
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
 from stream_media_viewer.library.scan import load_rgb_image
 
-THUMB_SIZE = 168
+THUMB_SIZE = 240
 
 
 def thumbs_root() -> Path:
