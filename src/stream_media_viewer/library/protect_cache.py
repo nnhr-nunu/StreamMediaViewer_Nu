@@ -25,5 +25,8 @@ class ProtectFrameCache:
         while len(self._data) > self._limit:
             self._data.popitem(last=False)
 
+    def drop(self, key: str) -> None:
+        self._data.pop(key, None)
+
     def clear(self) -> None:
         self._data.clear()

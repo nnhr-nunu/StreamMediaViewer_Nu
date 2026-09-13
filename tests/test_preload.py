@@ -21,6 +21,8 @@ def test_cache_key_changes_when_marks_or_range_change(tmp_path: Path) -> None:
     assert first != shifted
     assert first != marked
     assert first != vivid
+    skipped = cache_key(path, **{**base, "skip_faces": True})
+    assert first != skipped
     assert first == cache_key(path, **base)
 
 

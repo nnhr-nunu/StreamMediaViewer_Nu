@@ -40,9 +40,9 @@ from stream_media_viewer.ui.preview_canvas import PreviewCanvas
 from stream_media_viewer.ui.styles import DARK_QSS
 
 _LIST_ICON = QSize(220, 220)
-_LIST_GRID = QSize(236, 246)
+_LIST_GRID = QSize(228, 238)
 _PREVIEW_MIN = 520
-_TWO_COL_MIN = 420
+_TWO_COL_MIN = 400
 
 
 def _bar_button() -> QToolButton:
@@ -79,6 +79,7 @@ class OperatorWindow(QMainWindow):
     enhance_cycle_requested = Signal()
     settings_requested = Signal()
     language_cycle_requested = Signal()
+    false_face_requested = Signal()
     brush_width_changed = Signal(int)
 
     def __init__(self, gate: OutputGate) -> None:
@@ -163,7 +164,7 @@ class OperatorWindow(QMainWindow):
         self.list.setUniformItemSizes(True)
         self.list.setIconSize(_LIST_ICON)
         self.list.setGridSize(_LIST_GRID)
-        self.list.setSpacing(6)
+        self.list.setSpacing(0)
         self.list.setMinimumWidth(220)
         self.list.setWordWrap(False)
         self.list.setTextElideMode(Qt.TextElideMode.ElideRight)
@@ -173,6 +174,12 @@ class OperatorWindow(QMainWindow):
         self.meta = QLabel()
         self.meta.setObjectName("meta")
         self.meta.setWordWrap(True)
+        self.btn_false_face = _bar_button()
+        self.btn_false_face.setMinimumWidth(132)
+        self.btn_false_face.setVisible(False)
+        meta_row = QHBoxLayout()
+        meta_row.addWidget(self.meta, stretch=1)
+        meta_row.addWidget(self.btn_false_face)
         preview_stage = QWidget()
         preview_host = QWidget()
         self._preview_stack = QStackedLayout(preview_host)
@@ -212,7 +219,7 @@ class OperatorWindow(QMainWindow):
             self.btn_star, 0, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight
         )
         self.btn_star.raise_()
-        preview_col.addWidget(self.meta)
+        preview_col.addLayout(meta_row)
         preview_col.addWidget(preview_stage, stretch=1)
         self.lbl_in = QLabel()
         self.lbl_in.setObjectName("meta")
@@ -327,6 +334,7 @@ class OperatorWindow(QMainWindow):
         self.preview.clicked.connect(self.play_requested.emit)
         self.btn_help.clicked.connect(self._show_shortcuts)
         self.btn_lang.clicked.connect(self.language_cycle_requested.emit)
+        self.btn_false_face.clicked.connect(self.false_face_requested.emit)
         self.btn_manual.clicked.connect(lambda: self._set_manual(self.btn_manual.isChecked()))
         self.btn_rect.clicked.connect(lambda: self._tool("rect"))
         self.btn_brush.clicked.connect(lambda: self._tool("stroke"))
@@ -420,6 +428,7 @@ class OperatorWindow(QMainWindow):
         _caption(self.btn_settings, "⚙", t(lang, "btn_settings"), t(lang, "settings"))
         _caption(self.btn_lang, "あ/A", t(lang, "btn_lang"), t(lang, "language"))
         _caption(self.btn_help, "?", t(lang, "btn_help"), t(lang, "shortcuts"))
+        _caption(self.btn_false_face, "❗️", t(lang, "btn_false_face"), t(lang, "false_face"))
         self.filter_box.setTitle("🔍 " + t(lang, "filters_title"))
         self.sort_box.setTitle(t(lang, "sort_title"))
         self.chk_face.setText(t(lang, "face_blur"))
@@ -451,6 +460,12 @@ class OperatorWindow(QMainWindow):
 
     def set_places(self, names: list[str], selected: str) -> None:
         combo = self.combo_place
+        if combo.view().isVisible():
+            return
+        wanted = ["" , PLACE_NONE, *names]
+        current = [combo.itemData(i) for i in range(combo.count())]
+        if current == wanted and str(combo.currentData() or "") == selected:
+            return
         combo.blockSignals(True)
         combo.clear()
         combo.addItem(t(self.lang, "filter_place_all"), "")
@@ -462,9 +477,15 @@ class OperatorWindow(QMainWindow):
         combo.blockSignals(False)
 
     def set_folders(self, names: list[str], selected: str) -> None:
+        if self.combo_folder.view().isVisible():
+            return
         self._fill_combo(self.combo_folder, "filter_folder_all", names, selected)
 
     def _fill_combo(self, combo: QComboBox, all_key: str, names: list[str], selected: str) -> None:
+        wanted = ["", *names]
+        current = [combo.itemData(i) for i in range(combo.count())]
+        if current == wanted and str(combo.currentData() or "") == selected:
+            return
         combo.blockSignals(True)
         combo.clear()
         combo.addItem(t(self.lang, all_key), "")
@@ -566,10 +587,14 @@ class OperatorWindow(QMainWindow):
         for index, label in enumerate(labels):
             row = QListWidgetItem(label)
             pixmap = icons[index] if icons and index < len(icons) else None
+            if pixmap is not None:
+                row.setData(Qt.ItemDataRole.UserRole, pixmap)
+            row.setData(Qt.ItemDataRole.UserRole + 1, items[index].kind if index < len(items) else "image")
             if index < len(items) and items[index].kind == "video":
                 pixmap = with_video_mark(pixmap, self.list.iconSize().width())
-            if pixmap is not None and not pixmap.isNull():
-                row.setIcon(QIcon(pixmap))
+            fitted = self._fit_icon(pixmap)
+            if fitted is not None and not fitted.isNull():
+                row.setIcon(QIcon(fitted))
             if tips and index < len(tips):
                 row.setToolTip(tips[index])
             row.setSizeHint(self.list.gridSize())
@@ -581,32 +606,58 @@ class OperatorWindow(QMainWindow):
         item = self.list.item(row)
         if item is None:
             return
+        item.setData(Qt.ItemDataRole.UserRole, pixmap)
+        item.setData(Qt.ItemDataRole.UserRole + 1, "video" if video else "image")
         shown = with_video_mark(pixmap, self.list.iconSize().width()) if video else pixmap
-        if shown.isNull():
+        fitted = self._fit_icon(shown)
+        if fitted is None or fitted.isNull():
             return
-        item.setIcon(QIcon(shown))
+        item.setIcon(QIcon(fitted))
+
+    def _fit_icon(self, pixmap: QPixmap | None) -> QPixmap | None:
+        if pixmap is None or pixmap.isNull():
+            return None
+        size = self.list.iconSize()
+        if size.width() < 2:
+            return pixmap
+        return pixmap.scaled(
+            size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         self._relayout_list()
 
     def _relayout_list(self) -> None:
-        body = max(640, self.width() - 24)
-        list_w = max(220, min(body - _PREVIEW_MIN, int(body * 0.42)))
+        body = max(720, self.width() - 24)
+        list_w = max(220, body - _PREVIEW_MIN)
         two = list_w >= _TWO_COL_MIN
         cols = 2 if two else 1
-        inner = max(160, list_w - 22)
+        inner = max(160, list_w - 24)
         cell_w = inner // cols
-        icon = max(140, cell_w - 12)
-        cell_h = icon + 28
+        icon = max(140, min(520, cell_w - 6))
+        cell_h = icon + 18
         self.list.setIconSize(QSize(icon, icon))
         self.list.setGridSize(QSize(cell_w, cell_h))
         self.list.setMinimumWidth(list_w)
         self.list.setMaximumWidth(list_w)
         for row in range(self.list.count()):
             item = self.list.item(row)
-            if item is not None:
-                item.setSizeHint(QSize(cell_w, cell_h))
+            if item is None:
+                continue
+            item.setSizeHint(QSize(cell_w, cell_h))
+            stored = item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(stored, QPixmap):
+                video = item.data(Qt.ItemDataRole.UserRole + 1) == "video"
+                source = with_video_mark(stored, icon) if video else stored
+                fitted = self._fit_icon(source)
+                if fitted is not None:
+                    item.setIcon(QIcon(fitted))
+
+    def set_false_face_visible(self, visible: bool) -> None:
+        self.btn_false_face.setVisible(visible)
 
     def _shortcuts_dialog(self) -> QDialog:
         dialog = QDialog(self)

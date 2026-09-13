@@ -20,7 +20,7 @@ def test_missing_settings_file_returns_defaults(tmp_path: Path) -> None:
     assert loaded.blur_strength == 150
     assert loaded.enhance_level == "weak"
     assert loaded.include_subfolders is True
-    assert loaded.brush_width == 160
+    assert loaded.brush_width == 120
     assert loaded.list_sort == "date_asc"
 
 
@@ -35,6 +35,7 @@ def test_settings_roundtrip_keeps_detection_flags(tmp_path: Path) -> None:
     restored = loaded.note_for("D:/media/a.jpg")
     assert restored.has_face is True
     assert restored.has_text_region is True
+    assert restored.skip_faces is False
 
 
 def test_blur_strength_is_clamped_to_odd_range(tmp_path: Path) -> None:

@@ -262,6 +262,10 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     qtbot.addWidget(dialog)
     assert dialog.windowTitle() == "キー説明"
     assert op.date_from.calendarPopup() is True
+    assert op.btn_false_face.isHidden()
+    op.set_false_face_visible(True)
+    assert not op.btn_false_face.isHidden()
+    assert "誤検出修正" in op.btn_false_face.text()
     op.show_guide("読み込み中…", done=1, total=4)
     assert not op.scan_progress.isHidden()
     assert op.scan_count.text() == "1 / 4"
@@ -292,6 +296,8 @@ def test_row_label_says_has_face_not_warning(qtbot) -> None:
     label = app._row_label(item)
     assert "顔あり" in label
     assert "⚠" not in label
+    app.settings.note_for(str(item.path)).marks = [{"kind": "rect", "x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2}]
+    assert "💧手動ぼかし" in app._row_label(item)
 
 
 def test_hide_keeps_send_enabled_when_ready(qtbot) -> None:

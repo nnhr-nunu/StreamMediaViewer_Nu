@@ -11,7 +11,8 @@ from PySide6.QtCore import QDate, QThread, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessageBox
 
-from stream_media_viewer.detect.protect import protect_frame_safe
+from stream_media_viewer.detect.faces import detect_face_boxes, remember_false_faces
+from stream_media_viewer.detect.protect import protect_for_note, protect_frame_safe
 from stream_media_viewer.errors import install_excepthook, log_exception
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.filters import passes_filters
@@ -62,22 +63,30 @@ class ProtectThread(QThread):
     failed = Signal(int)
 
     def __init__(
-        self, bgr: np.ndarray, settings: AppSettings, marks: list[dict], seq: int
+        self,
+        bgr: np.ndarray,
+        settings: AppSettings,
+        marks: list[dict],
+        seq: int,
+        *,
+        skip_faces: bool = False,
     ) -> None:
         super().__init__()
         self._bgr = bgr
         self._settings = settings
         self._marks = marks
         self.seq = seq
+        self._skip_faces = skip_faces
 
     def run(self) -> None:
         try:
             out, faces, texts = protect_frame_safe(
                 self._bgr,
-                face_blur=self._settings.face_blur,
+                face_blur=self._settings.face_blur and not self._skip_faces,
                 text_blur=self._settings.text_blur,
                 marks=self._marks,
                 strength=self._settings.blur_strength,
+                false_face_hashes=self._settings.false_face_hashes,
             )
             if out is None:
                 self.failed.emit(self.seq)
@@ -103,6 +112,7 @@ class StreamMediaViewerApp:
         self._visible: list[int] = []
         self._index = 0
         self._preview: np.ndarray | None = None
+        self._source_bgr: np.ndarray | None = None
         self._live: np.ndarray | None = None
         self._worker: ProtectThread | None = None
         self._protect_cache = ProtectFrameCache()
@@ -152,6 +162,7 @@ class StreamMediaViewerApp:
         op.enhance_cycle_requested.connect(self._cycle_enhance)
         op.settings_requested.connect(self._open_settings)
         op.language_cycle_requested.connect(self._cycle_language)
+        op.false_face_requested.connect(self._correct_false_face)
         op.timeline.sliderReleased.connect(self._apply_in_out)
         op.timeline_out.sliderReleased.connect(self._apply_in_out)
         op.destroyed.connect(self._on_operator_gone)
@@ -404,7 +415,7 @@ class StreamMediaViewerApp:
     def _apply_saved_marks(self) -> None:
         for item in self._items:
             note = self.settings.note_for(str(item.path))
-            item.has_face = note.has_face
+            item.has_face = note.has_face and not note.skip_faces
             item.has_text_region = note.has_text_region
 
     def _passes_filter(self, item: MediaItem) -> bool:
@@ -475,6 +486,7 @@ class StreamMediaViewerApp:
             favorite=note.favorite,
             live=self._live_path == str(item.path) and not self.gate.masked,
             ready=cache_is_ready(self._key_for(item), self._folder_id()),
+            manual=bool(note.marks),
         )
         warn = (
             t(self.settings.language, "list_face")
@@ -504,6 +516,9 @@ class StreamMediaViewerApp:
             parts.append(_format_duration(duration_ms))
         if item.has_face:
             parts.append(t(lang, "list_face"))
+        note = self.settings.note_for(str(item.path))
+        if note.marks:
+            parts.append("💧" + t(lang, "btn_manual"))
         return "  ".join(parts)
 
     def _row_tooltip(self, item: MediaItem) -> str:
@@ -567,6 +582,7 @@ class StreamMediaViewerApp:
             key = "folder_empty" if self.settings.last_folder else "empty_guide"
             self.operator.show_guide(t(self.settings.language, key))
             self.operator.meta.setText(t(self.settings.language, "empty"))
+            self.operator.set_false_face_visible(False)
             self.operator.refresh_status()
             return
         self.operator.reveal_preview()
@@ -578,12 +594,14 @@ class StreamMediaViewerApp:
         self.operator.meta.setText(self._item_meta_text(item))
         self.operator.meta.setToolTip(str(item.path))
         self.operator.set_media_kind(item.kind)
+        self._sync_false_face_button()
         if item.kind == "image":
             image = load_rgb_image(item.path)
             if image is None:
                 self._mark_unreadable(item)
                 return
             bgr = rgb_to_bgr(np.array(image))
+            self._source_bgr = bgr
             self._show_operator_frame(bgr)
             self._start_protect(bgr, note.marks)
         else:
@@ -602,7 +620,11 @@ class StreamMediaViewerApp:
                 self._mark_unreadable(item)
                 return
             self._show_operator_frame(frame)
-            self._start_protect(frame, note.marks)
+            if self._video.last_raw is not None:
+                self._source_bgr = self._video.last_raw
+            else:
+                self._source_bgr = frame
+            self._start_protect(frame if self._video.last_raw is None else self._video.last_raw, note.marks)
             _ = fps
 
     def _show_operator_frame(self, bgr: np.ndarray) -> None:
@@ -623,6 +645,7 @@ class StreamMediaViewerApp:
         self._protect_seq += 1
         seq = self._protect_seq
         item = self._current()
+        skip = bool(item and self.settings.note_for(str(item.path)).skip_faces)
         if item is not None:
             cached = self._protect_cache.get(self._key_for(item))
             if cached is not None:
@@ -632,7 +655,7 @@ class StreamMediaViewerApp:
         self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'processing')}")
         if self._worker and self._worker.isRunning():
             self._worker.requestInterruption()
-        self._worker = ProtectThread(bgr, self.settings, list(marks), seq)
+        self._worker = ProtectThread(bgr, self.settings, list(marks), seq, skip_faces=skip)
         self._worker.done.connect(self._on_protected)
         self._worker.failed.connect(self._on_protect_failed)
         self._worker.start()
@@ -649,9 +672,11 @@ class StreamMediaViewerApp:
             return
         item = self._current()
         if item:
+            note = self.settings.note_for(str(item.path))
+            if note.skip_faces:
+                has_face = False
             item.has_face = has_face
             item.has_text_region = has_text
-            note = self.settings.note_for(str(item.path))
             note.has_face = has_face
             note.has_text_region = has_text
             self._protect_cache.put(self._key_for(item), bgr, has_face, has_text)
@@ -664,6 +689,7 @@ class StreamMediaViewerApp:
         self.gate.mark_processed()
         self.operator.refresh_status()
         self._relabel_current_row()
+        self._sync_false_face_button()
         item = self._current()
         if item and item.kind == "video" and not self._folder_queue:
             self._start_preload()
@@ -704,13 +730,19 @@ class StreamMediaViewerApp:
         self._sync_live_marks()
 
     def _protect_sync(self, frame: np.ndarray, marks: list[dict]) -> np.ndarray:
-        out, _, _ = protect_frame_safe(
-            frame,
-            face_blur=self.settings.face_blur,
-            text_blur=self.settings.text_blur,
-            marks=marks,
-            strength=self.settings.blur_strength,
-        )
+        item = self._current()
+        note = self.settings.note_for(str(item.path)) if item else None
+        if note is None:
+            out, _, _ = protect_frame_safe(
+                frame,
+                face_blur=self.settings.face_blur,
+                text_blur=self.settings.text_blur,
+                marks=marks,
+                strength=self.settings.blur_strength,
+                false_face_hashes=self.settings.false_face_hashes,
+            )
+        else:
+            out, _, _ = protect_for_note(frame, self.settings, note)
         if out is None:
             raise RuntimeError("protect failed")
         out = enhance_bgr(out, level=self.settings.enhance_level)
@@ -766,6 +798,55 @@ class StreamMediaViewerApp:
         else:
             self._relabel_current_row()
 
+    def _sync_false_face_button(self) -> None:
+        item = self._current()
+        if item is None:
+            self.operator.set_false_face_visible(False)
+            return
+        note = self.settings.note_for(str(item.path))
+        self.operator.set_false_face_visible(bool(item.has_face and not note.skip_faces))
+
+    def _reprotect_current(self) -> None:
+        item = self._current()
+        if item is None:
+            return
+        note = self.settings.note_for(str(item.path))
+        source = self._source_bgr
+        if item.kind == "video" and self._video.last_raw is not None:
+            source = self._video.last_raw
+            self._source_bgr = source
+        if source is None:
+            self._reload_current()
+            return
+        self._protect_cache.clear()
+        self._start_protect(source, note.marks)
+        self._relabel_current_row()
+        self._sync_false_face_button()
+
+    def _correct_false_face(self) -> None:
+        item = self._current()
+        if item is None or not item.has_face:
+            return
+        source = self._source_bgr
+        if source is None and item.kind == "image":
+            image = load_rgb_image(item.path)
+            if image is not None:
+                source = rgb_to_bgr(np.array(image))
+                self._source_bgr = source
+        if source is not None:
+            boxes = detect_face_boxes(source)
+            self.settings.false_face_hashes = remember_false_faces(
+                self.settings.false_face_hashes, source, boxes
+            )
+        note = self.settings.note_for(str(item.path))
+        note.skip_faces = True
+        note.has_face = False
+        note.marks = []
+        item.has_face = False
+        self._undo = []
+        self._protect_cache.clear()
+        self._reprotect_current()
+
     def _add_mark(self, mark: dict) -> None:
         item = self._current()
         if not item:
@@ -774,14 +855,14 @@ class StreamMediaViewerApp:
         self._undo.append(list(note.marks))
         self._undo = self._undo[-10:]
         note.marks.append(mark)
-        self._reload_current()
+        self._reprotect_current()
 
     def _undo_mark(self) -> None:
         item = self._current()
         if not item or not self._undo:
             return
         self.settings.note_for(str(item.path)).marks = self._undo.pop()
-        self._reload_current()
+        self._reprotect_current()
 
     def _clear_marks(self) -> None:
         item = self._current()
@@ -793,7 +874,7 @@ class StreamMediaViewerApp:
         self._undo.append(list(note.marks))
         self._undo = self._undo[-10:]
         note.marks = []
-        self._reload_current()
+        self._reprotect_current()
 
     def _on_brush_width(self, value: int) -> None:
         self.settings.brush_width = clamp_brush_width(value)
@@ -823,6 +904,8 @@ class StreamMediaViewerApp:
             strength=self.settings.blur_strength,
             marks=note.marks,
             enhance_level=self.settings.enhance_level,
+            skip_faces=note.skip_faces,
+            false_face_hashes=self.settings.false_face_hashes,
         )
 
     def _folder_id(self) -> str:

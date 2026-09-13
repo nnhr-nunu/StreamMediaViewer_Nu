@@ -91,6 +91,8 @@ def cache_key(
     strength: int,
     marks: list[dict[str, Any]],
     enhance_level: str = "off",
+    skip_faces: bool = False,
+    false_face_hashes: list[str] | None = None,
 ) -> str:
     stat = path.stat() if path.is_file() else None
     payload = {
@@ -104,6 +106,8 @@ def cache_key(
         "strength": strength,
         "marks": marks,
         "enhance_level": enhance_level,
+        "skip_faces": skip_faces,
+        "false_face_hashes": list(false_face_hashes or []),
     }
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()[:20]
@@ -198,10 +202,12 @@ class PreloadWorker(QThread):
                 break
             out, faces, texts = protect_frame_safe(
                 frame,
-                face_blur=self._settings.face_blur,
+                face_blur=self._settings.face_blur
+                and not self._settings.note_for(str(self._path)).skip_faces,
                 text_blur=self._settings.text_blur,
                 marks=self._marks,
                 strength=self._settings.blur_strength,
+                false_face_hashes=self._settings.false_face_hashes,
             )
             if out is None:
                 continue
@@ -250,10 +256,12 @@ class PreloadWorker(QThread):
         bgr = rgb_to_bgr(np.array(image))
         out, faces, texts = protect_frame_safe(
             bgr,
-            face_blur=self._settings.face_blur,
+            face_blur=self._settings.face_blur
+            and not self._settings.note_for(str(self._path)).skip_faces,
             text_blur=self._settings.text_blur,
             marks=self._marks,
             strength=self._settings.blur_strength,
+            false_face_hashes=self._settings.false_face_hashes,
         )
         if out is None:
             shutil.rmtree(dest, ignore_errors=True)

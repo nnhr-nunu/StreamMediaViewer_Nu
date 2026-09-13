@@ -25,6 +25,8 @@ STRINGS = {
         "list_face": "顔あり",
         "btn_help": "キー説明",
         "btn_lang": "言語",
+        "btn_false_face": "誤検出修正",
+        "false_face": "顔がないのに検出されたら押す。この写真のぼかしを消し、似た誤検出を覚えます",
         "shortcuts": "キー説明",
         "shortcuts_body": (
             "前: A / ← / 4\n"
@@ -142,6 +144,8 @@ STRINGS = {
         "list_face": "faces",
         "btn_help": "Keys",
         "btn_lang": "Language",
+        "btn_false_face": "Not a face",
+        "false_face": "Use when there is no face. Clears blur on this file and remembers similar false detections",
         "shortcuts": "Keys",
         "shortcuts_body": (
             "Previous: A / Left / 4\n"
