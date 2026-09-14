@@ -28,7 +28,7 @@ from stream_media_viewer.i18n import t
 from stream_media_viewer.library.filters import passes_filters
 from stream_media_viewer.library.item import FileNote, MediaItem
 from stream_media_viewer.library.protect_cache import ProtectFrameCache
-from stream_media_viewer.library.scan import load_rgb_image
+from stream_media_viewer.library.scan import load_rgb_image, video_header_ok
 from stream_media_viewer.library.sort import sorted_items
 from stream_media_viewer.library.workers import ScanWorker, ThumbWorker
 from stream_media_viewer.playback.preload import (
@@ -1280,15 +1280,18 @@ class StreamMediaViewerApp:
             duration_ms = 0
             fps = 30.0
             if item.kind == "video":
-                try:
-                    cap = cv2.VideoCapture(str(item.path))
-                    fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
-                    frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-                    cap.release()
-                except Exception as exc:
-                    log_exception(exc)
-                    fps = 30.0
-                    frames = 0.0
+                fps = 30.0
+                frames = 0.0
+                if video_header_ok(item.path):
+                    try:
+                        cap = cv2.VideoCapture(str(item.path))
+                        fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
+                        frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+                        cap.release()
+                    except Exception as exc:
+                        log_exception(exc)
+                        fps = 30.0
+                        frames = 0.0
                 full_ms = int(1000 * frames / max(fps, 1.0)) if frames else 0
                 end = note.out_ms if note.out_ms else full_ms
                 duration_ms = max(0, end - note.in_ms)

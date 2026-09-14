@@ -59,6 +59,24 @@ def _image_header_ok(path: Path) -> bool:
     return head[4:8] == b"ftyp"
 
 
+def video_header_ok(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(16)
+    except OSError:
+        return False
+    if len(head) < 8:
+        return False
+    suffix = path.suffix.lower()
+    if suffix in {".mp4", ".mov", ".m4v"}:
+        return head[4:8] == b"ftyp"
+    if suffix in {".webm", ".mkv"}:
+        return head.startswith(b"\x1a\x45\xdf\xa3")
+    if suffix == ".avi":
+        return head.startswith(b"RIFF") and b"AVI" in head
+    return False
+
+
 def _iter_files(folder: Path, *, recursive: bool):
     if recursive:
         yield from folder.rglob("*")
@@ -91,6 +109,8 @@ def scan_folder(
             continue
         kind = "video" if suffix in SUPPORTED_VIDEO_SUFFIXES else "image"
         if kind == "image" and not _image_header_ok(path):
+            continue
+        if kind == "video" and not video_header_ok(path):
             continue
         paths.append(path)
         found += 1

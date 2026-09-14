@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
-from stream_media_viewer.library.scan import load_rgb_image
+from stream_media_viewer.library.scan import load_rgb_image, video_header_ok
 
 THUMB_SIZE = 480
 
@@ -32,6 +32,8 @@ def thumb_cache_path(src: Path) -> Path:
 def _first_video_frame(src: Path) -> Image.Image | None:
     import cv2
 
+    if not video_header_ok(src):
+        return None
     cap = cv2.VideoCapture(str(src))
     ok, frame = cap.read()
     cap.release()
