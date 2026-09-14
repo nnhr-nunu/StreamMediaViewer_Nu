@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from PySide6.QtCore import QObject, QTimer, QUrl, Signal
 
-from stream_media_viewer.library.scan import PREVIEW_MAX_SIDE
+from stream_media_viewer.library.scan import PREVIEW_MAX_SIDE, video_header_ok
 
 try:
     from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
@@ -64,6 +64,8 @@ class VideoPlayer(QObject):
         self.close()
         self._source_path = path
         self._cache_dir = None
+        if not video_header_ok(Path(path)):
+            return 0.0
         self._cap = cv2.VideoCapture(path)
         if not self._cap.isOpened():
             self._cap.release()

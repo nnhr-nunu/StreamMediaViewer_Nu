@@ -76,6 +76,13 @@ def test_scan_skips_empty_and_corrupt_images(tmp_path: Path) -> None:
     assert [it.path.name for it in items] == ["good.jpg"]
 
 
+def test_scan_skips_corrupt_videos(tmp_path: Path) -> None:
+    Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "good.jpg")
+    (tmp_path / "broken.mp4").write_bytes(b"not-a-video")
+    items = scan_folder(tmp_path)
+    assert [it.path.name for it in items] == ["good.jpg"]
+
+
 def test_scan_reads_mp4_creation_time(tmp_path: Path) -> None:
     from datetime import datetime
 

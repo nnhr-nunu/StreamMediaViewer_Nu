@@ -13,6 +13,7 @@ from stream_media_viewer.detect.faces import FaceHold
 from stream_media_viewer.detect.protect import protect_for_note
 from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import FileNote
+from stream_media_viewer.library.scan import video_header_ok
 from stream_media_viewer.render.canvas import fit_letterbox
 from stream_media_viewer.render.enhance import enhance_bgr
 from stream_media_viewer.settings import AppSettings, parse_face_pipeline
@@ -194,6 +195,9 @@ class PreloadWorker(QThread):
         suffix = self._path.suffix.lower()
         if suffix not in SUPPORTED_VIDEO_SUFFIXES:
             self._run_image(dest)
+            return
+        if not video_header_ok(self._path):
+            self.finished_ok.emit(self._key)
             return
         cap = cv2.VideoCapture(str(self._path))
         fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
