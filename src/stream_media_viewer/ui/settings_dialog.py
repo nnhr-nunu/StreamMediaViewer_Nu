@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -18,17 +19,17 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtCore import Qt
 
 from stream_media_viewer import display_version
 from stream_media_viewer.i18n import t
 from stream_media_viewer.render.enhance import parse_enhance_level
-from stream_media_viewer.ui.capture_exclude import exclude_from_capture
 from stream_media_viewer.settings import (
     MAX_BLUR_STRENGTH,
     MIN_BLUR_STRENGTH,
     clamp_blur_strength,
 )
+from stream_media_viewer.ui.app_icon import apply_app_icon
+from stream_media_viewer.ui.capture_exclude import exclude_from_capture
 from stream_media_viewer.ui.styles import DARK_QSS
 
 
@@ -53,6 +54,7 @@ class SettingsDialog(QDialog):
         self._text_blur = draft.text_blur
         self._enhance_level = parse_enhance_level(draft.enhance_level)
         self.setWindowTitle(t(self._lang, "settings"))
+        apply_app_icon(self)
 
         self.chk_subfolders = QCheckBox(t(self._lang, "include_subfolders"))
         self.chk_subfolders.setChecked(draft.include_subfolders)

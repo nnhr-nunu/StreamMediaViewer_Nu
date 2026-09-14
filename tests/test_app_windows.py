@@ -18,6 +18,7 @@ from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.neighbors import neighbor_rows
 from stream_media_viewer.library.scan import scan_folder
 from stream_media_viewer.settings import AppSettings
+from stream_media_viewer.ui.app_icon import app_icon_path, load_app_icon
 from stream_media_viewer.ui.output_window import IDLE_WINDOW_TITLE
 from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
 from test_library import _tiny_mp4
@@ -39,6 +40,18 @@ def test_two_windows_start_hidden(qtbot) -> None:
     app._on_panic()
     assert app.gate.window_visible is False
     assert app.output.windowTitle() == IDLE_WINDOW_TITLE
+
+
+def test_windows_use_nu_app_icon(qtbot) -> None:
+    icon_file = app_icon_path()
+    assert icon_file.is_file()
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    icon = load_app_icon()
+    assert not icon.isNull()
+    assert not app.operator.windowIcon().isNull()
+    assert not app.output.windowIcon().isNull()
 
 
 def test_operator_shows_guide_version_stays_in_settings(qtbot) -> None:

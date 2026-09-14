@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from stream_media_viewer import OUTPUT_WINDOW_TITLE
 from stream_media_viewer.render.canvas import OUTPUT_HEIGHT, OUTPUT_WIDTH
 from stream_media_viewer.safety.output_gate import OutputGate
+from stream_media_viewer.ui.app_icon import apply_app_icon
 from stream_media_viewer.ui.overlays import (
     MAX_LOUPE_PX,
     MIN_LOUPE_PX,
@@ -182,6 +183,7 @@ class OutputWindow(QMainWindow):
         super().__init__()
         self._gate = gate
         self.setWindowTitle(OUTPUT_WINDOW_TITLE)
+        apply_app_icon(self)
         self.setFixedSize(OUTPUT_WIDTH, OUTPUT_HEIGHT)
         self.setStyleSheet(DARK_QSS)
         host = QWidget()
