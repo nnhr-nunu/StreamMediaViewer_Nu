@@ -28,8 +28,9 @@ from stream_media_viewer.i18n import t
 from stream_media_viewer.library.filters import passes_filters
 from stream_media_viewer.library.item import FileNote, MediaItem
 from stream_media_viewer.library.protect_cache import ProtectFrameCache
-from stream_media_viewer.library.scan import load_rgb_image, video_header_ok
+from stream_media_viewer.library.scan import load_rgb_image, merge_media_items, video_header_ok
 from stream_media_viewer.library.sort import sorted_items
+from stream_media_viewer.library.thumbs import thumb_paths_for
 from stream_media_viewer.library.workers import ScanWorker, ThumbWorker
 from stream_media_viewer.playback.preload import (
     PreloadWorker,
@@ -146,7 +147,10 @@ class StreamMediaViewerApp:
         self._scan_worker: ScanWorker | None = None
         self._thumb_worker: ThumbWorker | None = None
         self._kept_threads: list[QThread] = []
+        self._pending_thumbs: list[Path] = []
         self._scan_token = 0
+        self._videos_loaded = False
+        self._prepare_after_videos = False
         self._protect_seq = 0
         self._undo: list[list[dict]] = []
         self._false_undo: list[str] = []
@@ -257,6 +261,9 @@ class StreamMediaViewerApp:
         self.settings.date_to = self.operator.date_to.date().toString("yyyy-MM-dd")
         self.settings.list_sort = self.operator.selected_sort()
         self._refresh_list()
+        self._maybe_load_videos()
+        if self.operator.chk_videos.isChecked() and self._videos_loaded:
+            self._start_thumbs()
 
     def _on_loop_ui(self) -> None:
         item = self._current()
@@ -386,27 +393,44 @@ class StreamMediaViewerApp:
         self.settings.recent_folders = remember_folder(self.settings.recent_folders, path)
         self._start_scan(Path(path))
 
-    def _start_scan(self, folder: Path) -> None:
+    def _start_scan(
+        self,
+        folder: Path,
+        *,
+        kinds: frozenset[str] | None = None,
+        replace: bool = True,
+    ) -> None:
+        wanted = frozenset(kinds) if kinds is not None else frozenset({"image"})
         self._scan_token += 1
         token = self._scan_token
         self._stop_protect_worker()
         self._stop_qthread(self._scan_worker, timeout_ms=8000)
         self._scan_worker = None
-        self._stop_qthread(self._thumb_worker, timeout_ms=8000)
-        self._thumb_worker = None
-        self._thumb_pix.clear()
-        self._protect_cache.clear()
-        self._items = []
-        self._visible = []
-        self._index = 0
-        self.operator.set_items([], [])
-        self.operator.set_media_kind(None)
-        lang = self.settings.language
-        self.operator.show_guide(t(lang, "scanning"), done=0, total=0)
-        self.operator.meta.setText(t(lang, "scanning"))
-        worker = ScanWorker(folder, recursive=self.settings.include_subfolders)
+        if replace:
+            self._stop_qthread(self._thumb_worker, timeout_ms=8000)
+            self._thumb_worker = None
+            self._pending_thumbs = []
+            self._thumb_pix.clear()
+            self._protect_cache.clear()
+            self._items = []
+            self._visible = []
+            self._index = 0
+            self._videos_loaded = False
+            self._prepare_after_videos = False
+            self.operator.set_items([], [])
+            self.operator.set_media_kind(None)
+            lang = self.settings.language
+            self.operator.show_guide(t(lang, "scanning"), done=0, total=0)
+            self.operator.meta.setText(t(lang, "scanning"))
+        else:
+            self.operator.meta.setText(t(self.settings.language, "scanning"))
+        worker = ScanWorker(folder, recursive=self.settings.include_subfolders, kinds=wanted)
         worker.progress.connect(lambda done, total, tok=token: self._on_scan_progress(done, total, tok))
-        worker.finished_items.connect(lambda items, tok=token: self._on_scan_done(items, tok))
+        worker.finished_items.connect(
+            lambda items, tok=token, scan_kinds=wanted, repl=replace: self._on_scan_done(
+                items, tok, scan_kinds, repl
+            )
+        )
         worker.start()
         self._scan_worker = worker
 
@@ -424,35 +448,112 @@ class StreamMediaViewerApp:
             return
         self.operator.meta.setText(f"{t(lang, 'scanning')}  {done} / {total}")
 
-    def _on_scan_done(self, items: object, token: int) -> None:
+    def _on_scan_done(
+        self,
+        items: object,
+        token: int,
+        kinds: frozenset[str],
+        replace: bool,
+    ) -> None:
         if token != self._scan_token:
             return
-        self._items = list(items) if isinstance(items, list) else []
+        incoming = list(items) if isinstance(items, list) else []
+        if replace:
+            self._items = incoming
+        else:
+            self._items = merge_media_items(self._items, incoming)
+        if "video" in kinds:
+            self._videos_loaded = True
         self._apply_saved_marks()
         self._apply_folder_dates()
-        self._index = 0
+        if replace:
+            self._index = 0
+        waiting_videos = not self._videos_loaded and (
+            self.operator.chk_videos.isChecked() or self._prepare_after_videos
+        )
+        showing_guide = True
+        try:
+            showing_guide = self.operator.guide.isVisible()
+        except RuntimeError:
+            showing_guide = True
         self._refresh_list()
         if self._visible:
             self.operator.reveal_preview()
-            self._select_visible(0)
+            if replace or showing_guide:
+                self._select_visible(0)
+            else:
+                current = self._current()
+                if current is not None:
+                    self.operator.meta.setText(self._item_meta_text(current))
+        elif waiting_videos:
+            self.operator.meta.setText(t(self.settings.language, "scanning"))
         else:
             self.operator.set_media_kind(None)
             self.operator.show_guide(t(self.settings.language, "folder_empty"))
             self.operator.meta.setText(t(self.settings.language, "folder_empty"))
             self.operator.refresh_status()
         self._start_thumbs()
+        if self._prepare_after_videos and self._videos_loaded:
+            self._prepare_after_videos = False
+            self._prepare_folder("video")
+            return
+        self._maybe_load_videos()
+
+    def _maybe_load_videos(self) -> None:
+        if self._videos_loaded:
+            return
+        if not self.operator.chk_videos.isChecked() and not self._prepare_after_videos:
+            return
+        folder = self.settings.last_folder
+        if not folder:
+            return
+        if self._scan_worker is not None and _qthread_live(self._scan_worker):
+            try:
+                if self._scan_worker.isRunning():
+                    return
+            except RuntimeError:
+                pass
+        self._start_scan(Path(folder), kinds=frozenset({"video"}), replace=False)
 
     def _start_thumbs(self) -> None:
-        self._stop_qthread(self._thumb_worker, timeout_ms=8000)
-        images = [item.path for item in self._items if item.kind == "image"]
-        videos = [item.path for item in self._items if item.kind == "video"]
-        if not images and not videos:
+        op = self.operator
+        wanted = thumb_paths_for(
+            self._items,
+            photos=op.chk_photos.isChecked(),
+            videos=op.chk_videos.isChecked(),
+        )
+        wanted = [path for path in wanted if str(path) not in self._thumb_pix]
+        if self._thumb_worker is not None and _qthread_live(self._thumb_worker):
+            try:
+                running = self._thumb_worker.isRunning()
+            except RuntimeError:
+                running = False
+            if running:
+                for path in wanted:
+                    if path not in self._pending_thumbs:
+                        self._pending_thumbs.append(path)
+                return
+        if not wanted:
             self._thumb_worker = None
+            self._drain_pending_thumbs()
             return
-        worker = ThumbWorker(images + videos)
+        self._launch_thumb_worker(wanted)
+
+    def _launch_thumb_worker(self, paths: list[Path]) -> None:
+        worker = ThumbWorker(paths)
         worker.thumb_ready.connect(self._on_thumb_ready)
+        worker.finished.connect(self._on_thumbs_finished)
         worker.start()
         self._thumb_worker = worker
+
+    def _drain_pending_thumbs(self) -> None:
+        pending = [path for path in self._pending_thumbs if str(path) not in self._thumb_pix]
+        self._pending_thumbs = []
+        if pending:
+            self._launch_thumb_worker(pending)
+
+    def _on_thumbs_finished(self) -> None:
+        self._drain_pending_thumbs()
 
     def _on_thumb_ready(self, src: str, dest: str) -> None:
         list_widget = getattr(self.operator, "list", None)
@@ -483,6 +584,7 @@ class StreamMediaViewerApp:
         self._scan_worker = None
         self._stop_qthread(self._thumb_worker, timeout_ms=1500)
         self._thumb_worker = None
+        self._pending_thumbs = []
 
     def _keep_qthread(self, worker: QThread | None) -> None:
         self._kept_threads = [item for item in self._kept_threads if _qthread_live(item)]
@@ -493,10 +595,13 @@ class StreamMediaViewerApp:
         if worker is None:
             return
         try:
-            disconnect = getattr(getattr(worker, "thumb_ready", None), "disconnect", None)
-            if disconnect is not None:
+            if hasattr(worker, "thumb_ready"):
                 try:
-                    disconnect(self._on_thumb_ready)
+                    worker.thumb_ready.disconnect(self._on_thumb_ready)
+                except (TypeError, RuntimeError):
+                    pass
+                try:
+                    worker.finished.disconnect(self._on_thumbs_finished)
                 except (TypeError, RuntimeError):
                     pass
             if worker.isFinished():
@@ -1265,6 +1370,12 @@ class StreamMediaViewerApp:
         self._start_preload_for(self._folder_queue[0])
 
     def _prepare_folder(self, kind: str) -> None:
+        if kind == "video" and not self._videos_loaded:
+            if not self.settings.last_folder:
+                return
+            self._prepare_after_videos = True
+            self._maybe_load_videos()
+            return
         if not self._items:
             return
         lang = self.settings.language

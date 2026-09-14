@@ -18,7 +18,7 @@ def passes_filters(
     place_name: str = "",
     captured_at: datetime | None = None,
     star_only: bool = False,
-    photos: bool = False,
+    photos: bool = True,
     videos: bool = False,
     faces: bool = False,
     gps_yes: bool = False,
@@ -41,9 +41,9 @@ def passes_filters(
         return False
     if star_only and not favorite:
         return False
-    if photos and kind != "image":
+    if kind == "image" and not photos:
         return False
-    if videos and kind != "video":
+    if kind == "video" and not videos:
         return False
     if faces and not has_face:
         return False

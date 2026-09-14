@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
 from stream_media_viewer.errors import log_exception
-from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.scan import scan_folder
 from stream_media_viewer.library.thumbs import ensure_thumb
 
@@ -16,10 +16,17 @@ class ScanWorker(QThread):
     finished_items = Signal(object)
     progress = Signal(int, int)
 
-    def __init__(self, folder: Path, *, recursive: bool) -> None:
+    def __init__(
+        self,
+        folder: Path,
+        *,
+        recursive: bool,
+        kinds: Iterable[str] | None = None,
+    ) -> None:
         super().__init__()
         self._folder = folder
         self._recursive = recursive
+        self._kinds = frozenset(kinds) if kinds is not None else frozenset({"image", "video"})
 
     def run(self) -> None:
         try:
@@ -28,6 +35,7 @@ class ScanWorker(QThread):
                 recursive=self._recursive,
                 progress=lambda done, total: self.progress.emit(done, total),
                 should_stop=self.isInterruptionRequested,
+                kinds=self._kinds,
             )
             self.finished_items.emit(items)
         except Exception as exc:

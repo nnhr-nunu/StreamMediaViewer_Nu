@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from pathlib import Path
 
@@ -84,15 +84,26 @@ def _iter_files(folder: Path, *, recursive: bool):
     yield from folder.iterdir()
 
 
+def merge_media_items(existing: list[MediaItem], incoming: list[MediaItem]) -> list[MediaItem]:
+    by_key: dict[str, MediaItem] = {}
+    for item in existing:
+        by_key[str(item.path)] = item
+    for item in incoming:
+        by_key[str(item.path)] = item
+    return list(by_key.values())
+
+
 def scan_folder(
     folder: Path,
     *,
     recursive: bool = True,
     progress: Callable[[int, int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
+    kinds: Iterable[str] | None = None,
 ) -> list[MediaItem]:
     if not folder.is_dir():
         return []
+    wanted = frozenset(kinds) if kinds is not None else frozenset({"image", "video"})
     items: list[MediaItem] = []
     suffixes = SUPPORTED_IMAGE_SUFFIXES | SUPPORTED_VIDEO_SUFFIXES
     paths: list[Path] = []
@@ -108,6 +119,8 @@ def scan_folder(
         if not _file_has_bytes(path):
             continue
         kind = "video" if suffix in SUPPORTED_VIDEO_SUFFIXES else "image"
+        if kind not in wanted:
+            continue
         if kind == "image" and not _image_header_ok(path):
             continue
         if kind == "video" and not video_header_ok(path):

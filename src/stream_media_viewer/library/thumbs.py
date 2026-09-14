@@ -8,9 +8,25 @@ from pathlib import Path
 from PIL import Image
 
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
+from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.scan import load_rgb_image, video_header_ok
 
 THUMB_SIZE = 480
+
+
+def thumb_paths_for(
+    items: list[MediaItem],
+    *,
+    photos: bool,
+    videos: bool,
+) -> list[Path]:
+    paths: list[Path] = []
+    for item in items:
+        if item.kind == "image" and photos:
+            paths.append(item.path)
+        elif item.kind == "video" and videos:
+            paths.append(item.path)
+    return paths
 
 
 def thumbs_root() -> Path:
