@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+PREFETCH_RADIUS = 4
+
 
 def neighbor_rows(index: int, count: int, *, radius: int | None = None) -> tuple[int, ...]:
     if count < 2:

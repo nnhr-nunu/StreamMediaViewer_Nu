@@ -58,6 +58,20 @@ def test_protect_frame_cache_reports_room() -> None:
     assert len(cache) == 3
 
 
+def test_protect_frame_cache_keeps_flags_after_put() -> None:
+    cache = ProtectFrameCache(limit=2)
+    frame = np.full((48, 64, 3), 90, dtype=np.uint8)
+    cache.put("shot", frame, True, False)
+    hit = cache.get("shot")
+    assert hit is not None
+    bgr, faces, texts = hit
+    assert faces is True
+    assert texts is False
+    assert bgr.shape[0] == 48
+    assert bgr.shape[1] == 64
+    assert cache.get("shot")[0] is not frame
+
+
 def test_protect_frame_cache_default_holds_sixteen() -> None:
     cache = ProtectFrameCache()
     assert cache.room() == 16

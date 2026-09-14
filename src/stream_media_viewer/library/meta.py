@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -94,12 +93,6 @@ def image_capture_meta(path: Path) -> tuple[datetime | None, bool, str]:
                 iptc = IptcImagePlugin.getiptcinfo(img)
             except Exception:
                 iptc = None
-            xmp = None
-            if hasattr(img, "getxmp") and importlib.util.find_spec("defusedxml"):
-                try:
-                    xmp = img.getxmp()
-                except Exception:
-                    xmp = None
     except OSError:
         return None, False, ""
     captured: datetime | None = None
@@ -128,11 +121,7 @@ def image_capture_meta(path: Path) -> tuple[datetime | None, bool, str]:
                 gps_place = area.strip()
             if has_gps and lat is not None and lon is not None and not gps_place:
                 gps_place = place_from_gps(lat, lon)
-    place = (
-        place_name_from_iptc(iptc)
-        or place_name_from_xmp(xmp if isinstance(xmp, dict) else None)
-        or gps_place
-    )
+    place = place_name_from_iptc(iptc) or gps_place
     return captured, has_gps, place
 
 

@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from PIL import Image
+
 from stream_media_viewer.library.geo import gps_to_decimal, place_from_gps
 from stream_media_viewer.library.meta import (
     format_place_name,
+    image_capture_meta,
     mp4_creation_datetime,
 )
 
@@ -47,3 +50,20 @@ def test_mp4_creation_datetime_reads_mvhd(tmp_path: Path) -> None:
     got = mp4_creation_datetime(path)
     assert got is not None
     assert abs((got - created) - timedelta(0)) < timedelta(seconds=2)
+
+
+def test_image_capture_meta_skips_xmp(tmp_path: Path, monkeypatch) -> None:
+    called = {"n": 0}
+
+    def boom(*_a, **_k):
+        called["n"] += 1
+        raise AssertionError("xmp should not run during scan")
+
+    monkeypatch.setattr(Image.Image, "getxmp", boom, raising=False)
+    path = tmp_path / "shot.jpg"
+    Image.new("RGB", (8, 8), (10, 20, 30)).save(path)
+    captured, has_gps, place = image_capture_meta(path)
+    assert called["n"] == 0
+    assert has_gps is False
+    assert place == ""
+    assert captured is None or isinstance(captured, datetime)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import sys
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 _ICON_STEM = "app_icon"
 _WINDOWS_APP_ID = "StreamMediaViewer.Nu"
+PROCESS_DISPLAY_NAME = "StreamMediaViewer(ぬ)"
 
 
 def assets_dir() -> Path:
@@ -32,14 +34,22 @@ def load_app_icon() -> QIcon:
 
 
 def configure_process_identity() -> None:
-    if sys.platform != "win32":
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(_WINDOWS_APP_ID)
+        except (AttributeError, OSError):
+            pass
+        try:
+            ctypes.windll.kernel32.SetConsoleTitleW(PROCESS_DISPLAY_NAME)
+        except (AttributeError, OSError, TypeError):
+            pass
         return
-    try:
-        import ctypes
-
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(_WINDOWS_APP_ID)
-    except (AttributeError, OSError):
-        return
+    if sys.platform.startswith("linux"):
+        try:
+            libc = ctypes.CDLL("libc.so.6")
+            libc.prctl(15, b"StreamMediaView", 0, 0, 0)
+        except (AttributeError, OSError):
+            return
 
 
 def apply_app_icon(target: QWidget | QApplication) -> None:

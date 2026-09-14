@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtCore import QThread, Signal
 
-from stream_media_viewer.detect.protect import PROTECT_LOCK, protect_for_note
+from stream_media_viewer.detect.protect import PROTECT_LOCK, acquire_protect_lock, protect_for_note
 from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.library.scan import load_rgb_image
@@ -70,10 +70,14 @@ class PrefetchWorker(QThread):
             if self.isInterruptionRequested() or image is None:
                 return
             bgr = rgb_to_bgr(np.array(image))
-            with PROTECT_LOCK:
+            if not acquire_protect_lock(self.isInterruptionRequested):
+                return
+            try:
                 if self.isInterruptionRequested():
                     return
                 out, faces, texts = protect_for_note(bgr, self._settings, self._note)
+            finally:
+                PROTECT_LOCK.release()
             if self.isInterruptionRequested() or out is None:
                 return
             out = enhance_bgr(out, level=self._settings.enhance_level)
