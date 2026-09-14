@@ -1,9 +1,12 @@
 from pathlib import Path
 
 from stream_media_viewer.settings import (
+    FACE_PIPELINE_ACCURATE,
+    FACE_PIPELINE_LEGACY,
     AppSettings,
     load_settings,
     load_settings_with_error,
+    parse_face_pipeline,
     save_settings,
 )
 from stream_media_viewer.ui.overlays import OUTPUT_LOUPE_PX
@@ -54,6 +57,18 @@ def test_blur_strength_is_clamped_to_odd_range(tmp_path: Path) -> None:
     assert load_settings(path).blur_strength == 5
     path.write_text('{"blur_strength": 26}', encoding="utf-8")
     assert load_settings(path).blur_strength == 26
+
+
+def test_face_pipeline_defaults_accurate_and_legacy_roundtrips(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    assert parse_face_pipeline(None) == FACE_PIPELINE_ACCURATE
+    assert parse_face_pipeline("nope") == FACE_PIPELINE_ACCURATE
+    assert parse_face_pipeline("legacy") == FACE_PIPELINE_LEGACY
+    assert load_settings(path).face_pipeline == FACE_PIPELINE_ACCURATE
+    save_settings(AppSettings(face_pipeline="legacy"), path)
+    assert load_settings(path).face_pipeline == FACE_PIPELINE_LEGACY
+    path.write_text('{"face_pipeline": "old"}', encoding="utf-8")
+    assert load_settings(path).face_pipeline == FACE_PIPELINE_LEGACY
 
 
 def test_video_audio_defaults_on_when_missing(tmp_path: Path) -> None:

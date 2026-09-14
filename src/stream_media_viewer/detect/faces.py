@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import threading
 from functools import lru_cache
 from pathlib import Path
 
@@ -8,11 +10,15 @@ import mediapipe as mp
 import numpy as np
 
 from stream_media_viewer.detect.blur import Box, expand_box
+from stream_media_viewer.settings import FACE_PIPELINE_LEGACY, parse_face_pipeline
 
 _MODEL = Path(__file__).resolve().parent.parent / "assets" / "blaze_face_short_range.tflite"
+_YUNET = Path(__file__).resolve().parent.parent / "assets" / "face_detection_yunet_2023mar.onnx"
 _DETECT_SIDES = (640, 960)
 _FALSE_HASH_LIMIT = 300
 _FALSE_HAMMING = 10
+_YUNET_SCORE = 0.75
+_YUNET_LOCK = threading.Lock()
 
 
 def _downscale(bgr: np.ndarray, max_side: int) -> tuple[np.ndarray, float]:
@@ -50,6 +56,52 @@ def _merge(boxes: list[Box]) -> list[Box]:
     return kept
 
 
+def hold_face_boxes(current: list[Box], previous: list[Box] | None) -> list[Box]:
+    if not previous:
+        return list(current)
+    if not current:
+        return list(previous)
+    return _merge(list(current) + list(previous))
+
+
+class FaceHold:
+    """直前コマの検出を 1 回だけ残す。素顔は増やさない。"""
+
+    def __init__(self) -> None:
+        self._last: list[Box] = []
+
+    def reset(self) -> None:
+        self._last = []
+
+    def step(self, detected: list[Box]) -> list[Box]:
+        held = hold_face_boxes(detected, self._last)
+        self._last = list(detected)
+        return held
+
+
+def oval_angle_deg(
+    right_eye: tuple[float, float], left_eye: tuple[float, float]
+) -> float:
+    dx = left_eye[0] - right_eye[0]
+    dy = left_eye[1] - right_eye[1]
+    if dx == 0.0 and dy == 0.0:
+        return 0.0
+    return math.degrees(math.atan2(dy, dx))
+
+
+def face_box_from_eyes(
+    box: Box,
+    right_eye: tuple[float, float],
+    left_eye: tuple[float, float],
+    image_w: int,
+    image_h: int,
+    *,
+    pad: float = 0.32,
+) -> Box:
+    tilted = Box(box.x, box.y, box.w, box.h, angle=oval_angle_deg(right_eye, left_eye))
+    return expand_box(tilted, image_w, image_h, pad=pad)
+
+
 @lru_cache(maxsize=1)
 def _image_detector() -> mp.tasks.vision.FaceDetector:
     options = mp.tasks.vision.FaceDetectorOptions(
@@ -58,6 +110,18 @@ def _image_detector() -> mp.tasks.vision.FaceDetector:
         min_detection_confidence=0.42,
     )
     return mp.tasks.vision.FaceDetector.create_from_options(options)
+
+
+@lru_cache(maxsize=1)
+def _yunet() -> cv2.FaceDetectorYN | None:
+    if not _YUNET.is_file():
+        return None
+    try:
+        return cv2.FaceDetectorYN.create(
+            str(_YUNET), "", (320, 320), _YUNET_SCORE, 0.3, 5000
+        )
+    except cv2.error:
+        return None
 
 
 @lru_cache(maxsize=1)
@@ -72,6 +136,27 @@ def _profile_cascade() -> cv2.CascadeClassifier | None:
     return cascade
 
 
+def _scaled_eye(
+    x: float, y: float, small: np.ndarray, scale: float
+) -> tuple[float, float]:
+    sh, sw = small.shape[:2]
+    if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 and sw > 1 and sh > 1:
+        x *= sw
+        y *= sh
+    return (x * scale, y * scale)
+
+
+def _mediapipe_eyes(
+    det: object, small: np.ndarray, scale: float
+) -> tuple[tuple[float, float], tuple[float, float]] | None:
+    kps = getattr(det, "keypoints", None) or []
+    if len(kps) < 2:
+        return None
+    right = _scaled_eye(float(kps[0].x), float(kps[0].y), small, scale)
+    left = _scaled_eye(float(kps[1].x), float(kps[1].y), small, scale)
+    return right, left
+
+
 def _mediapipe_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
     rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
     if not rgb.flags["C_CONTIGUOUS"]:
@@ -83,18 +168,46 @@ def _mediapipe_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Bo
         return boxes
     for det in result.detections:
         bb = det.bounding_box
-        box = expand_box(
-            Box(
-                int(bb.origin_x * scale),
-                int(bb.origin_y * scale),
-                int(bb.width * scale),
-                int(bb.height * scale),
-            ),
-            w,
-            h,
-            pad=0.32,
+        raw = Box(
+            int(bb.origin_x * scale),
+            int(bb.origin_y * scale),
+            int(bb.width * scale),
+            int(bb.height * scale),
         )
-        boxes.append(box)
+        eyes = _mediapipe_eyes(det, small, scale)
+        if eyes is None:
+            boxes.append(expand_box(raw, w, h, pad=0.32))
+        else:
+            boxes.append(face_box_from_eyes(raw, eyes[0], eyes[1], w, h, pad=0.32))
+    return boxes
+
+
+def _yunet_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
+    detector = _yunet()
+    if detector is None:
+        return []
+    ih, iw = small.shape[:2]
+    try:
+        with _YUNET_LOCK:
+            detector.setInputSize((iw, ih))
+            _ok, faces = detector.detect(small)
+            if faces is not None:
+                faces = faces.copy()
+    except cv2.error:
+        return []
+    if faces is None:
+        return []
+    boxes: list[Box] = []
+    for row in faces:
+        raw = Box(
+            int(row[0] * scale),
+            int(row[1] * scale),
+            int(row[2] * scale),
+            int(row[3] * scale),
+        )
+        right = (float(row[4]) * scale, float(row[5]) * scale)
+        left = (float(row[6]) * scale, float(row[7]) * scale)
+        boxes.append(face_box_from_eyes(raw, right, left, w, h, pad=0.32))
     return boxes
 
 
@@ -189,15 +302,25 @@ def reject_false_faces(bgr: np.ndarray, boxes: list[Box], hashes: list[str]) -> 
 
 
 def detect_face_boxes(
-    bgr: np.ndarray, *, false_face_hashes: list[str] | None = None
+    bgr: np.ndarray,
+    *,
+    false_face_hashes: list[str] | None = None,
+    pipeline: str | None = None,
 ) -> list[Box]:
     h, w = bgr.shape[:2]
     boxes: list[Box] = []
-    for max_side in _DETECT_SIDES:
-        small, scale = _downscale(bgr, max_side)
-        boxes.extend(_mediapipe_boxes(small, scale, w, h))
-    profile_small, profile_scale = _downscale(bgr, 640)
-    boxes.extend(_profile_boxes(profile_small, profile_scale, w, h))
+    if parse_face_pipeline(pipeline) == FACE_PIPELINE_LEGACY:
+        for max_side in _DETECT_SIDES:
+            small, scale = _downscale(bgr, max_side)
+            boxes.extend(_mediapipe_boxes(small, scale, w, h))
+        profile_small, profile_scale = _downscale(bgr, 640)
+        boxes.extend(_profile_boxes(profile_small, profile_scale, w, h))
+    else:
+        for max_side in _DETECT_SIDES:
+            small, scale = _downscale(bgr, max_side)
+            boxes.extend(_yunet_boxes(small, scale, w, h))
+        close, close_scale = _downscale(bgr, 640)
+        boxes.extend(_mediapipe_boxes(close, close_scale, w, h))
     merged = _merge(boxes)
     if false_face_hashes:
         merged = reject_false_faces(bgr, merged, false_face_hashes)

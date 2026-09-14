@@ -19,6 +19,7 @@ class Box:
     y: int
     w: int
     h: int
+    angle: float = 0.0
 
 
 def expand_box(box: Box, image_w: int, image_h: int, pad: float = 0.28) -> Box:
@@ -28,7 +29,7 @@ def expand_box(box: Box, image_w: int, image_h: int, pad: float = 0.28) -> Box:
     y = max(0, box.y - dy)
     w = min(image_w - x, box.w + 2 * dx)
     h = min(image_h - y, box.h + 2 * dy)
-    return Box(x, y, max(1, w), max(1, h))
+    return Box(x, y, max(1, w), max(1, h), angle=box.angle)
 
 
 def _odd(value: int) -> int:
@@ -87,7 +88,7 @@ def gaussian_oval(bgr: np.ndarray, box: Box, strength: int = DEFAULT_BLUR_STRENG
     blurred = _gaussian(roi, strength)
     mask = np.zeros((rh, rw), dtype=np.float32)
     axes = (max(1, rw // 2 - 1), max(1, rh // 2 - 1))
-    cv2.ellipse(mask, (rw // 2, rh // 2), axes, 0, 0, 360, 1.0, -1)
+    cv2.ellipse(mask, (rw // 2, rh // 2), axes, float(box.angle), 0, 360, 1.0, -1)
     feather = max(3, (min(rw, rh) // 8) | 1)
     mask = cv2.GaussianBlur(mask, (feather, feather), 0)
     alpha = mask[..., None]

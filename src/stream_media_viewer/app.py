@@ -11,7 +11,12 @@ from PySide6.QtCore import QDate, QThread, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessageBox
 
-from stream_media_viewer.detect.faces import detect_face_boxes, face_box_at, remember_false_faces
+from stream_media_viewer.detect.faces import (
+    FaceHold,
+    detect_face_boxes,
+    face_box_at,
+    remember_false_faces,
+)
 from stream_media_viewer.detect.false_faces import (
     load_shipped_hashes,
     try_remove_shipped_hash,
@@ -53,11 +58,11 @@ from stream_media_viewer.settings import (
     remember_folder,
     save_settings,
 )
-from stream_media_viewer.ui.overlays import clamp_loupe_px
 from stream_media_viewer.ui.geometry import geometry_hex, restore_saved_geometry
 from stream_media_viewer.ui.list_row import FACE_MARK, row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
 from stream_media_viewer.ui.output_window import OutputWindow
+from stream_media_viewer.ui.overlays import clamp_loupe_px
 from stream_media_viewer.ui.pixmaps import bgr_to_pixmap
 from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
 
@@ -140,6 +145,7 @@ class StreamMediaViewerApp:
         self._video.frame_ready.connect(self._on_video_frame)
         self._video.finished.connect(self._on_video_finished)
         self._playing_to_output = False
+        self._face_hold = FaceHold()
         self._live_path = ""
         self._preload: PreloadWorker | None = None
         self._folder_queue: list[MediaItem] = []
@@ -671,6 +677,7 @@ class StreamMediaViewerApp:
             self._stop_preload()
         item = self._current()
         self._video.close()
+        self._face_hold.reset()
         self._playing_to_output = False
         self.operator.set_playing(False)
         self.gate.begin_load()
@@ -878,9 +885,13 @@ class StreamMediaViewerApp:
                 marks=marks,
                 strength=self.settings.blur_strength,
                 false_face_hashes=self.settings.all_false_face_hashes(),
+                pipeline=self.settings.face_pipeline,
+                face_hold=self._face_hold,
             )
         else:
-            out, _, _ = protect_for_note(frame, self.settings, note)
+            out, _, _ = protect_for_note(
+                frame, self.settings, note, face_hold=self._face_hold
+            )
         if out is None:
             raise RuntimeError("protect failed")
         out = enhance_bgr(out, level=self.settings.enhance_level)
@@ -1035,7 +1046,9 @@ class StreamMediaViewerApp:
             return False
         oriented = rotate_bgr(source, note.rotation)
         boxes = detect_face_boxes(
-            oriented, false_face_hashes=self.settings.all_false_face_hashes()
+            oriented,
+            false_face_hashes=self.settings.all_false_face_hashes(),
+            pipeline=self.settings.face_pipeline,
         )
         height, width = oriented.shape[:2]
         hit = face_box_at(boxes, nx, ny, width, height)
@@ -1135,6 +1148,7 @@ class StreamMediaViewerApp:
             skip_faces=note.skip_faces,
             false_face_hashes=self.settings.all_false_face_hashes(),
             rotation=note.rotation,
+            face_pipeline=self.settings.face_pipeline,
         )
 
     def _folder_id(self) -> str:

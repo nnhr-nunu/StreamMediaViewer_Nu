@@ -35,6 +35,19 @@ def test_stroke_blur_stays_near_the_path() -> None:
     assert not np.array_equal(bgr[40, 100], original[40, 100])
 
 
+def test_gaussian_oval_angle_blurs_box_corners_more() -> None:
+    bgr = np.full((80, 80, 3), 30, dtype=np.uint8)
+    bgr[32:48, 22:58] = 220
+    aligned = bgr.copy()
+    rotated = bgr.copy()
+    gaussian_oval(aligned, Box(10, 25, 60, 30), 81)
+    gaussian_oval(rotated, Box(10, 25, 60, 30, angle=45.0), 81)
+    aligned_shift = abs(int(aligned[25, 17, 0]) - 30)
+    rotated_shift = abs(int(rotated[25, 17, 0]) - 30)
+    assert rotated_shift > aligned_shift
+    assert rotated_shift > 0
+
+
 def test_max_blur_strength_on_tiny_roi_does_not_raise() -> None:
     bgr = np.zeros((8, 8, 3), dtype=np.uint8)
     gaussian_region(bgr, Box(0, 0, 8, 8), 300)
