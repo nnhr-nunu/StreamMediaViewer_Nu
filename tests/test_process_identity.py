@@ -27,9 +27,13 @@ def test_configure_process_identity_sets_console_title(monkeypatch) -> None:
         shell32 = Shell()
 
     monkeypatch.setattr(app_icon.sys, "platform", "win32")
-    monkeypatch.setattr(app_icon.ctypes, "windll", Windll())
+    monkeypatch.setattr(app_icon.ctypes, "windll", Windll(), raising=False)
     configure_process_identity()
     assert titles == [PROCESS_DISPLAY_NAME]
+
+
+def test_configure_process_identity_does_not_raise() -> None:
+    configure_process_identity()
 
 
 def test_windows_version_file_names_the_app() -> None:
