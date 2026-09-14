@@ -9,12 +9,13 @@ import cv2
 from PySide6.QtCore import QThread, Signal
 
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
+from stream_media_viewer.detect.faces import FaceHold
 from stream_media_viewer.detect.protect import protect_for_note
 from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.render.canvas import fit_letterbox
 from stream_media_viewer.render.enhance import enhance_bgr
-from stream_media_viewer.settings import AppSettings
+from stream_media_viewer.settings import AppSettings, parse_face_pipeline
 
 
 def preload_root() -> Path:
@@ -95,6 +96,7 @@ def cache_key(
     skip_faces: bool = False,
     false_face_hashes: list[str] | None = None,
     rotation: int = 0,
+    face_pipeline: str = "accurate",
 ) -> str:
     stat = path.stat() if path.is_file() else None
     payload = {
@@ -111,6 +113,7 @@ def cache_key(
         "skip_faces": skip_faces,
         "false_face_hashes": list(false_face_hashes or []),
         "rotation": int(rotation or 0),
+        "face_pipeline": parse_face_pipeline(face_pipeline),
     }
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()[:20]
@@ -163,6 +166,7 @@ class PreloadWorker(QThread):
         self._in_ms = in_ms
         self._out_ms = out_ms
         self._folder_id = folder_id
+        self._face_hold = FaceHold()
 
     def _protect_frame(self, bgr: Any) -> tuple[Any, bool, bool]:
         note = self._settings.note_for(str(self._path))
@@ -171,7 +175,7 @@ class PreloadWorker(QThread):
             skip_faces=note.skip_faces,
             rotation=note.rotation,
         )
-        return protect_for_note(bgr, self._settings, snap)
+        return protect_for_note(bgr, self._settings, snap, face_hold=self._face_hold)
 
     def run(self) -> None:
         try:

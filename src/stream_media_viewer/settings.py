@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from stream_media_viewer.config import SETTINGS_FILENAME, user_config_dir
-from stream_media_viewer.errors import log_exception
 from stream_media_viewer.detect.blur import (
     DEFAULT_BLUR_STRENGTH,
     DEFAULT_BRUSH_WIDTH,
@@ -19,12 +18,25 @@ from stream_media_viewer.detect.blur import (
     MIN_BRUSH_WIDTH,
 )
 from stream_media_viewer.detect.false_faces import effective_false_face_hashes
+from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.library.sort import parse_list_sort
 from stream_media_viewer.render.enhance import parse_enhance_level
 from stream_media_viewer.ui.overlays import OPERATOR_LOUPE_PX, OUTPUT_LOUPE_PX, clamp_loupe_px
 
 RECENT_FOLDER_LIMIT = 8
+FACE_PIPELINE_ACCURATE = "accurate"
+FACE_PIPELINE_LEGACY = "legacy"
+_FACE_PIPELINE_LEGACY_ALIASES = frozenset(
+    {FACE_PIPELINE_LEGACY, "old", "haar", "v1"}
+)
+
+
+def parse_face_pipeline(raw: Any) -> str:
+    text = str(raw or "").strip().casefold()
+    if text in _FACE_PIPELINE_LEGACY_ALIASES:
+        return FACE_PIPELINE_LEGACY
+    return FACE_PIPELINE_ACCURATE
 
 
 def clamp_blur_strength(raw: Any) -> int:
@@ -81,6 +93,7 @@ class AppSettings:
     output_loupe_px: int = OUTPUT_LOUPE_PX
     list_sort: str = "date_asc"
     false_face_hashes: list[str] = field(default_factory=list)
+    face_pipeline: str = FACE_PIPELINE_ACCURATE
 
     def note_for(self, path: str) -> FileNote:
         note = self.notes.get(path)
@@ -115,6 +128,7 @@ class AppSettings:
             "output_loupe_px": self.output_loupe_px,
             "list_sort": self.list_sort,
             "false_face_hashes": list(self.false_face_hashes),
+            "face_pipeline": parse_face_pipeline(self.face_pipeline),
             "notes": {key: note.to_dict() for key, note in self.notes.items()},
         }
 
@@ -168,6 +182,7 @@ class AppSettings:
             output_loupe_px=clamp_loupe_px(data.get("output_loupe_px", OUTPUT_LOUPE_PX)),
             list_sort=parse_list_sort(data.get("list_sort")),
             false_face_hashes=false_face_hashes,
+            face_pipeline=parse_face_pipeline(data.get("face_pipeline")),
         )
 
 

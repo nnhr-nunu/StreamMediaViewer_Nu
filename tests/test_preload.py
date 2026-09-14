@@ -25,6 +25,8 @@ def test_cache_key_changes_when_marks_or_range_change(tmp_path: Path) -> None:
     assert first != skipped
     rotated = cache_key(path, **{**base, "rotation": 90})
     assert first != rotated
+    legacy = cache_key(path, **{**base, "face_pipeline": "legacy"})
+    assert first != legacy
     assert first == cache_key(path, **base)
 
 
