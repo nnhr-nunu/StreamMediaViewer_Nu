@@ -222,6 +222,63 @@ def test_reload_photo_returns_before_decode(qtbot, tmp_path: Path, monkeypatch) 
     qtbot.waitUntil(lambda: app._source_bgr is not None, timeout=8000)
 
 
+def test_folder_open_shows_list_before_exif_finishes(qtbot, tmp_path: Path, monkeypatch) -> None:
+    release = threading.Event()
+
+    def slow_meta(path):
+        release.wait(timeout=30)
+        return None, False, ""
+
+    monkeypatch.setattr("stream_media_viewer.library.scan.image_capture_meta", slow_meta)
+    Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "a.jpg")
+    Image.new("RGB", (8, 8), (40, 50, 60)).save(tmp_path / "b.jpg")
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    try:
+        app._open_folder_path(str(tmp_path))
+        qtbot.waitUntil(lambda: len(app._items) == 2, timeout=8000)
+        qtbot.waitUntil(lambda: len(app._visible) == 2, timeout=8000)
+        assert app._load_worker is not None or app._preview is not None
+    finally:
+        release.set()
+        app.shutdown()
+
+
+def test_reload_cached_photo_skips_decode(qtbot, tmp_path: Path, monkeypatch) -> None:
+    calls = {"n": 0}
+
+    def counting_load(path, **_kwargs):
+        calls["n"] += 1
+        return Image.new("RGB", (8, 8), (10, 20, 30))
+
+    monkeypatch.setattr("stream_media_viewer.app.load_rgb_image", counting_load)
+    monkeypatch.setattr("stream_media_viewer.library.preview_load.load_rgb_image", counting_load)
+    monkeypatch.setattr(
+        "stream_media_viewer.app.protect_for_note",
+        lambda bgr, *_a, **_k: (bgr.copy(), False, False),
+    )
+    monkeypatch.setattr(
+        "stream_media_viewer.library.preview_load.protect_for_note",
+        lambda bgr, *_a, **_k: (bgr.copy(), False, False),
+    )
+    Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "a.jpg")
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    app._items = scan_folder(tmp_path, kinds={"image"})
+    app._visible = [0]
+    app._index = 0
+    app._reload_current()
+    qtbot.waitUntil(lambda: app._preview is not None, timeout=8000)
+    after_first = calls["n"]
+    assert after_first >= 1
+    app._reload_current()
+    qtbot.wait(200)
+    assert calls["n"] == after_first
+    app.shutdown()
+
+
 def test_protect_done_prefills_rest_of_photos(qtbot, tmp_path: Path, monkeypatch) -> None:
     from stream_media_viewer.playback.preload import cache_is_ready
 
@@ -246,7 +303,9 @@ def test_protect_done_prefills_rest_of_photos(qtbot, tmp_path: Path, monkeypatch
         folder_id = app._folder_id()
         return sum(1 for item in app._items if cache_is_ready(app._key_for(item), folder_id))
 
-    qtbot.waitUntil(lambda: disk_ready_count() == 20, timeout=15000)
+    qtbot.waitUntil(lambda: disk_ready_count() >= 9, timeout=15000)
+    qtbot.wait(400)
+    assert disk_ready_count() == 9
     assert len(app._protect_cache) <= 16
     app.shutdown()
 

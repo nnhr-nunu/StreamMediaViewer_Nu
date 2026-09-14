@@ -1,4 +1,4 @@
-from stream_media_viewer.library.neighbors import neighbor_rows
+from stream_media_viewer.library.neighbors import PREFETCH_RADIUS, neighbor_rows
 
 
 def test_neighbor_rows_are_next_and_previous() -> None:
@@ -15,3 +15,5 @@ def test_neighbor_rows_cover_the_rest_nearer_first() -> None:
     assert neighbor_rows(5, 12) == (6, 4, 7, 3, 8, 2, 9, 1, 10, 0, 11)
     assert 0 not in neighbor_rows(0, 12)
     assert neighbor_rows(0, 12, radius=1) == (1, 11)
+    assert PREFETCH_RADIUS == 4
+    assert len(neighbor_rows(0, 20, radius=PREFETCH_RADIUS)) == 8

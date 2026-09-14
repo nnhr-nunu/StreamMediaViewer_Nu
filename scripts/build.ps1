@@ -12,6 +12,7 @@ if (-not (Test-Path $pyi)) {
 
 & $pyi --noconfirm --clean --windowed --name StreamMediaViewer `
     --icon "src\stream_media_viewer\assets\app_icon.ico" `
+    --version-file "packaging\windows_version.txt" `
     --collect-all mediapipe `
     --collect-all PySide6 `
     --hidden-import PySide6.QtMultimedia `

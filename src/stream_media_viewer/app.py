@@ -27,7 +27,7 @@ from stream_media_viewer.errors import install_excepthook, log_exception, user_e
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.filters import passes_filters
 from stream_media_viewer.library.item import FileNote, MediaItem
-from stream_media_viewer.library.neighbors import neighbor_rows
+from stream_media_viewer.library.neighbors import PREFETCH_RADIUS, neighbor_rows
 from stream_media_viewer.library.preview_load import ImageLoadWorker, PrefetchWorker
 from stream_media_viewer.library.protect_cache import ProtectFrameCache
 from stream_media_viewer.library.scan import load_rgb_image, merge_media_items, video_header_ok
@@ -444,6 +444,11 @@ class StreamMediaViewerApp:
             self.operator.meta.setText(t(self.settings.language, "scanning"))
         worker = ScanWorker(folder, recursive=self.settings.include_subfolders, kinds=wanted)
         worker.progress.connect(lambda done, total, tok=token: self._on_scan_progress(done, total, tok))
+        worker.found_items.connect(
+            lambda items, tok=token, scan_kinds=wanted, repl=replace: self._on_scan_found(
+                items, tok, scan_kinds, repl
+            )
+        )
         worker.finished_items.connect(
             lambda items, tok=token, scan_kinds=wanted, repl=replace: self._on_scan_done(
                 items, tok, scan_kinds, repl
@@ -456,6 +461,8 @@ class StreamMediaViewerApp:
         if token != self._scan_token:
             return
         self.operator.set_scan_progress(done, total)
+        if self._current() is not None:
+            return
         lang = self.settings.language
         if total <= 0:
             if done > 0:
@@ -465,6 +472,28 @@ class StreamMediaViewerApp:
             self.operator.meta.setText(text)
             return
         self.operator.meta.setText(f"{t(lang, 'scanning')}  {done} / {total}")
+
+    def _on_scan_found(
+        self,
+        items: object,
+        token: int,
+        kinds: frozenset[str],
+        replace: bool,
+    ) -> None:
+        if token != self._scan_token or not replace or self._items:
+            return
+        incoming = list(items) if isinstance(items, list) else []
+        if not incoming:
+            return
+        self._items = incoming
+        self._apply_saved_marks()
+        self._apply_folder_dates()
+        self._index = 0
+        self._refresh_list()
+        if self._visible:
+            self.operator.reveal_preview()
+            self._select_visible(0)
+            self._start_thumbs()
 
     def _on_scan_done(
         self,
@@ -476,6 +505,7 @@ class StreamMediaViewerApp:
         if token != self._scan_token:
             return
         incoming = list(items) if isinstance(items, list) else []
+        current_path = str(self._current().path) if self._current() is not None else None
         if replace:
             self._items = incoming
         else:
@@ -484,7 +514,7 @@ class StreamMediaViewerApp:
             self._videos_loaded = True
         self._apply_saved_marks()
         self._apply_folder_dates()
-        if replace:
+        if replace and current_path is None:
             self._index = 0
         waiting_videos = not self._videos_loaded and (
             self.operator.chk_videos.isChecked() or self._prepare_after_videos
@@ -494,8 +524,11 @@ class StreamMediaViewerApp:
             showing_guide = self.operator.guide.isVisible()
         except RuntimeError:
             showing_guide = True
-        self._refresh_list()
-        if self._visible:
+        self._refresh_list(keep_path=current_path)
+        if current_path:
+            if self._visible:
+                self.operator.reveal_preview()
+        elif self._visible:
             self.operator.reveal_preview()
             if replace or showing_guide:
                 self._select_visible(0)
@@ -543,6 +576,7 @@ class StreamMediaViewerApp:
             videos=op.chk_videos.isChecked(),
         )
         wanted = [path for path in wanted if str(path) not in self._thumb_pix]
+        wanted = self._thumb_paths_near_current(wanted)
         if self._thumb_worker is not None and _qthread_live(self._thumb_worker):
             try:
                 running = self._thumb_worker.isRunning()
@@ -558,6 +592,25 @@ class StreamMediaViewerApp:
             self._drain_pending_thumbs()
             return
         self._launch_thumb_worker(wanted)
+
+    def _thumb_paths_near_current(self, paths: list[Path]) -> list[Path]:
+        if not self._visible or not paths:
+            return paths
+        wanted = set(paths)
+        ordered: list[Path] = []
+        seen: set[Path] = set()
+        rows = (self._index, *neighbor_rows(self._index, len(self._visible), radius=12))
+        for row in rows:
+            if row < 0 or row >= len(self._visible):
+                continue
+            path = self._items[self._visible[row]].path
+            if path in wanted and path not in seen:
+                ordered.append(path)
+                seen.add(path)
+        for path in paths:
+            if path not in seen:
+                ordered.append(path)
+        return ordered
 
     def _launch_thumb_worker(self, paths: list[Path]) -> None:
         if self._closing or not paths:
@@ -706,9 +759,9 @@ class StreamMediaViewerApp:
             show_hidden=op.chk_hidden.isChecked(),
         )
 
-    def _refresh_list(self) -> None:
-        current_path = ""
-        if self._visible:
+    def _refresh_list(self, *, keep_path: str | None = None) -> None:
+        current_path = keep_path or ""
+        if not current_path and self._visible:
             current = self._current()
             if current is not None:
                 current_path = str(current.path)
@@ -870,10 +923,10 @@ class StreamMediaViewerApp:
                 self._load_should_protect = False
                 self._protect_seq += 1
                 self._on_protected(*cached, self._protect_seq)
-            else:
-                self._load_should_protect = True
-                prefix = self._item_meta_text(item)
-                self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'processing')}")
+                return
+            self._load_should_protect = True
+            prefix = self._item_meta_text(item)
+            self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'processing')}")
             worker = ImageLoadWorker(item.path, gen)
             worker.loaded.connect(self._on_image_loaded)
             worker.failed.connect(self._on_image_load_failed)
@@ -956,7 +1009,7 @@ class StreamMediaViewerApp:
             return
         folder_id = self._folder_id()
         queued: list[MediaItem] = []
-        for row in neighbor_rows(self._index, len(self._visible)):
+        for row in neighbor_rows(self._index, len(self._visible), radius=PREFETCH_RADIUS):
             item = self._items[self._visible[row]]
             if item.kind != "image":
                 continue
@@ -1277,7 +1330,7 @@ class StreamMediaViewerApp:
         if item.kind == "video":
             self._stop_preload()
             self._video.set_protect(lambda frame, marks=note.marks: self._protect_sync(frame, marks))
-        source = self._source_bgr
+        source = self._ensure_source_bgr()
         if item.kind == "video" and self._video.last_raw is not None:
             source = self._video.last_raw
             self._source_bgr = source
@@ -1292,7 +1345,7 @@ class StreamMediaViewerApp:
         if item is None:
             return
         note = self.settings.note_for(str(item.path))
-        source = self._source_bgr
+        source = self._ensure_source_bgr()
         if item.kind == "video" and self._video.last_raw is not None:
             source = self._video.last_raw
             self._source_bgr = source
@@ -1303,6 +1356,18 @@ class StreamMediaViewerApp:
         self._start_protect(source, note.marks)
         self._relabel_current_row()
         self._sync_false_face_button()
+
+    def _ensure_source_bgr(self) -> np.ndarray | None:
+        if self._source_bgr is not None:
+            return self._source_bgr
+        item = self._current()
+        if item is None or item.kind != "image":
+            return None
+        image = load_rgb_image(item.path)
+        if image is None:
+            return None
+        self._source_bgr = rgb_to_bgr(np.array(image))
+        return self._source_bgr
 
     def _toggle_hidden(self, row: int) -> None:
         if row < 0 or row >= len(self._visible):
@@ -1327,12 +1392,7 @@ class StreamMediaViewerApp:
         note = self.settings.note_for(str(item.path))
         if note.skip_faces:
             return False
-        source = self._source_bgr
-        if source is None and item.kind == "image":
-            image = load_rgb_image(item.path)
-            if image is not None:
-                source = rgb_to_bgr(np.array(image))
-                self._source_bgr = source
+        source = self._ensure_source_bgr()
         if source is None:
             return False
         oriented = rotate_bgr(source, note.rotation)

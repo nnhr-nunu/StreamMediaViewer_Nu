@@ -14,6 +14,7 @@ from stream_media_viewer.library.thumbs import ensure_thumb
 
 class ScanWorker(QThread):
     finished_items = Signal(object)
+    found_items = Signal(object)
     progress = Signal(int, int)
 
     def __init__(
@@ -36,6 +37,7 @@ class ScanWorker(QThread):
                 progress=lambda done, total: self.progress.emit(done, total),
                 should_stop=self.isInterruptionRequested,
                 kinds=self._kinds,
+                on_found=lambda found: self.found_items.emit(found),
             )
             self.finished_items.emit(items)
         except Exception as exc:

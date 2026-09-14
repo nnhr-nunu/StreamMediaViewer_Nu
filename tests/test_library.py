@@ -27,6 +27,26 @@ def test_scan_reports_progress(tmp_path: Path) -> None:
     assert any(total == 2 for _done, total in seen)
 
 
+def test_scan_reports_found_before_reading_exif(tmp_path: Path, monkeypatch) -> None:
+    for name in ("b.jpg", "a.jpg"):
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / name)
+    order: list[str] = []
+
+    def on_found(items: list) -> None:
+        order.append("found")
+        assert len(items) == 2
+
+    def slow_meta(path: Path):
+        order.append("meta")
+        return None, False, ""
+
+    monkeypatch.setattr("stream_media_viewer.library.scan.image_capture_meta", slow_meta)
+    items = scan_folder(tmp_path, kinds={"image"}, on_found=on_found)
+    assert order[0] == "found"
+    assert order.count("meta") == 2
+    assert [it.path.name for it in items] == ["a.jpg", "b.jpg"]
+
+
 def test_scan_reads_nested_folders_when_recursive(tmp_path: Path) -> None:
     Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "root.jpg")
     nested = tmp_path / "day1"

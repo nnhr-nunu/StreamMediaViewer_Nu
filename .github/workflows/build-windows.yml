@@ -26,6 +26,7 @@ jobs:
         run: >
           pyinstaller --noconfirm --clean --windowed --name StreamMediaViewer
           --icon src/stream_media_viewer/assets/app_icon.ico
+          --version-file packaging/windows_version.txt
           --collect-all mediapipe --collect-all PySide6
           --hidden-import PySide6.QtMultimedia
           --add-data "src/stream_media_viewer/assets;stream_media_viewer/assets"

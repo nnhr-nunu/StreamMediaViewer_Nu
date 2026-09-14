@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 
 import numpy as np
 
@@ -13,6 +14,18 @@ from stream_media_viewer.render.rotate import rotate_bgr
 from stream_media_viewer.settings import AppSettings
 
 PROTECT_LOCK = threading.Lock()
+
+
+def acquire_protect_lock(
+    should_stop: Callable[[], bool],
+    *,
+    timeout: float = 0.05,
+) -> bool:
+    while True:
+        if should_stop():
+            return False
+        if PROTECT_LOCK.acquire(timeout=timeout):
+            return True
 
 
 def protect_frame(
