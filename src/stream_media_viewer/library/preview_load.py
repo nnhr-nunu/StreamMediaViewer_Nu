@@ -11,6 +11,7 @@ from stream_media_viewer.detect.protect import PROTECT_LOCK, protect_for_note
 from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.library.scan import load_rgb_image
+from stream_media_viewer.playback.preload import cache_is_ready, write_protected_image
 from stream_media_viewer.render.canvas import rgb_to_bgr
 from stream_media_viewer.render.enhance import enhance_bgr
 from stream_media_viewer.settings import AppSettings
@@ -52,12 +53,14 @@ class PrefetchWorker(QThread):
         settings: AppSettings,
         note: FileNote,
         key: str,
+        folder_id: str,
     ) -> None:
         super().__init__()
         self._path = path
         self._settings = settings
         self._note = note
         self._key = key
+        self._folder_id = folder_id
 
     def run(self) -> None:
         try:
@@ -74,6 +77,14 @@ class PrefetchWorker(QThread):
             if self.isInterruptionRequested() or out is None:
                 return
             out = enhance_bgr(out, level=self._settings.enhance_level)
+            if not cache_is_ready(self._key, self._folder_id):
+                write_protected_image(
+                    self._folder_id,
+                    self._key,
+                    out,
+                    has_face=bool(faces),
+                    has_text=bool(texts),
+                )
             self.ready.emit(self._key, out, bool(faces), bool(texts))
         except Exception as exc:
             log_exception(exc)

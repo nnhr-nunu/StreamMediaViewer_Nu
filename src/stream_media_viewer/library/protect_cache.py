@@ -8,9 +8,12 @@ import numpy as np
 
 
 class ProtectFrameCache:
-    def __init__(self, limit: int = 64) -> None:
+    def __init__(self, limit: int = 16) -> None:
         self._limit = max(1, int(limit))
         self._data: OrderedDict[str, tuple[np.ndarray, bool, bool]] = OrderedDict()
+
+    def __len__(self) -> int:
+        return len(self._data)
 
     def has(self, key: str) -> bool:
         return key in self._data

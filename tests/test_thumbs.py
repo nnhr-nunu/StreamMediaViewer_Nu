@@ -55,3 +55,14 @@ def test_protect_frame_cache_reports_room() -> None:
     cache.put("b", frame, False, False)
     cache.put("c", frame, False, False)
     assert cache.room() == 0
+    assert len(cache) == 3
+
+
+def test_protect_frame_cache_default_holds_sixteen() -> None:
+    cache = ProtectFrameCache()
+    assert cache.room() == 16
+    frame = np.zeros((2, 2, 3), dtype=np.uint8)
+    for index in range(16):
+        cache.put(str(index), frame, False, False)
+    assert cache.room() == 0
+    assert len(cache) == 16

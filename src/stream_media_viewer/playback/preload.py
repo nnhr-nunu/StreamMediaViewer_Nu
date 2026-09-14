@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import cv2
+import numpy as np
 from PySide6.QtCore import QThread, Signal
 
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
@@ -14,7 +15,7 @@ from stream_media_viewer.detect.protect import protect_for_note
 from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.library.scan import video_header_ok
-from stream_media_viewer.render.canvas import fit_letterbox
+from stream_media_viewer.render.canvas import OUTPUT_HEIGHT, OUTPUT_WIDTH, fit_letterbox
 from stream_media_viewer.render.enhance import enhance_bgr
 from stream_media_viewer.settings import AppSettings, parse_face_pipeline
 
@@ -145,6 +146,68 @@ def read_meta(key: str, folder_id: str) -> dict[str, Any]:
     return json.loads(meta.read_text(encoding="utf-8"))
 
 
+IMAGE_JPEG_QUALITY = 78
+
+
+def _fit_photo_for_cache(bgr: np.ndarray) -> np.ndarray:
+    src_h, src_w = bgr.shape[:2]
+    if src_h < 1 or src_w < 1:
+        return bgr
+    scale = min(1.0, OUTPUT_WIDTH / src_w, OUTPUT_HEIGHT / src_h)
+    if scale >= 1.0:
+        return bgr
+    new_w = max(1, int(src_w * scale))
+    new_h = max(1, int(src_h * scale))
+    return cv2.resize(bgr, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+
+def write_protected_image(
+    folder_id: str,
+    key: str,
+    bgr: np.ndarray,
+    *,
+    has_face: bool,
+    has_text: bool,
+) -> bool:
+    dest = item_cache_dir(folder_id, key)
+    dest.mkdir(parents=True, exist_ok=True)
+    fitted = _fit_photo_for_cache(bgr)
+    path = dest / "000000.jpg"
+    ok = cv2.imwrite(str(path), fitted, [int(cv2.IMWRITE_JPEG_QUALITY), IMAGE_JPEG_QUALITY])
+    if not ok or not path.is_file():
+        return False
+    (dest / "meta.json").write_text(
+        json.dumps(
+            {
+                "count": 1,
+                "fps": 1,
+                "in_ms": 0,
+                "out_ms": None,
+                "has_face": bool(has_face),
+                "has_text_region": bool(has_text),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return True
+
+
+def read_protected_image(
+    folder_id: str, key: str
+) -> tuple[np.ndarray, bool, bool] | None:
+    if not cache_is_ready(key, folder_id):
+        return None
+    dest = item_cache_dir(folder_id, key)
+    frame = cv2.imread(str(dest / "000000.jpg"))
+    if frame is None:
+        return None
+    try:
+        meta = read_meta(key, folder_id)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    return frame, bool(meta.get("has_face")), bool(meta.get("has_text_region"))
+
+
 class PreloadWorker(QThread):
     progress = Signal(int, int)
     finished_ok = Signal(str)
@@ -228,7 +291,7 @@ class PreloadWorker(QThread):
             fitted = fit_letterbox(
                 enhance_bgr(out, level=self._settings.enhance_level)
             )
-            cv2.imwrite(str(dest / f"{index:06d}.jpg"), fitted, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
+            cv2.imwrite(str(dest / f"{index:06d}.jpg"), fitted, [int(cv2.IMWRITE_JPEG_QUALITY), IMAGE_JPEG_QUALITY])
             index += 1
             self.progress.emit(index, estimated)
         cap.release()
@@ -271,21 +334,17 @@ class PreloadWorker(QThread):
             shutil.rmtree(dest, ignore_errors=True)
             self.finished_ok.emit(self._key)
             return
-        fitted = fit_letterbox(enhance_bgr(out, level=self._settings.enhance_level))
-        cv2.imwrite(str(dest / "000000.jpg"), fitted, [int(cv2.IMWRITE_JPEG_QUALITY), 78])
-        (dest / "meta.json").write_text(
-            json.dumps(
-                {
-                    "count": 1,
-                    "fps": 1,
-                    "in_ms": 0,
-                    "out_ms": None,
-                    "has_face": faces,
-                    "has_text_region": texts,
-                }
-            ),
-            encoding="utf-8",
-        )
+        enhanced = enhance_bgr(out, level=self._settings.enhance_level)
+        if not write_protected_image(
+            self._folder_id,
+            self._key,
+            enhanced,
+            has_face=bool(faces),
+            has_text=bool(texts),
+        ):
+            shutil.rmtree(dest, ignore_errors=True)
+            self.finished_ok.emit(self._key)
+            return
         self.progress.emit(1, 1)
         self.finished_ok.emit(self._key)
 
