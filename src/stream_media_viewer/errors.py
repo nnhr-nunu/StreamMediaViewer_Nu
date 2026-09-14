@@ -65,8 +65,11 @@ def install_excepthook() -> None:
             from PySide6.QtWidgets import QApplication, QMessageBox
 
             from stream_media_viewer.i18n import t
+            from stream_media_viewer.ui.app_icon import apply_app_icon
 
-            if QApplication.instance() is not None:
+            qt_app = QApplication.instance()
+            if qt_app is not None:
+                apply_app_icon(qt_app)
                 QMessageBox.critical(
                     None,
                     "StreamMediaViewer(ぬ)",

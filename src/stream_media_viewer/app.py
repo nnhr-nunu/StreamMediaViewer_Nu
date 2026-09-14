@@ -61,6 +61,7 @@ from stream_media_viewer.settings import (
     remember_folder,
     save_settings,
 )
+from stream_media_viewer.ui.app_icon import apply_app_icon, configure_process_identity
 from stream_media_viewer.ui.geometry import geometry_hex, restore_saved_geometry
 from stream_media_viewer.ui.list_row import FACE_MARK, row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
@@ -1595,8 +1596,11 @@ class StreamMediaViewerApp:
 def run() -> int:
     install_excepthook()
     try:
+        configure_process_identity()
         qt_app = QApplication.instance() or QApplication(sys.argv)
         qt_app.setApplicationName("StreamMediaViewer")
+        qt_app.setApplicationDisplayName("StreamMediaViewer(ぬ)")
+        apply_app_icon(qt_app)
         settings, load_error = load_settings_with_error()
         app = StreamMediaViewerApp(settings)
         qt_app.aboutToQuit.connect(app.persist)
@@ -1606,6 +1610,12 @@ def run() -> int:
         return qt_app.exec()
     except Exception as exc:
         log_exception(exc)
+        configure_process_identity()
         qt_app = QApplication.instance() or QApplication(sys.argv)
-        QMessageBox.critical(None, "StreamMediaViewer(ぬ)", t("ja", user_error_key(exc, where="startup")))
+        apply_app_icon(qt_app)
+        QMessageBox.critical(
+            None,
+            "StreamMediaViewer(ぬ)",
+            t("ja", user_error_key(exc, where="startup")),
+        )
         return 1

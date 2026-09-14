@@ -37,8 +37,9 @@ from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.sort import parse_list_sort
 from stream_media_viewer.render.enhance import parse_enhance_level
 from stream_media_viewer.safety.output_gate import OutputGate, OutputReason
-from stream_media_viewer.ui.drop_hint import CalendarDateEdit, DropHintCombo
+from stream_media_viewer.ui.app_icon import apply_app_icon
 from stream_media_viewer.ui.capture_exclude import exclude_from_capture
+from stream_media_viewer.ui.drop_hint import CalendarDateEdit, DropHintCombo
 from stream_media_viewer.ui.list_thumb import with_video_mark
 from stream_media_viewer.ui.overlays import MAX_LOUPE_PX, MIN_LOUPE_PX, OPERATOR_LOUPE_PX
 from stream_media_viewer.ui.preview_canvas import PreviewCanvas
@@ -104,6 +105,7 @@ class OperatorWindow(QMainWindow):
         self._gate = gate
         self.lang = "ja"
         self.setWindowTitle(OPERATOR_WINDOW_TITLE)
+        apply_app_icon(self)
         self.setMinimumSize(900, 560)
         self._fit_initial_size()
         self.setStyleSheet(DARK_QSS)
