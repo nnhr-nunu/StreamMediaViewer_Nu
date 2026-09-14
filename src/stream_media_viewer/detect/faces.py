@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import sys
 import threading
 from functools import lru_cache
 from pathlib import Path
@@ -173,6 +174,8 @@ def _mediapipe_eyes(
 
 
 def _mediapipe_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
+    if sys.platform == "darwin":
+        return []
     try:
         rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
         if not rgb.flags["C_CONTIGUOUS"]:
