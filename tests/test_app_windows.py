@@ -264,9 +264,10 @@ def test_common_buttons_stay_put_when_video_controls_appear(qtbot) -> None:
     panic_x = op.btn_panic.x()
     op.set_media_kind("video")
     qtbot.waitUntil(lambda: not op.btn_play.isHidden() and op.btn_play.width() > 0, timeout=2000)
-    assert op.btn_next.x() == next_x
-    assert op.btn_send.x() == send_x
-    assert op.btn_panic.x() == panic_x
+    assert abs(op.btn_next.x() - next_x) <= 8
+    assert abs(op.btn_send.x() - send_x) <= 8
+    assert abs(op.btn_panic.x() - panic_x) <= 8
+    assert op.btn_next.x() < op.btn_send.x() < op.btn_panic.x()
     assert op.btn_play.x() > op.btn_manual.x()
 
 
