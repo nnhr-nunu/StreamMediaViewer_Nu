@@ -253,20 +253,21 @@ def test_photo_and_video_show_different_controls(qtbot) -> None:
 def test_common_buttons_stay_put_when_video_controls_appear(qtbot) -> None:
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
-    app.operator.resize(1280, 800)
-    app.operator.show()
-    qtbot.waitExposed(app.operator)
-    app.operator.set_media_kind("image")
-    qtbot.wait(20)
-    next_x = app.operator.btn_next.x()
-    send_x = app.operator.btn_send.x()
-    panic_x = app.operator.btn_panic.x()
-    app.operator.set_media_kind("video")
-    qtbot.wait(20)
-    assert app.operator.btn_next.x() == next_x
-    assert app.operator.btn_send.x() == send_x
-    assert app.operator.btn_panic.x() == panic_x
-    assert app.operator.btn_play.x() > app.operator.btn_manual.x()
+    op = app.operator
+    op.resize(1280, 800)
+    op.show()
+    qtbot.waitExposed(op)
+    op.set_media_kind("image")
+    qtbot.waitUntil(lambda: op.btn_next.width() > 0, timeout=2000)
+    next_x = op.btn_next.x()
+    send_x = op.btn_send.x()
+    panic_x = op.btn_panic.x()
+    op.set_media_kind("video")
+    qtbot.waitUntil(lambda: not op.btn_play.isHidden() and op.btn_play.width() > 0, timeout=2000)
+    assert op.btn_next.x() == next_x
+    assert op.btn_send.x() == send_x
+    assert op.btn_panic.x() == panic_x
+    assert op.btn_play.x() > op.btn_manual.x()
 
 
 def test_list_caption_omits_filename_and_shows_place(qtbot) -> None:

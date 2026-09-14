@@ -43,10 +43,17 @@ def main() -> int:
             proc = subprocess.run(
                 [sys.executable, "-m", "pytest", "-q", "--tb=short", node],
                 cwd=ROOT,
+                capture_output=True,
+                text=True,
             )
             if proc.returncode == 0:
                 continue
-            _annotate(str(path.relative_to(ROOT)), f"{node} exit {proc.returncode}")
+            detail = (proc.stdout or "") + (proc.stderr or "")
+            _annotate(
+                str(path.relative_to(ROOT)),
+                f"{node} exit {proc.returncode}\n{detail[-1200:]}",
+            )
+            print(detail, flush=True)
             return 1
     return 0
 

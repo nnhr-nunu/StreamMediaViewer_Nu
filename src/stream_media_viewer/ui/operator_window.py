@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QProgressBar,
+    QSizePolicy,
     QSlider,
     QStackedLayout,
     QToolButton,
@@ -362,6 +363,7 @@ class OperatorWindow(QMainWindow):
             self.btn_panic,
             self.btn_manual,
         ):
+            widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             bar.addWidget(widget)
         for widget in (
             self.btn_rect,
