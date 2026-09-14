@@ -72,9 +72,13 @@ def test_face_box_from_eyes_keeps_tilt() -> None:
     assert box.y <= 10
 
 
-def test_detect_face_boxes_blank_image_empty_for_both_pipelines() -> None:
+def test_detect_face_boxes_blank_image_empty_legacy() -> None:
     blank = np.zeros((64, 64, 3), dtype=np.uint8)
     assert detect_face_boxes(blank, pipeline=FACE_PIPELINE_LEGACY) == []
+
+
+def test_detect_face_boxes_blank_image_empty_accurate() -> None:
+    blank = np.zeros((320, 320, 3), dtype=np.uint8)
     assert detect_face_boxes(blank, pipeline=FACE_PIPELINE_ACCURATE) == []
 
 
