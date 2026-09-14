@@ -49,3 +49,14 @@ def test_hidden_filter_excludes_or_keeps_only_hidden() -> None:
     assert passes_filters(hidden=False) is True
     assert passes_filters(hidden=True, show_hidden=True) is True
     assert passes_filters(hidden=False, show_hidden=True) is False
+
+
+def test_photo_and_video_checks_are_includes() -> None:
+    assert passes_filters(kind="image", photos=True, videos=False) is True
+    assert passes_filters(kind="video", photos=True, videos=False) is False
+    assert passes_filters(kind="image", photos=False, videos=True) is False
+    assert passes_filters(kind="video", photos=False, videos=True) is True
+    assert passes_filters(kind="image", photos=True, videos=True) is True
+    assert passes_filters(kind="video", photos=True, videos=True) is True
+    assert passes_filters(kind="image", photos=False, videos=False) is False
+    assert passes_filters(kind="video", photos=False, videos=False) is False

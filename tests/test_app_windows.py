@@ -19,6 +19,7 @@ from stream_media_viewer.library.scan import scan_folder
 from stream_media_viewer.settings import AppSettings
 from stream_media_viewer.ui.output_window import IDLE_WINDOW_TITLE
 from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
+from test_library import _tiny_mp4
 
 
 def test_two_windows_start_hidden(qtbot) -> None:
@@ -108,6 +109,29 @@ def test_unreadable_video_is_dropped_from_list(qtbot, tmp_path: Path) -> None:
     visible_names = [app._items[i].path.name for i in app._visible]
     assert "broken.mp4" not in visible_names
     assert any(item.path.name == "good.jpg" for item in app._items)
+
+
+def test_operator_starts_with_photos_filter_on(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    assert app.operator.chk_photos.isChecked() is True
+    assert app.operator.chk_videos.isChecked() is False
+
+
+def test_folder_open_loads_photos_until_videos_checked(qtbot, tmp_path: Path) -> None:
+    Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "a.jpg")
+    _tiny_mp4(tmp_path / "clip.mp4")
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    app._open_folder_path(str(tmp_path))
+    qtbot.waitUntil(lambda: any(item.path.name == "a.jpg" for item in app._items), timeout=8000)
+    assert [item.path.name for item in app._items] == ["a.jpg"]
+    app.operator.chk_videos.setChecked(True)
+    qtbot.waitUntil(lambda: any(item.path.name == "clip.mp4" for item in app._items), timeout=8000)
+    visible = [app._items[i].path.name for i in app._visible]
+    assert "a.jpg" in visible
+    assert "clip.mp4" in visible
 
 
 def test_protect_thread_emits_failed_on_bad_frame(qtbot) -> None:

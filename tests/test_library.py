@@ -3,8 +3,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from stream_media_viewer.library.item import FileNote
-from stream_media_viewer.library.scan import load_rgb_image, scan_folder
+from stream_media_viewer.library.item import FileNote, MediaItem
+from stream_media_viewer.library.scan import load_rgb_image, merge_media_items, scan_folder
 from stream_media_viewer.render.canvas import OUTPUT_HEIGHT, OUTPUT_WIDTH, fit_letterbox
 
 
@@ -83,7 +83,7 @@ def test_scan_skips_corrupt_videos(tmp_path: Path) -> None:
     assert [it.path.name for it in items] == ["good.jpg"]
 
 
-def test_scan_reads_mp4_creation_time(tmp_path: Path) -> None:
+def _tiny_mp4(path: Path) -> None:
     from datetime import datetime
 
     created = datetime(2024, 4, 1, 12, 0, 0)
@@ -94,13 +94,52 @@ def test_scan_reads_mp4_creation_time(tmp_path: Path) -> None:
     ) + b"\x00" * 16
     moov = (8 + len(mvhd)).to_bytes(4, "big") + b"moov" + mvhd
     ftyp = (8 + 12).to_bytes(4, "big") + b"ftyp" + b"isom" + b"\x00" * 8
-    (tmp_path / "clip.mp4").write_bytes(ftyp + moov)
+    path.write_bytes(ftyp + moov)
+
+
+def test_scan_reads_mp4_creation_time(tmp_path: Path) -> None:
+    _tiny_mp4(tmp_path / "clip.mp4")
     Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "z.jpg")
     items = scan_folder(tmp_path)
     names = [it.path.name for it in items]
     assert names[0] == "clip.mp4"
     assert items[0].captured_at is not None
     assert items[0].captured_at.year == 2024
+
+
+def test_scan_folder_can_skip_videos(tmp_path: Path) -> None:
+    Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "a.jpg")
+    _tiny_mp4(tmp_path / "clip.mp4")
+    photos = scan_folder(tmp_path, kinds={"image"})
+    assert [it.path.name for it in photos] == ["a.jpg"]
+    videos = scan_folder(tmp_path, kinds={"video"})
+    assert [it.path.name for it in videos] == ["clip.mp4"]
+
+
+def test_merge_media_items_appends_without_duplicates(tmp_path: Path) -> None:
+    photo = MediaItem(
+        path=tmp_path / "a.jpg",
+        kind="image",
+        captured_at=None,
+        has_gps=False,
+    )
+    video = MediaItem(
+        path=tmp_path / "clip.mp4",
+        kind="video",
+        captured_at=None,
+        has_gps=False,
+    )
+    again = MediaItem(
+        path=tmp_path / "a.jpg",
+        kind="image",
+        captured_at=None,
+        has_gps=True,
+    )
+    merged = merge_media_items([photo], [video, again])
+    names = [it.path.name for it in merged]
+    assert names.count("a.jpg") == 1
+    assert "clip.mp4" in names
+    assert next(it.has_gps for it in merged if it.path.name == "a.jpg") is True
 
 
 def test_load_rgb_image_caps_long_edge(tmp_path: Path) -> None:

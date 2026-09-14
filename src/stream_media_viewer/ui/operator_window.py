@@ -162,12 +162,12 @@ class OperatorWindow(QMainWindow):
         self.date_to.setMaximumWidth(132)
         for box in (
             self.chk_star_only,
-            self.chk_photos,
             self.chk_videos,
             self.chk_filter_face,
             self.chk_dates,
         ):
             box.setChecked(False)
+        self.chk_photos.setChecked(True)
         for box in (self.chk_star_only, self.chk_filter_face, self.chk_photos, self.chk_videos):
             filters.addWidget(box)
         filters.addWidget(self.combo_folder)
