@@ -183,10 +183,12 @@ def _mediapipe_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Bo
 
 
 def _yunet_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
+    ih, iw = small.shape[:2]
+    if ih < 32 or iw < 32:
+        return []
     detector = _yunet()
     if detector is None:
         return []
-    ih, iw = small.shape[:2]
     try:
         with _YUNET_LOCK:
             detector.setInputSize((iw, ih))
@@ -308,6 +310,8 @@ def detect_face_boxes(
     pipeline: str | None = None,
 ) -> list[Box]:
     h, w = bgr.shape[:2]
+    if h < 16 or w < 16:
+        return []
     boxes: list[Box] = []
     if parse_face_pipeline(pipeline) == FACE_PIPELINE_LEGACY:
         for max_side in _DETECT_SIDES:

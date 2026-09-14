@@ -78,6 +78,12 @@ def test_detect_face_boxes_blank_image_empty_for_both_pipelines() -> None:
     assert detect_face_boxes(blank, pipeline=FACE_PIPELINE_ACCURATE) == []
 
 
+def test_detect_face_boxes_tiny_image_empty_for_both_pipelines() -> None:
+    tiny = np.zeros((8, 8, 3), dtype=np.uint8)
+    assert detect_face_boxes(tiny, pipeline=FACE_PIPELINE_LEGACY) == []
+    assert detect_face_boxes(tiny, pipeline=FACE_PIPELINE_ACCURATE) == []
+
+
 def test_face_box_at_picks_smallest_hit() -> None:
     inner = Box(10, 10, 10, 10)
     outer = Box(0, 0, 40, 40)
