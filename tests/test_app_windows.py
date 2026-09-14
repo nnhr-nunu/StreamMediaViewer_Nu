@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from PySide6.QtWidgets import QDialog, QLabel, QMessageBox
+from PySide6.QtWidgets import QDialog, QLabel
 
 from stream_media_viewer import (
     OPERATOR_WINDOW_TITLE,
@@ -171,15 +171,19 @@ def test_stop_protect_keeps_running_thread(qtbot, monkeypatch) -> None:
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
     qtbot.addWidget(app.output)
-    app._start_protect(np.zeros((48, 48, 3), dtype=np.uint8), [])
-    first = app._worker
-    assert first is not None
-    qtbot.waitUntil(first.isRunning, timeout=2000)
-    app._stop_protect_worker(timeout_ms=50)
-    assert not first.isFinished()
-    assert first in app._kept_threads
-    release.set()
-    qtbot.waitUntil(first.isFinished, timeout=5000)
+    first = None
+    try:
+        app._start_protect(np.zeros((48, 48, 3), dtype=np.uint8), [])
+        first = app._worker
+        assert first is not None
+        qtbot.waitUntil(first.isRunning, timeout=2000)
+        app._stop_protect_worker(timeout_ms=50)
+        assert not first.isFinished()
+        assert first in app._kept_threads
+    finally:
+        release.set()
+        if first is not None:
+            first.wait(5000)
 
 
 def test_settings_apply_error_stays_on_operator(qtbot, monkeypatch) -> None:
@@ -208,7 +212,8 @@ def test_settings_apply_error_stays_on_operator(qtbot, monkeypatch) -> None:
         lambda: (_ for _ in ()).throw(RuntimeError("apply boom")),
     )
     monkeypatch.setattr(
-        QMessageBox, "warning", lambda *a, **k: shown.append(a[2] if len(a) > 2 else k.get("text", ""))
+        "stream_media_viewer.app.QMessageBox.warning",
+        lambda *a, **k: shown.append(a[2] if len(a) > 2 else k.get("text", "")),
     )
     app._open_settings()
     assert app.settings.blur_strength == 40

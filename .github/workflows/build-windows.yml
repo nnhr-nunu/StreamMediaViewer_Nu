@@ -48,7 +48,7 @@ jobs:
       - name: Test
         env:
           PYTHONFAULTHANDLER: "1"
-        run: pytest -q --tb=short
+        run: python scripts/ci_macos_pytest.py
       - name: Build app
         run: >
           pyinstaller --noconfirm --clean --windowed --name StreamMediaViewer
