@@ -223,24 +223,71 @@ def test_reload_photo_returns_before_decode(qtbot, tmp_path: Path, monkeypatch) 
 
 
 def test_protect_done_prefills_rest_of_photos(qtbot, tmp_path: Path, monkeypatch) -> None:
+    from stream_media_viewer.playback.preload import cache_is_ready
+
     def instant_protect(bgr, *_a, **_k):
         return bgr.copy(), False, False
 
+    monkeypatch.setattr(
+        "stream_media_viewer.playback.preload.preload_root", lambda: tmp_path / "preload"
+    )
     monkeypatch.setattr("stream_media_viewer.app.protect_for_note", instant_protect)
     monkeypatch.setattr("stream_media_viewer.library.preview_load.protect_for_note", instant_protect)
-    for index in range(12):
+    for index in range(20):
         Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / f"{index:02d}.jpg")
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
     qtbot.addWidget(app.output)
     app._open_folder_path(str(tmp_path))
-    qtbot.waitUntil(lambda: len(app._items) == 12, timeout=8000)
-    qtbot.waitUntil(lambda: len(app._visible) == 12, timeout=8000)
+    qtbot.waitUntil(lambda: len(app._items) == 20, timeout=8000)
+    qtbot.waitUntil(lambda: len(app._visible) == 20, timeout=8000)
 
-    def cached_count() -> int:
-        return sum(1 for item in app._items if app._protect_cache.has(app._key_for(item)))
+    def disk_ready_count() -> int:
+        folder_id = app._folder_id()
+        return sum(1 for item in app._items if cache_is_ready(app._key_for(item), folder_id))
 
-    qtbot.waitUntil(lambda: cached_count() == 12, timeout=8000)
+    qtbot.waitUntil(lambda: disk_ready_count() == 20, timeout=15000)
+    assert len(app._protect_cache) <= 16
+    app.shutdown()
+
+
+def test_reload_photo_uses_disk_prep_without_reprotect(
+    qtbot, tmp_path: Path, monkeypatch
+) -> None:
+    from stream_media_viewer.playback.preload import cache_is_ready
+
+    calls = {"n": 0}
+
+    def counting_protect(bgr, *_a, **_k):
+        calls["n"] += 1
+        return bgr.copy(), False, False
+
+    monkeypatch.setattr(
+        "stream_media_viewer.playback.preload.preload_root", lambda: tmp_path / "preload"
+    )
+    monkeypatch.setattr("stream_media_viewer.app.protect_for_note", counting_protect)
+    monkeypatch.setattr(
+        "stream_media_viewer.library.preview_load.protect_for_note", counting_protect
+    )
+    for index in range(3):
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / f"{index:02d}.jpg")
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    app._open_folder_path(str(tmp_path))
+    qtbot.waitUntil(lambda: len(app._items) == 3, timeout=8000)
+
+    def disk_ready_count() -> int:
+        folder_id = app._folder_id()
+        return sum(1 for item in app._items if cache_is_ready(app._key_for(item), folder_id))
+
+    qtbot.waitUntil(lambda: disk_ready_count() == 3, timeout=15000)
+    after_prep = calls["n"]
+    app._protect_cache.clear()
+    app._index = 2
+    app._reload_current()
+    qtbot.waitUntil(lambda: app._preview is not None, timeout=8000)
+    assert calls["n"] == after_prep
     app.shutdown()
 
 

@@ -46,6 +46,8 @@ from stream_media_viewer.playback.preload import (
     folder_cache_id,
     format_bytes,
     read_meta,
+    read_protected_image,
+    write_protected_image,
 )
 from stream_media_viewer.playback.video import VideoPlayer
 from stream_media_viewer.render.canvas import fit_letterbox, rgb_to_bgr
@@ -863,7 +865,7 @@ class StreamMediaViewerApp:
             self._stop_prefetch()
             self._view_gen += 1
             gen = self._view_gen
-            cached = self._protect_cache.get(self._key_for(item))
+            cached = self._cached_protect_frame(item)
             if cached is not None:
                 self._load_should_protect = False
                 self._protect_seq += 1
@@ -914,8 +916,8 @@ class StreamMediaViewerApp:
             return
         self._source_bgr = bgr
         note = self.settings.note_for(str(item.path))
-        self._show_operator_frame(rotate_bgr(bgr, note.rotation))
         if self._load_should_protect:
+            self._show_operator_frame(rotate_bgr(bgr, note.rotation))
             self._start_protect(bgr, note.marks)
 
     def _on_image_load_failed(self, seq: int) -> None:
@@ -952,19 +954,22 @@ class StreamMediaViewerApp:
     def _prefetch_neighbors(self) -> None:
         if self._folder_queue or not self._visible:
             return
-        room = self._protect_cache.room()
-        if room <= 0:
-            return
+        folder_id = self._folder_id()
         queued: list[MediaItem] = []
         for row in neighbor_rows(self._index, len(self._visible)):
             item = self._items[self._visible[row]]
             if item.kind != "image":
                 continue
-            if self._protect_cache.has(self._key_for(item)):
+            key = self._key_for(item)
+            if self._protect_cache.has(key):
+                continue
+            if cache_is_ready(key, folder_id):
+                if self._protect_cache.room() > 0:
+                    loaded = read_protected_image(folder_id, key)
+                    if loaded is not None:
+                        self._protect_cache.put(key, loaded[0], loaded[1], loaded[2])
                 continue
             queued.append(item)
-            if len(queued) >= room:
-                break
         self._prefetch_queue = queued
         if self._prefetch_worker is not None and _qthread_live(self._prefetch_worker):
             return
@@ -972,17 +977,16 @@ class StreamMediaViewerApp:
 
     def _kick_prefetch(self) -> None:
         current = self._current()
+        folder_id = self._folder_id()
         while self._prefetch_queue:
-            if self._protect_cache.room() <= 0:
-                self._prefetch_queue = []
-                break
             item = self._prefetch_queue.pop(0)
             if current is not None and item.path == current.path:
                 continue
-            if self._protect_cache.has(self._key_for(item)):
+            key = self._key_for(item)
+            if self._protect_cache.has(key) or cache_is_ready(key, folder_id):
                 continue
             note = self.settings.note_for(str(item.path))
-            worker = PrefetchWorker(item.path, self.settings, note, self._key_for(item))
+            worker = PrefetchWorker(item.path, self.settings, note, key, folder_id)
             worker.ready.connect(self._on_prefetch_ready)
             worker.start()
             self._prefetch_worker = worker
@@ -990,9 +994,30 @@ class StreamMediaViewerApp:
         self._prefetch_worker = None
 
     def _on_prefetch_ready(self, key: str, bgr: object, faces: bool, texts: bool) -> None:
-        if isinstance(bgr, np.ndarray):
+        if isinstance(bgr, np.ndarray) and self._protect_cache.room() > 0:
             self._protect_cache.put(key, bgr, bool(faces), bool(texts))
+        for item in self._items:
+            if self._key_for(item) != key:
+                continue
+            item.has_face = item.has_face or bool(faces)
+            item.has_text_region = item.has_text_region or bool(texts)
+            note = self.settings.note_for(str(item.path))
+            note.has_face = item.has_face
+            note.has_text_region = item.has_text_region
+            break
+        self._sync_live_marks()
         self._kick_prefetch()
+
+    def _cached_protect_frame(self, item: MediaItem) -> tuple[np.ndarray, bool, bool] | None:
+        key = self._key_for(item)
+        hit = self._protect_cache.get(key)
+        if hit is not None:
+            return hit
+        loaded = read_protected_image(self._folder_id(), key)
+        if loaded is None:
+            return None
+        self._protect_cache.put(key, loaded[0], loaded[1], loaded[2])
+        return loaded
 
     def _mark_unreadable(self, item: MediaItem) -> None:
         item.readable = False
@@ -1014,7 +1039,7 @@ class StreamMediaViewerApp:
         rotation = 0
         if item is not None:
             rotation = self.settings.note_for(str(item.path)).rotation
-            cached = self._protect_cache.get(self._key_for(item))
+            cached = self._cached_protect_frame(item)
             if cached is not None:
                 self._on_protected(*cached, seq)
                 return
@@ -1064,6 +1089,17 @@ class StreamMediaViewerApp:
             note.has_face = has_face
             note.has_text_region = has_text
             self._protect_cache.put(self._key_for(item), bgr, has_face, has_text)
+            if item.kind == "image":
+                key = self._key_for(item)
+                folder_id = self._folder_id()
+                if not cache_is_ready(key, folder_id):
+                    write_protected_image(
+                        folder_id,
+                        key,
+                        bgr,
+                        has_face=has_face,
+                        has_text=has_text,
+                    )
             duration = self.operator.timeline.maximum() if item.kind == "video" else None
             self.operator.meta.setText(self._item_meta_text(item, duration_ms=duration))
         fitted = fit_letterbox(bgr)
@@ -1580,6 +1616,7 @@ class StreamMediaViewerApp:
         else:
             clear_preload_cache()
         self._video.set_cache(None, 30)
+        self._protect_cache.clear()
         self._refresh_cache_label()
         self._refresh_list()
 
