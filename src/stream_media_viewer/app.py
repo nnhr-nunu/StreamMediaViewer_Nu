@@ -157,6 +157,7 @@ class StreamMediaViewerApp:
         self._thumb_worker: ThumbWorker | None = None
         self._kept_threads: list[QThread] = []
         self._pending_thumbs: list[Path] = []
+        self._closing = False
         self._scan_token = 0
         self._videos_loaded = False
         self._prepare_after_videos = False
@@ -410,6 +411,8 @@ class StreamMediaViewerApp:
         kinds: frozenset[str] | None = None,
         replace: bool = True,
     ) -> None:
+        if self._closing:
+            return
         wanted = frozenset(kinds) if kinds is not None else frozenset({"image"})
         self._scan_token += 1
         token = self._scan_token
@@ -529,6 +532,8 @@ class StreamMediaViewerApp:
         self._start_scan(Path(folder), kinds=frozenset({"video"}), replace=False)
 
     def _start_thumbs(self) -> None:
+        if self._closing:
+            return
         op = self.operator
         wanted = thumb_paths_for(
             self._items,
@@ -553,6 +558,8 @@ class StreamMediaViewerApp:
         self._launch_thumb_worker(wanted)
 
     def _launch_thumb_worker(self, paths: list[Path]) -> None:
+        if self._closing or not paths:
+            return
         worker = ThumbWorker(paths)
         worker.thumb_ready.connect(self._on_thumb_ready)
         worker.finished.connect(self._on_thumbs_finished)
@@ -589,6 +596,9 @@ class StreamMediaViewerApp:
         self.shutdown()
 
     def shutdown(self) -> None:
+        self._closing = True
+        self._scan_token += 1
+        self._pending_thumbs = []
         try:
             self._video.close()
         except RuntimeError:
@@ -600,9 +610,12 @@ class StreamMediaViewerApp:
         self._stop_preload()
         self._stop_qthread(self._scan_worker, timeout_ms=8000)
         self._scan_worker = None
-        self._stop_qthread(self._thumb_worker, timeout_ms=8000)
-        self._thumb_worker = None
+        thumb = self._thumb_worker
+        self._stop_qthread(thumb, timeout_ms=8000)
         self._pending_thumbs = []
+        if self._thumb_worker is not thumb:
+            self._stop_qthread(self._thumb_worker, timeout_ms=8000)
+        self._thumb_worker = None
 
     def _keep_qthread(self, worker: QThread | None) -> None:
         self._kept_threads = [item for item in self._kept_threads if _qthread_live(item)]
@@ -620,6 +633,15 @@ class StreamMediaViewerApp:
                     pass
                 try:
                     worker.finished.disconnect(self._on_thumbs_finished)
+                except (TypeError, RuntimeError):
+                    pass
+            if hasattr(worker, "finished_items"):
+                try:
+                    worker.finished_items.disconnect()
+                except (TypeError, RuntimeError):
+                    pass
+                try:
+                    worker.progress.disconnect()
                 except (TypeError, RuntimeError):
                     pass
             worker.requestInterruption()
