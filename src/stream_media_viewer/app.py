@@ -219,6 +219,7 @@ class StreamMediaViewerApp:
         op.timeline_out.sliderReleased.connect(self._apply_in_out)
         op.destroyed.connect(self._on_operator_gone)
         self.output.hide_requested.connect(self._on_panic)
+        op._viewer_app = self
 
     def _restore_checks(self) -> None:
         op = self.operator
@@ -585,18 +586,21 @@ class StreamMediaViewerApp:
                 break
 
     def _on_operator_gone(self, *_args: object) -> None:
+        self.shutdown()
+
+    def shutdown(self) -> None:
         try:
             self._video.close()
         except RuntimeError:
             pass
         self._playing_to_output = False
         self._stop_protect_worker(timeout_ms=1500)
-        self._stop_load_worker()
-        self._stop_prefetch()
+        self._stop_load_worker(timeout_ms=1500)
+        self._stop_prefetch(timeout_ms=1500)
         self._stop_preload()
-        self._stop_qthread(self._scan_worker, timeout_ms=1500)
+        self._stop_qthread(self._scan_worker, timeout_ms=8000)
         self._scan_worker = None
-        self._stop_qthread(self._thumb_worker, timeout_ms=1500)
+        self._stop_qthread(self._thumb_worker, timeout_ms=8000)
         self._thumb_worker = None
         self._pending_thumbs = []
 
@@ -618,15 +622,9 @@ class StreamMediaViewerApp:
                     worker.finished.disconnect(self._on_thumbs_finished)
                 except (TypeError, RuntimeError):
                     pass
-            if worker.isFinished():
-                return
             worker.requestInterruption()
-            remaining = max(0, int(timeout_ms))
-            while remaining > 0 and not worker.isRunning() and not worker.isFinished():
-                QThread.msleep(10)
-                remaining -= 10
-            if not worker.isFinished():
-                worker.wait(max(1, remaining))
+            if timeout_ms > 0:
+                worker.wait(max(1, int(timeout_ms)))
         except (TypeError, RuntimeError, AttributeError):
             self._keep_qthread(worker)
             return
@@ -905,7 +903,7 @@ class StreamMediaViewerApp:
         if item is not None:
             self._mark_unreadable(item)
 
-    def _stop_load_worker(self) -> None:
+    def _stop_load_worker(self, timeout_ms: int = 0) -> None:
         worker = self._load_worker
         self._load_worker = None
         if worker is None:
@@ -915,9 +913,9 @@ class StreamMediaViewerApp:
             worker.failed.disconnect(self._on_image_load_failed)
         except (TypeError, RuntimeError):
             pass
-        self._stop_qthread(worker, timeout_ms=0)
+        self._stop_qthread(worker, timeout_ms=timeout_ms)
 
-    def _stop_prefetch(self) -> None:
+    def _stop_prefetch(self, timeout_ms: int = 0) -> None:
         self._prefetch_queue = []
         worker = self._prefetch_worker
         self._prefetch_worker = None
@@ -927,19 +925,24 @@ class StreamMediaViewerApp:
             worker.ready.disconnect(self._on_prefetch_ready)
         except (TypeError, RuntimeError):
             pass
-        self._stop_qthread(worker, timeout_ms=0)
+        self._stop_qthread(worker, timeout_ms=timeout_ms)
 
     def _prefetch_neighbors(self) -> None:
         if self._folder_queue or not self._visible:
+            return
+        room = self._protect_cache.room()
+        if room <= 0:
             return
         queued: list[MediaItem] = []
         for row in neighbor_rows(self._index, len(self._visible)):
             item = self._items[self._visible[row]]
             if item.kind != "image":
                 continue
-            if self._protect_cache.get(self._key_for(item)) is not None:
+            if self._protect_cache.has(self._key_for(item)):
                 continue
             queued.append(item)
+            if len(queued) >= room:
+                break
         self._prefetch_queue = queued
         if self._prefetch_worker is not None and _qthread_live(self._prefetch_worker):
             return
@@ -948,10 +951,13 @@ class StreamMediaViewerApp:
     def _kick_prefetch(self) -> None:
         current = self._current()
         while self._prefetch_queue:
+            if self._protect_cache.room() <= 0:
+                self._prefetch_queue = []
+                break
             item = self._prefetch_queue.pop(0)
             if current is not None and item.path == current.path:
                 continue
-            if self._protect_cache.get(self._key_for(item)) is not None:
+            if self._protect_cache.has(self._key_for(item)):
                 continue
             note = self.settings.note_for(str(item.path))
             worker = PrefetchWorker(item.path, self.settings, note, self._key_for(item))
