@@ -15,7 +15,6 @@ from stream_media_viewer import (
 from stream_media_viewer.app import ProtectThread, StreamMediaViewerApp
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.item import MediaItem
-from stream_media_viewer.library.neighbors import neighbor_rows
 from stream_media_viewer.library.scan import scan_folder
 from stream_media_viewer.settings import AppSettings
 from stream_media_viewer.ui.app_icon import app_icon_path, load_app_icon
@@ -123,6 +122,7 @@ def test_unreadable_video_is_dropped_from_list(qtbot, tmp_path: Path) -> None:
     visible_names = [app._items[i].path.name for i in app._visible]
     assert "broken.mp4" not in visible_names
     assert any(item.path.name == "good.jpg" for item in app._items)
+    app.shutdown()
 
 
 def test_operator_starts_with_photos_filter_on(qtbot) -> None:
@@ -146,6 +146,7 @@ def test_folder_open_loads_photos_until_videos_checked(qtbot, tmp_path: Path) ->
     visible = [app._items[i].path.name for i in app._visible]
     assert "a.jpg" in visible
     assert "clip.mp4" in visible
+    app.shutdown()
 
 
 def test_protect_thread_emits_failed_on_bad_frame(qtbot) -> None:
@@ -221,31 +222,34 @@ def test_reload_photo_returns_before_decode(qtbot, tmp_path: Path, monkeypatch) 
     qtbot.waitUntil(lambda: app._source_bgr is not None, timeout=8000)
 
 
-def test_protect_done_prefills_neighbor_cache(qtbot, tmp_path: Path, monkeypatch) -> None:
+def test_protect_done_prefills_rest_of_photos(qtbot, tmp_path: Path, monkeypatch) -> None:
     def instant_protect(bgr, *_a, **_k):
         return bgr.copy(), False, False
 
     monkeypatch.setattr("stream_media_viewer.app.protect_for_note", instant_protect)
     monkeypatch.setattr("stream_media_viewer.library.preview_load.protect_for_note", instant_protect)
-    for name in ("a.jpg", "b.jpg", "c.jpg"):
-        Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / name)
+    for index in range(12):
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / f"{index:02d}.jpg")
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
     qtbot.addWidget(app.output)
     app._open_folder_path(str(tmp_path))
-    qtbot.waitUntil(lambda: len(app._items) == 3, timeout=8000)
-    qtbot.waitUntil(lambda: len(app._visible) == 3, timeout=8000)
-    neighbor = app._items[app._visible[neighbor_rows(app._index, len(app._visible))[0]]]
-    qtbot.waitUntil(
-        lambda: app._protect_cache.get(app._key_for(neighbor)) is not None,
-        timeout=8000,
-    )
+    qtbot.waitUntil(lambda: len(app._items) == 12, timeout=8000)
+    qtbot.waitUntil(lambda: len(app._visible) == 12, timeout=8000)
+
+    def cached_count() -> int:
+        return sum(1 for item in app._items if app._protect_cache.has(app._key_for(item)))
+
+    qtbot.waitUntil(lambda: cached_count() == 12, timeout=8000)
+    app.shutdown()
 
 
 def test_stop_protect_keeps_running_thread(qtbot, monkeypatch) -> None:
     release = threading.Event()
+    entered = threading.Event()
 
     def blocker(bgr, settings, note, **_kwargs):
+        entered.set()
         release.wait(timeout=30)
         return bgr.copy(), False, False
 
@@ -258,7 +262,7 @@ def test_stop_protect_keeps_running_thread(qtbot, monkeypatch) -> None:
         app._start_protect(np.zeros((48, 48, 3), dtype=np.uint8), [])
         first = app._worker
         assert first is not None
-        qtbot.waitUntil(first.isRunning, timeout=2000)
+        qtbot.waitUntil(entered.is_set, timeout=2000)
         app._stop_protect_worker(timeout_ms=50)
         assert not first.isFinished()
         assert first in app._kept_threads

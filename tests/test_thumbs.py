@@ -42,3 +42,16 @@ def test_protect_frame_cache_evicts_oldest() -> None:
     hit = cache.get("b")
     assert hit is not None
     assert hit[1] is True
+
+
+def test_protect_frame_cache_reports_room() -> None:
+    cache = ProtectFrameCache(limit=3)
+    frame = np.zeros((2, 2, 3), dtype=np.uint8)
+    assert cache.room() == 3
+    cache.put("a", frame, False, False)
+    assert cache.has("a") is True
+    assert cache.has("b") is False
+    assert cache.room() == 2
+    cache.put("b", frame, False, False)
+    cache.put("c", frame, False, False)
+    assert cache.room() == 0

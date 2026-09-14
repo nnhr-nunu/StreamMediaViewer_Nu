@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-PREFETCH_RADIUS = 5
 
-
-def neighbor_rows(index: int, count: int, *, radius: int = PREFETCH_RADIUS) -> tuple[int, ...]:
-    if count < 2 or radius < 1:
+def neighbor_rows(index: int, count: int, *, radius: int | None = None) -> tuple[int, ...]:
+    if count < 2:
+        return ()
+    span = count - 1 if radius is None else radius
+    if span < 1:
         return ()
     seen: list[int] = []
     known: set[int] = set()
-    for step in range(1, radius + 1):
+    for step in range(1, span + 1):
         for row in ((index + step) % count, (index - step) % count):
             if row == index or row in known:
                 continue
