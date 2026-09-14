@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 import numpy as np
 
 from stream_media_viewer.detect.blur import apply_marks, gaussian_oval, gaussian_region
@@ -9,6 +11,8 @@ from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.render.rotate import rotate_bgr
 from stream_media_viewer.settings import AppSettings
+
+PROTECT_LOCK = threading.Lock()
 
 
 def protect_frame(

@@ -22,11 +22,13 @@ from stream_media_viewer.detect.false_faces import (
     try_remove_shipped_hash,
     try_update_shipped_catalog,
 )
-from stream_media_viewer.detect.protect import protect_for_note, protect_frame_safe
+from stream_media_viewer.detect.protect import PROTECT_LOCK, protect_for_note, protect_frame_safe
 from stream_media_viewer.errors import install_excepthook, log_exception, user_error_key
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.filters import passes_filters
 from stream_media_viewer.library.item import FileNote, MediaItem
+from stream_media_viewer.library.neighbors import neighbor_rows
+from stream_media_viewer.library.preview_load import ImageLoadWorker, PrefetchWorker
 from stream_media_viewer.library.protect_cache import ProtectFrameCache
 from stream_media_viewer.library.scan import load_rgb_image, merge_media_items, video_header_ok
 from stream_media_viewer.library.sort import sorted_items
@@ -111,7 +113,8 @@ class ProtectThread(QThread):
                 skip_faces=self._skip_faces,
                 rotation=self._rotation,
             )
-            out, faces, texts = protect_for_note(self._bgr, self._settings, note)
+            with PROTECT_LOCK:
+                out, faces, texts = protect_for_note(self._bgr, self._settings, note)
             if self.isInterruptionRequested():
                 return
             if out is None:
@@ -142,6 +145,11 @@ class StreamMediaViewerApp:
         self._source_bgr: np.ndarray | None = None
         self._live: np.ndarray | None = None
         self._worker: ProtectThread | None = None
+        self._load_worker: ImageLoadWorker | None = None
+        self._prefetch_worker: PrefetchWorker | None = None
+        self._prefetch_queue: list[MediaItem] = []
+        self._view_gen = 0
+        self._load_should_protect = True
         self._protect_cache = ProtectFrameCache()
         self._thumb_pix: dict[str, QPixmap] = {}
         self._scan_worker: ScanWorker | None = None
@@ -403,7 +411,10 @@ class StreamMediaViewerApp:
         wanted = frozenset(kinds) if kinds is not None else frozenset({"image"})
         self._scan_token += 1
         token = self._scan_token
+        self._view_gen += 1
         self._stop_protect_worker()
+        self._stop_load_worker()
+        self._stop_prefetch()
         self._stop_qthread(self._scan_worker, timeout_ms=8000)
         self._scan_worker = None
         if replace:
@@ -579,6 +590,8 @@ class StreamMediaViewerApp:
             pass
         self._playing_to_output = False
         self._stop_protect_worker(timeout_ms=1500)
+        self._stop_load_worker()
+        self._stop_prefetch()
         self._stop_preload()
         self._stop_qthread(self._scan_worker, timeout_ms=1500)
         self._scan_worker = None
@@ -824,40 +837,133 @@ class StreamMediaViewerApp:
         self.operator.set_media_kind(item.kind)
         self._sync_false_face_button()
         if item.kind == "image":
-            image = load_rgb_image(item.path)
-            if image is None:
-                self._mark_unreadable(item)
-                return
-            bgr = rgb_to_bgr(np.array(image))
-            self._source_bgr = bgr
-            self._show_operator_frame(rotate_bgr(bgr, note.rotation))
-            self._start_protect(bgr, note.marks)
-        else:
-            fps = self._video.open(str(item.path))
-            duration = self._video.duration_ms()
-            self.operator.timeline.setRange(0, max(1, duration))
-            self.operator.timeline_out.setRange(0, max(1, duration))
-            self.operator.timeline.setValue(note.in_ms)
-            self.operator.timeline_out.setValue(note.out_ms if note.out_ms else duration)
-            self._video.in_ms = note.in_ms
-            self._video.out_ms = note.out_ms
-            self._video.loop = note.loop
-            self.operator.meta.setText(self._item_meta_text(item, duration_ms=duration))
-            frame = self._video.seek_ms(note.in_ms)
-            if frame is None:
-                self._mark_unreadable(item)
-                return
-            if self._video.last_raw is not None:
-                self._source_bgr = self._video.last_raw
+            self._source_bgr = None
+            self._stop_load_worker()
+            self._stop_prefetch()
+            self._view_gen += 1
+            gen = self._view_gen
+            cached = self._protect_cache.get(self._key_for(item))
+            if cached is not None:
+                self._load_should_protect = False
+                self._protect_seq += 1
+                self._on_protected(*cached, self._protect_seq)
             else:
-                self._source_bgr = frame
-            raw = self._source_bgr
-            self._show_operator_frame(rotate_bgr(raw, note.rotation))
-            self._start_protect(raw, note.marks)
-            _ = fps
+                self._load_should_protect = True
+                prefix = self._item_meta_text(item)
+                self.operator.meta.setText(f"{prefix} · {t(self.settings.language, 'processing')}")
+            worker = ImageLoadWorker(item.path, gen)
+            worker.loaded.connect(self._on_image_loaded)
+            worker.failed.connect(self._on_image_load_failed)
+            worker.start()
+            self._load_worker = worker
+            return
+        fps = self._video.open(str(item.path))
+        duration = self._video.duration_ms()
+        self.operator.timeline.setRange(0, max(1, duration))
+        self.operator.timeline_out.setRange(0, max(1, duration))
+        self.operator.timeline.setValue(note.in_ms)
+        self.operator.timeline_out.setValue(note.out_ms if note.out_ms else duration)
+        self._video.in_ms = note.in_ms
+        self._video.out_ms = note.out_ms
+        self._video.loop = note.loop
+        self.operator.meta.setText(self._item_meta_text(item, duration_ms=duration))
+        frame = self._video.seek_ms(note.in_ms)
+        if frame is None:
+            self._mark_unreadable(item)
+            return
+        if self._video.last_raw is not None:
+            self._source_bgr = self._video.last_raw
+        else:
+            self._source_bgr = frame
+        raw = self._source_bgr
+        self._show_operator_frame(rotate_bgr(raw, note.rotation))
+        self._start_protect(raw, note.marks)
+        _ = fps
 
     def _show_operator_frame(self, bgr: np.ndarray) -> None:
         self.operator.preview.set_frame(bgr_to_pixmap(bgr), smooth=False)
+
+    def _on_image_loaded(self, bgr: object, seq: int) -> None:
+        if seq != self._view_gen:
+            return
+        if not isinstance(bgr, np.ndarray):
+            return
+        item = self._current()
+        if item is None or item.kind != "image":
+            return
+        self._source_bgr = bgr
+        note = self.settings.note_for(str(item.path))
+        self._show_operator_frame(rotate_bgr(bgr, note.rotation))
+        if self._load_should_protect:
+            self._start_protect(bgr, note.marks)
+
+    def _on_image_load_failed(self, seq: int) -> None:
+        if seq != self._view_gen:
+            return
+        item = self._current()
+        if item is not None:
+            self._mark_unreadable(item)
+
+    def _stop_load_worker(self) -> None:
+        worker = self._load_worker
+        self._load_worker = None
+        if worker is None:
+            return
+        try:
+            worker.loaded.disconnect(self._on_image_loaded)
+            worker.failed.disconnect(self._on_image_load_failed)
+        except (TypeError, RuntimeError):
+            pass
+        self._stop_qthread(worker, timeout_ms=0)
+
+    def _stop_prefetch(self) -> None:
+        self._prefetch_queue = []
+        worker = self._prefetch_worker
+        self._prefetch_worker = None
+        if worker is None:
+            return
+        try:
+            worker.ready.disconnect(self._on_prefetch_ready)
+        except (TypeError, RuntimeError):
+            pass
+        self._stop_qthread(worker, timeout_ms=0)
+
+    def _prefetch_neighbors(self) -> None:
+        if self._folder_queue or not self._visible:
+            return
+        queued: list[MediaItem] = []
+        for row in neighbor_rows(self._index, len(self._visible)):
+            item = self._items[self._visible[row]]
+            if item.kind != "image":
+                continue
+            if self._protect_cache.get(self._key_for(item)) is not None:
+                continue
+            queued.append(item)
+        self._prefetch_queue = queued
+        if self._prefetch_worker is not None and _qthread_live(self._prefetch_worker):
+            return
+        self._kick_prefetch()
+
+    def _kick_prefetch(self) -> None:
+        current = self._current()
+        while self._prefetch_queue:
+            item = self._prefetch_queue.pop(0)
+            if current is not None and item.path == current.path:
+                continue
+            if self._protect_cache.get(self._key_for(item)) is not None:
+                continue
+            note = self.settings.note_for(str(item.path))
+            worker = PrefetchWorker(item.path, self.settings, note, self._key_for(item))
+            worker.ready.connect(self._on_prefetch_ready)
+            worker.start()
+            self._prefetch_worker = worker
+            return
+        self._prefetch_worker = None
+
+    def _on_prefetch_ready(self, key: str, bgr: object, faces: bool, texts: bool) -> None:
+        if isinstance(bgr, np.ndarray):
+            self._protect_cache.put(key, bgr, bool(faces), bool(texts))
+        self._kick_prefetch()
 
     def _mark_unreadable(self, item: MediaItem) -> None:
         item.readable = False
@@ -897,7 +1003,7 @@ class StreamMediaViewerApp:
         self._worker.failed.connect(self._on_protect_failed)
         self._worker.start()
 
-    def _stop_protect_worker(self, timeout_ms: int = 60_000) -> None:
+    def _stop_protect_worker(self, timeout_ms: int = 0) -> None:
         worker = self._worker
         if worker is None:
             return
@@ -948,6 +1054,8 @@ class StreamMediaViewerApp:
         item = self._current()
         if item and item.kind == "video" and not self._folder_queue:
             self._start_preload()
+        if item and item.kind == "image":
+            self._prefetch_neighbors()
 
     def _on_send(self) -> None:
         if self._preview is None:
