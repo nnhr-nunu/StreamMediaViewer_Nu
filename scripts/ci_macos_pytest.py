@@ -14,6 +14,13 @@ def _annotate(file: str, message: str) -> None:
     print(f"::error file={file}::{safe}", flush=True)
 
 
+def _clip(text: str, limit: int = 800) -> str:
+    text = text.strip()
+    if len(text) <= limit * 2:
+        return text
+    return f"{text[:limit]}\n...\n{text[-limit:]}"
+
+
 def _collect(path: Path) -> list[str]:
     proc = subprocess.run(
         [sys.executable, "-m", "pytest", "--collect-only", "-q", str(path)],
@@ -37,6 +44,7 @@ def _collect(path: Path) -> list[str]:
 
 
 def main() -> int:
+    failed = 0
     for path in sorted((ROOT / "tests").glob("test_*.py")):
         for node in _collect(path):
             print(f"RUN {node}", flush=True)
@@ -48,14 +56,14 @@ def main() -> int:
             )
             if proc.returncode == 0:
                 continue
+            failed += 1
             detail = (proc.stdout or "") + (proc.stderr or "")
             _annotate(
                 str(path.relative_to(ROOT)),
-                f"{node} exit {proc.returncode}\n{detail[-1200:]}",
+                f"{node} exit {proc.returncode}\n{_clip(detail)}",
             )
             print(detail, flush=True)
-            return 1
-    return 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

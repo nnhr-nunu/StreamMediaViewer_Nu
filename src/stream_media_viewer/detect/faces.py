@@ -18,6 +18,7 @@ _DETECT_SIDES = (640, 960)
 _FALSE_HASH_LIMIT = 300
 _FALSE_HAMMING = 10
 _YUNET_SCORE = 0.75
+_YUNET_MIN_SIDE = 128
 _YUNET_LOCK = threading.Lock()
 
 
@@ -116,12 +117,26 @@ def _image_detector() -> mp.tasks.vision.FaceDetector:
 def _yunet() -> cv2.FaceDetectorYN | None:
     if not _YUNET.is_file():
         return None
+    backend = int(getattr(cv2.dnn, "DNN_BACKEND_OPENCV", 3))
+    target = int(getattr(cv2.dnn, "DNN_TARGET_CPU", 0))
     try:
         return cv2.FaceDetectorYN.create(
-            str(_YUNET), "", (320, 320), _YUNET_SCORE, 0.3, 5000
+            str(_YUNET),
+            "",
+            (320, 320),
+            float(_YUNET_SCORE),
+            0.3,
+            5000,
+            backend,
+            target,
         )
-    except cv2.error:
-        return None
+    except (cv2.error, TypeError, OSError, ValueError):
+        try:
+            return cv2.FaceDetectorYN.create(
+                str(_YUNET), "", (320, 320), _YUNET_SCORE, 0.3, 5000
+            )
+        except cv2.error:
+            return None
 
 
 @lru_cache(maxsize=1)
@@ -158,11 +173,14 @@ def _mediapipe_eyes(
 
 
 def _mediapipe_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
-    rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
-    if not rgb.flags["C_CONTIGUOUS"]:
-        rgb = np.ascontiguousarray(rgb)
-    image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-    result = _image_detector().detect(image)
+    try:
+        rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+        if not rgb.flags["C_CONTIGUOUS"]:
+            rgb = np.ascontiguousarray(rgb)
+        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        result = _image_detector().detect(image)
+    except Exception:
+        return []
     boxes: list[Box] = []
     if not result.detections:
         return boxes
@@ -184,8 +202,10 @@ def _mediapipe_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Bo
 
 def _yunet_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
     ih, iw = small.shape[:2]
-    if ih < 32 or iw < 32:
+    if min(ih, iw) < _YUNET_MIN_SIDE:
         return []
+    if not small.flags["C_CONTIGUOUS"]:
+        small = np.ascontiguousarray(small)
     detector = _yunet()
     if detector is None:
         return []
