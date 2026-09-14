@@ -1,3 +1,5 @@
+import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -130,7 +132,20 @@ def test_persist_failure_does_not_raise(qtbot, monkeypatch) -> None:
     assert t("ja", "save_failed") in app.operator.meta.text()
 
 
-def test_second_protect_waits_for_the_first(qtbot) -> None:
+def test_second_protect_waits_for_the_first(qtbot, monkeypatch) -> None:
+    current = {"n": 0, "max": 0}
+    lock = threading.Lock()
+
+    def fake_protect(bgr, settings, note, **_kwargs):
+        with lock:
+            current["n"] += 1
+            current["max"] = max(current["max"], current["n"])
+        time.sleep(0.15)
+        with lock:
+            current["n"] -= 1
+        return bgr.copy(), False, False
+
+    monkeypatch.setattr("stream_media_viewer.app.protect_for_note", fake_protect)
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
     qtbot.addWidget(app.output)
@@ -141,7 +156,30 @@ def test_second_protect_waits_for_the_first(qtbot) -> None:
     app._start_protect(frame, [])
     assert app._worker is not first
     assert not first.isRunning()
+    assert current["max"] == 1
     qtbot.waitUntil(lambda: app._worker is not None and not app._worker.isRunning(), timeout=8000)
+
+
+def test_stop_protect_keeps_running_thread(qtbot, monkeypatch) -> None:
+    release = threading.Event()
+
+    def blocker(bgr, settings, note, **_kwargs):
+        release.wait(timeout=30)
+        return bgr.copy(), False, False
+
+    monkeypatch.setattr("stream_media_viewer.app.protect_for_note", blocker)
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    app._start_protect(np.zeros((48, 48, 3), dtype=np.uint8), [])
+    first = app._worker
+    assert first is not None
+    qtbot.waitUntil(first.isRunning, timeout=2000)
+    app._stop_protect_worker(timeout_ms=50)
+    assert not first.isFinished()
+    assert first in app._kept_threads
+    release.set()
+    qtbot.waitUntil(first.isFinished, timeout=5000)
 
 
 def test_settings_apply_error_stays_on_operator(qtbot, monkeypatch) -> None:
@@ -519,6 +557,9 @@ def test_persist_survives_deleted_workers(qtbot) -> None:
 
     class Dead:
         def isRunning(self) -> bool:
+            raise RuntimeError("libshiboken: Internal C++ object (ThumbWorker) already deleted.")
+
+        def isFinished(self) -> bool:
             raise RuntimeError("libshiboken: Internal C++ object (ThumbWorker) already deleted.")
 
         def requestInterruption(self) -> None:
