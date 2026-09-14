@@ -72,6 +72,15 @@ def _format_duration(ms: int) -> str:
     return f"{sec // 60}:{sec % 60:02d}"
 
 
+def _qthread_live(worker: QThread | None) -> bool:
+    if worker is None:
+        return False
+    try:
+        return not worker.isFinished()
+    except (RuntimeError, AttributeError):
+        return False
+
+
 class ProtectThread(QThread):
     done = Signal(object, bool, bool, int)
     failed = Signal(int)
@@ -136,6 +145,7 @@ class StreamMediaViewerApp:
         self._thumb_pix: dict[str, QPixmap] = {}
         self._scan_worker: ScanWorker | None = None
         self._thumb_worker: ThumbWorker | None = None
+        self._kept_threads: list[QThread] = []
         self._scan_token = 0
         self._protect_seq = 0
         self._undo: list[list[dict]] = []
@@ -380,12 +390,9 @@ class StreamMediaViewerApp:
         self._scan_token += 1
         token = self._scan_token
         self._stop_protect_worker()
-        if self._scan_worker is not None and self._scan_worker.isRunning():
-            self._scan_worker.requestInterruption()
-            self._scan_worker.wait(8000)
-        if self._thumb_worker is not None and self._thumb_worker.isRunning():
-            self._thumb_worker.requestInterruption()
-            self._thumb_worker.wait(8000)
+        self._stop_qthread(self._scan_worker, timeout_ms=8000)
+        self._scan_worker = None
+        self._stop_qthread(self._thumb_worker, timeout_ms=8000)
         self._thumb_worker = None
         self._thumb_pix.clear()
         self._protect_cache.clear()
@@ -436,9 +443,7 @@ class StreamMediaViewerApp:
         self._start_thumbs()
 
     def _start_thumbs(self) -> None:
-        if self._thumb_worker is not None and self._thumb_worker.isRunning():
-            self._thumb_worker.requestInterruption()
-            self._thumb_worker.wait(8000)
+        self._stop_qthread(self._thumb_worker, timeout_ms=8000)
         images = [item.path for item in self._items if item.kind == "image"]
         videos = [item.path for item in self._items if item.kind == "video"]
         if not images and not videos:
@@ -479,6 +484,11 @@ class StreamMediaViewerApp:
         self._stop_qthread(self._thumb_worker, timeout_ms=1500)
         self._thumb_worker = None
 
+    def _keep_qthread(self, worker: QThread | None) -> None:
+        self._kept_threads = [item for item in self._kept_threads if _qthread_live(item)]
+        if worker is not None and _qthread_live(worker) and worker not in self._kept_threads:
+            self._kept_threads.append(worker)
+
     def _stop_qthread(self, worker, *, timeout_ms: int) -> None:
         if worker is None:
             return
@@ -489,11 +499,19 @@ class StreamMediaViewerApp:
                     disconnect(self._on_thumb_ready)
                 except (TypeError, RuntimeError):
                     pass
-            if worker.isRunning():
-                worker.requestInterruption()
-                worker.wait(timeout_ms)
-        except RuntimeError:
+            if worker.isFinished():
+                return
+            worker.requestInterruption()
+            remaining = max(0, int(timeout_ms))
+            while remaining > 0 and not worker.isRunning() and not worker.isFinished():
+                QThread.msleep(10)
+                remaining -= 10
+            if not worker.isFinished():
+                worker.wait(max(1, remaining))
+        except (TypeError, RuntimeError, AttributeError):
+            self._keep_qthread(worker)
             return
+        self._keep_qthread(worker)
 
     def _apply_folder_dates(self) -> None:
         dates = [item.captured_at.date() for item in self._items if item.captured_at]
@@ -774,7 +792,7 @@ class StreamMediaViewerApp:
         self._worker.failed.connect(self._on_protect_failed)
         self._worker.start()
 
-    def _stop_protect_worker(self, timeout_ms: int = 8000) -> None:
+    def _stop_protect_worker(self, timeout_ms: int = 60_000) -> None:
         worker = self._worker
         if worker is None:
             return
@@ -783,12 +801,7 @@ class StreamMediaViewerApp:
             worker.failed.disconnect(self._on_protect_failed)
         except (TypeError, RuntimeError):
             pass
-        try:
-            if worker.isRunning():
-                worker.requestInterruption()
-                worker.wait(timeout_ms)
-        except RuntimeError:
-            pass
+        self._stop_qthread(worker, timeout_ms=timeout_ms)
         self._worker = None
 
     def _on_protect_failed(self, seq: int) -> None:
@@ -1167,14 +1180,7 @@ class StreamMediaViewerApp:
     def _stop_preload(self) -> None:
         worker = self._preload
         self._preload = None
-        if worker is None:
-            return
-        try:
-            if worker.isRunning():
-                worker.requestInterruption()
-                worker.wait(1500)
-        except RuntimeError:
-            return
+        self._stop_qthread(worker, timeout_ms=1500)
 
     def _start_preload(self) -> None:
         if self._folder_queue:
