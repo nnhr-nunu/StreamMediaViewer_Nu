@@ -15,6 +15,7 @@ from stream_media_viewer import (
 from stream_media_viewer.app import ProtectThread, StreamMediaViewerApp
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.item import MediaItem
+from stream_media_viewer.library.neighbors import neighbor_rows
 from stream_media_viewer.library.scan import scan_folder
 from stream_media_viewer.settings import AppSettings
 from stream_media_viewer.ui.output_window import IDLE_WINDOW_TITLE
@@ -156,17 +157,13 @@ def test_persist_failure_does_not_raise(qtbot, monkeypatch) -> None:
     assert t("ja", "save_failed") in app.operator.meta.text()
 
 
-def test_second_protect_waits_for_the_first(qtbot, monkeypatch) -> None:
-    current = {"n": 0, "max": 0}
-    lock = threading.Lock()
+def test_second_protect_does_not_block_ui(qtbot, monkeypatch) -> None:
+    current = {"n": 0}
 
     def fake_protect(bgr, settings, note, **_kwargs):
-        with lock:
-            current["n"] += 1
-            current["max"] = max(current["max"], current["n"])
-        time.sleep(0.15)
-        with lock:
-            current["n"] -= 1
+        current["n"] += 1
+        time.sleep(0.2)
+        current["n"] -= 1
         return bgr.copy(), False, False
 
     monkeypatch.setattr("stream_media_viewer.app.protect_for_note", fake_protect)
@@ -177,11 +174,59 @@ def test_second_protect_waits_for_the_first(qtbot, monkeypatch) -> None:
     app._start_protect(frame, [])
     first = app._worker
     assert first is not None
+    qtbot.waitUntil(first.isRunning, timeout=2000)
+    started = time.perf_counter()
     app._start_protect(frame, [])
+    elapsed = time.perf_counter() - started
+    assert elapsed < 0.08
     assert app._worker is not first
-    assert not first.isRunning()
-    assert current["max"] == 1
     qtbot.waitUntil(lambda: app._worker is not None and not app._worker.isRunning(), timeout=8000)
+
+
+def test_reload_photo_returns_before_decode(qtbot, tmp_path: Path, monkeypatch) -> None:
+    def slow_load(path, **_kwargs):
+        time.sleep(0.2)
+        return Image.new("RGB", (8, 8), (10, 20, 30))
+
+    monkeypatch.setattr("stream_media_viewer.app.load_rgb_image", slow_load)
+    monkeypatch.setattr("stream_media_viewer.library.preview_load.load_rgb_image", slow_load)
+    monkeypatch.setattr(
+        "stream_media_viewer.app.protect_for_note",
+        lambda bgr, *_a, **_k: (bgr.copy(), False, False),
+    )
+    Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "a.jpg")
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    app._items = scan_folder(tmp_path, kinds={"image"})
+    app._visible = [0]
+    app._index = 0
+    started = time.perf_counter()
+    app._reload_current()
+    elapsed = time.perf_counter() - started
+    assert elapsed < 0.08
+    qtbot.waitUntil(lambda: app._source_bgr is not None, timeout=8000)
+
+
+def test_protect_done_prefills_neighbor_cache(qtbot, tmp_path: Path, monkeypatch) -> None:
+    def instant_protect(bgr, *_a, **_k):
+        return bgr.copy(), False, False
+
+    monkeypatch.setattr("stream_media_viewer.app.protect_for_note", instant_protect)
+    monkeypatch.setattr("stream_media_viewer.library.preview_load.protect_for_note", instant_protect)
+    for name in ("a.jpg", "b.jpg", "c.jpg"):
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / name)
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    app._open_folder_path(str(tmp_path))
+    qtbot.waitUntil(lambda: len(app._items) == 3, timeout=8000)
+    qtbot.waitUntil(lambda: len(app._visible) == 3, timeout=8000)
+    neighbor = app._items[app._visible[neighbor_rows(app._index, len(app._visible))[0]]]
+    qtbot.waitUntil(
+        lambda: app._protect_cache.get(app._key_for(neighbor)) is not None,
+        timeout=8000,
+    )
 
 
 def test_stop_protect_keeps_running_thread(qtbot, monkeypatch) -> None:
