@@ -21,8 +21,6 @@
 
 どれか分からないときは、左上のリンゴマーク → **この Mac について** を見てください。「チップ」が Apple なら `macOS.zip`、「プロセッサ」が Intel なら `macOS-intel.zip` です。
 
-名前だけの `StreamMediaViewer.zip` は使いません。
-
 起動時に警告が出ることがあります。ストア経由ではないためで、ウイルスではありません。
 
 - **Windows** 「WindowsによってPCが保護されました」など → **詳細情報** → **実行**
@@ -100,8 +98,6 @@ A Windows/Mac app that automatically adds blur to faces in photos and videos bef
 | Mac (Intel, e.g. 2016 MacBook Pro on macOS 12) | `StreamMediaViewer-macOS-intel.zip` | Unzip and open `StreamMediaViewer` (or the `.app`) |
 
 If you are not sure, open the Apple menu → **About This Mac**. If it says Apple chip, use `macOS.zip`. If it says Intel, use `macOS-intel.zip`.
-
-Do not use a file named only `StreamMediaViewer.zip`.
 
 The first launch may show an OS warning because this is not a store app. It is not a virus.
 
