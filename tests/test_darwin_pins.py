@@ -15,3 +15,5 @@ def test_macos_install_uses_macos12_wheels() -> None:
     workflow = Path(".github/workflows/build-windows.yml").read_text(encoding="utf-8")
     assert "scripts/ci_macos_install.py" in workflow
     assert "scripts/ci_macos_minos.py" in workflow
+    assert "python-3.10.11-macos11.pkg" in workflow
+    assert "python_from: python.org" in workflow
