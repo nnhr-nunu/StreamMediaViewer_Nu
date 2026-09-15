@@ -39,12 +39,26 @@ jobs:
           path: StreamMediaViewer-windows.zip
 
   macos:
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: macos-zip
+            zip: StreamMediaViewer-macOS.zip
+          - os: macos-15-intel
+            artifact: macos-intel-zip
+            zip: StreamMediaViewer-macOS-intel.zip
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+      - name: Show CPU
+        run: uname -m
       - run: python -m pip install -U pip
       - run: pip install -e ".[dev]"
       - name: Test
@@ -65,19 +79,27 @@ jobs:
           --hidden-import PySide6.QtMultimedia
           --add-data "src/stream_media_viewer/assets:stream_media_viewer/assets"
           src/stream_media_viewer/__main__.py
+      - name: Confirm app CPU
+        run: |
+          bin="dist/StreamMediaViewer.app/Contents/MacOS/StreamMediaViewer"
+          if [ ! -f "$bin" ]; then
+            bin="dist/StreamMediaViewer/StreamMediaViewer"
+          fi
+          file "$bin"
+          lipo -info "$bin" || true
       - name: Zip
         run: |
           cp packaging/HOW_TO_RUN.txt dist/HOW_TO_RUN.txt
           cd dist
           if [ -d StreamMediaViewer.app ]; then
-            zip -r ../StreamMediaViewer-macOS.zip StreamMediaViewer.app HOW_TO_RUN.txt
+            zip -r "../${{ matrix.zip }}" StreamMediaViewer.app HOW_TO_RUN.txt
           else
-            zip -r ../StreamMediaViewer-macOS.zip StreamMediaViewer HOW_TO_RUN.txt
+            zip -r "../${{ matrix.zip }}" StreamMediaViewer HOW_TO_RUN.txt
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-zip
-          path: StreamMediaViewer-macOS.zip
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.zip }}
 
   release:
     needs: [windows, macos]
@@ -103,11 +125,19 @@ jobs:
             ## ダウンロード手順
 
             1. このページ下部の **Assets** を開く
-            2. Windows は **StreamMediaViewer-windows.zip**、Mac は **StreamMediaViewer-macOS.zip** をダウンロード
+            2. 下の表の zip をダウンロードする
             3. ダウンロードした zip を展開する
             4. Windows は `StreamMediaViewer.exe`、Mac は `StreamMediaViewer.app`（または `StreamMediaViewer`）を開く
 
-            **Windows 用と Mac 用は別の zip です。** 名前だけの `StreamMediaViewer.zip` は使いません。
+            | PC | ダウンロードするファイル |
+            | -- | ------------ |
+            | Windows | `StreamMediaViewer-windows.zip` |
+            | Mac（M1 / M2 / M3 など Apple チップ） | `StreamMediaViewer-macOS.zip` |
+            | Mac（Intel。2016 の MacBook Pro など） | `StreamMediaViewer-macOS-intel.zip` |
+
+            どれか分からないときは、左上のリンゴマーク → **この Mac について** を見てください。「チップ」が Apple なら `macOS.zip`、「プロセッサ」が Intel なら `macOS-intel.zip` です。
+
+            **名前だけの `StreamMediaViewer.zip` は使いません。**
 
             ## 起動時の警告（署名していないため出ます）
 
@@ -124,9 +154,12 @@ jobs:
             2. 確認が出たらもう一度 **開く**
             3. まだダメなら **システム設定 → プライバシーとセキュリティ** で許可する
 
+            「このアプリケーションはこの Mac ではサポートされていない」と出たら、zip を間違えています。Intel の Mac は **StreamMediaViewer-macOS-intel.zip** を使ってください。
+
             詳しい使い方はリポジトリの README を見てください。
           files: |
             windows-zip/StreamMediaViewer-windows.zip
             macos-zip/StreamMediaViewer-macOS.zip
+            macos-intel-zip/StreamMediaViewer-macOS-intel.zip
           fail_on_unmatched_files: true
           make_latest: true

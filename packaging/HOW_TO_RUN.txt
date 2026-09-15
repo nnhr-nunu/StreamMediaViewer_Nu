@@ -10,7 +10,8 @@ StreamMediaViewer(ぬ)
 動画は ⏳ で先に準備すると、配信中に遅れにくくなります。
 
 Windows: StreamMediaViewer.exe
-Mac: StreamMediaViewer（または .app）
+Mac（Apple チップ）: StreamMediaViewer-macOS.zip
+Mac（Intel）: StreamMediaViewer-macOS-intel.zip
 
 OBS で古い絵が残るときは、キャプチャ方法を「Windows 10 (1903 以降)」にし、
 「ウィンドウが無いときは何も表示しない」があればオンにしてください。

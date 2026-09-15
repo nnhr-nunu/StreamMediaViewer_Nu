@@ -9,14 +9,17 @@
 **[最新版のダウンロードページを開く](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/tag/latest)**
 
 1. 上記最新版ダウンロードページを開きます。
-2. Windowsは `StreamMediaViewer-windows.zip`、Macは `StreamMediaViewer-macOS.zip` をダウンロードします。
+2. Windowsは `StreamMediaViewer-windows.zip` を、Macは下の表の zip をダウンロードします。
 3. ダウンロードしたzipを展開します。
 4. Windowsは展開したフォルダの `StreamMediaViewer.exe` を、Macは `StreamMediaViewer.app`（または `StreamMediaViewer`）を開きます。
 
 | OS | ダウンロードするファイル | 起動方法 |
 | -------- | ------------ | ---- |
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | 展開して `StreamMediaViewer.exe` をダブルクリック |
-| Mac (macOS 12以降) | `StreamMediaViewer-macOS.zip` | 展開して `StreamMediaViewer`（または `.app`）を開く |
+| Mac（M1 / M2 / M3 など Apple チップ） | `StreamMediaViewer-macOS.zip` | 展開して `StreamMediaViewer`（または `.app`）を開く |
+| Mac（Intel。2016 の MacBook Pro など、macOS 12） | `StreamMediaViewer-macOS-intel.zip` | 展開して `StreamMediaViewer`（または `.app`）を開く |
+
+どれか分からないときは、左上のリンゴマーク → **この Mac について** を見てください。「チップ」が Apple なら `macOS.zip`、「プロセッサ」が Intel なら `macOS-intel.zip` です。
 
 名前だけの `StreamMediaViewer.zip` は使いません。
 
@@ -24,6 +27,7 @@
 
 - **Windows** 「WindowsによってPCが保護されました」など → **詳細情報** → **実行**
 - **Mac** 「開発元を確認できない」→ アプリを右クリックして **開く**。まだダメなら **システム設定 → プライバシーとセキュリティ** で許可
+- **Mac** 「この Mac ではサポートされていない」→ zip を間違えています。Intel なら `StreamMediaViewer-macOS-intel.zip` を使ってください
 
 ## 使い方
 
@@ -85,14 +89,17 @@ A Windows/Mac app that automatically adds blur to faces in photos and videos bef
 **[Open the latest download page](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/tag/latest)**
 
 1. Open the latest download page linked above.
-2. Download `StreamMediaViewer-windows.zip` for Windows or `StreamMediaViewer-macOS.zip` for Mac.
+2. Download `StreamMediaViewer-windows.zip` for Windows, or the Mac zip from the table below.
 3. Unzip the downloaded file.
 4. On Windows, open `StreamMediaViewer.exe`. On Mac, open `StreamMediaViewer.app` (or `StreamMediaViewer`).
 
 | PC | File | How to start |
 | -- | ---- | ------------ |
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | Unzip and double-click `StreamMediaViewer.exe` |
-| Mac (macOS 12+) | `StreamMediaViewer-macOS.zip` | Unzip and open `StreamMediaViewer` (or the `.app`) |
+| Mac (Apple silicon: M1 / M2 / M3) | `StreamMediaViewer-macOS.zip` | Unzip and open `StreamMediaViewer` (or the `.app`) |
+| Mac (Intel, e.g. 2016 MacBook Pro on macOS 12) | `StreamMediaViewer-macOS-intel.zip` | Unzip and open `StreamMediaViewer` (or the `.app`) |
+
+If you are not sure, open the Apple menu → **About This Mac**. If it says Apple chip, use `macOS.zip`. If it says Intel, use `macOS-intel.zip`.
 
 Do not use a file named only `StreamMediaViewer.zip`.
 
@@ -100,6 +107,7 @@ The first launch may show an OS warning because this is not a store app. It is n
 
 - **Windows** “Windows protected your PC” → **More info** → **Run anyway**
 - **Mac** “can't be opened because the developer cannot be verified” → right-click the app → **Open**. If it still blocks, allow it in **System Settings → Privacy & Security**.
+- **Mac** “not supported on this Mac” → you grabbed the wrong zip. Intel Macs need `StreamMediaViewer-macOS-intel.zip`.
 
 ## Start in 3 minutes
 
