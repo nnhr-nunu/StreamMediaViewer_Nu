@@ -88,7 +88,12 @@ jobs:
       - name: Remove obsolete generic asset
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release delete-asset latest StreamMediaViewer.zip --yes || true
+          GH_REPO: ${{ github.repository }}
+        run: |
+          asset_id=$(gh api "repos/${GH_REPO}/releases/tags/latest" --jq '.assets[] | select(.name=="StreamMediaViewer.zip") | .id' || true)
+          if [ -n "${asset_id}" ]; then
+            gh api --method DELETE "repos/${GH_REPO}/releases/assets/${asset_id}"
+          fi
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -99,10 +104,25 @@ jobs:
 
             1. このページ下部の **Assets** を開く
             2. Windows は **StreamMediaViewer-windows.zip**、Mac は **StreamMediaViewer-macOS.zip** をダウンロード
-            3. ダウンロードした zip を展開
+            3. ダウンロードした zip を展開する
             4. Windows は `StreamMediaViewer.exe`、Mac は `StreamMediaViewer.app`（または `StreamMediaViewer`）を開く
 
-            OS と違う zip は使わないでください。
+            **Windows 用と Mac 用は別の zip です。** 名前だけの `StreamMediaViewer.zip` は使いません。
+
+            ## 起動時の警告（署名していないため出ます）
+
+            ウイルスではありません。このソフトはストア経由ではないので、OS が初回だけ止めます。
+
+            **Windows** 「WindowsによってPCが保護されました」などと出たら:
+
+            1. **詳細情報** を開く
+            2. **実行** を選ぶ
+
+            **Mac** 「開発元を確認できないため開けません」と出たら:
+
+            1. アプリを **右クリック** して **開く**
+            2. 確認が出たらもう一度 **開く**
+            3. まだダメなら **システム設定 → プライバシーとセキュリティ** で許可する
 
             詳しい使い方はリポジトリの README を見てください。
           files: |

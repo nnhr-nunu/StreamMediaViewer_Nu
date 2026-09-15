@@ -18,7 +18,12 @@
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | 展開して `StreamMediaViewer.exe` をダブルクリック |
 | Mac (macOS 12以降) | `StreamMediaViewer-macOS.zip` | 展開して `StreamMediaViewer`（または `.app`）を開く |
 
-Mac で「開発元が未確認」と出たら、ファイルを右クリックして「開く」を選んでください。
+名前だけの `StreamMediaViewer.zip` は使いません。
+
+起動時に警告が出ることがあります。ストア経由ではないためで、ウイルスではありません。
+
+- **Windows** 「WindowsによってPCが保護されました」など → **詳細情報** → **実行**
+- **Mac** 「開発元を確認できない」→ アプリを右クリックして **開く**。まだダメなら **システム設定 → プライバシーとセキュリティ** で許可
 
 ## 使い方
 
@@ -89,7 +94,12 @@ A Windows/Mac app that automatically adds blur to faces in photos and videos bef
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | Unzip and double-click `StreamMediaViewer.exe` |
 | Mac (macOS 12+) | `StreamMediaViewer-macOS.zip` | Unzip and open `StreamMediaViewer` (or the `.app`) |
 
-On Mac, if Gatekeeper blocks it, right-click the app → Open.
+Do not use a file named only `StreamMediaViewer.zip`.
+
+The first launch may show an OS warning because this is not a store app. It is not a virus.
+
+- **Windows** “Windows protected your PC” → **More info** → **Run anyway**
+- **Mac** “can't be opened because the developer cannot be verified” → right-click the app → **Open**. If it still blocks, allow it in **System Settings → Privacy & Security**.
 
 ## Start in 3 minutes
 
