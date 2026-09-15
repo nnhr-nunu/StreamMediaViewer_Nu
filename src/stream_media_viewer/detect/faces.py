@@ -7,7 +7,6 @@ from functools import lru_cache
 from pathlib import Path
 
 import cv2
-import mediapipe as mp
 import numpy as np
 
 from stream_media_viewer.detect.blur import Box, expand_box
@@ -105,7 +104,9 @@ def face_box_from_eyes(
 
 
 @lru_cache(maxsize=1)
-def _image_detector() -> mp.tasks.vision.FaceDetector:
+def _image_detector() -> object:
+    import mediapipe as mp
+
     options = mp.tasks.vision.FaceDetectorOptions(
         base_options=mp.tasks.BaseOptions(model_asset_path=str(_MODEL)),
         running_mode=mp.tasks.vision.RunningMode.IMAGE,
@@ -176,6 +177,8 @@ def _mediapipe_eyes(
 def _mediapipe_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
     if sys.platform == "darwin":
         return []
+    import mediapipe as mp
+
     try:
         rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
         if not rgb.flags["C_CONTIGUOUS"]:
