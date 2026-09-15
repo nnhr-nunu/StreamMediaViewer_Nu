@@ -61,6 +61,25 @@ jobs:
         run: uname -m
       - run: python -m pip install -U pip
       - run: pip install -e ".[dev]"
+      - name: Confirm macOS 12 libraries
+        run: |
+          python - <<'PY'
+          from importlib.metadata import version
+
+          pyside = version("PySide6")
+          cv = version("opencv-python")
+          print("PySide6", pyside)
+          print("opencv-python", cv)
+
+          def major_minor(value):
+              parts = value.split(".")
+              return int(parts[0]), int(parts[1])
+
+          if major_minor(pyside) >= (6, 10):
+              raise SystemExit("PySide6 must stay below 6.10 for macOS 12")
+          if major_minor(cv) >= (4, 11):
+              raise SystemExit("opencv-python must stay below 4.11 for macOS 12")
+          PY
       - name: Test
         env:
           PYTHONFAULTHANDLER: "1"
@@ -127,7 +146,9 @@ jobs:
             1. このページ下部の **Assets** を開く
             2. 下の表の zip をダウンロードする
             3. ダウンロードした zip を展開する
-            4. Windows は `StreamMediaViewer.exe`、Mac は `StreamMediaViewer.app`（または `StreamMediaViewer`）を開く
+            4. Windows は `StreamMediaViewer.exe`、Mac は `StreamMediaViewer.app` を開く（無いときは `StreamMediaViewer`）
+
+            Mac で `StreamMediaViewer.exe` だけが見えるときは、Windows 用の zip です。窓は出ません。
 
             | PC | ダウンロードするファイル |
             | -- | ------------ |
@@ -153,6 +174,8 @@ jobs:
             3. まだダメなら **システム設定 → プライバシーとセキュリティ** で許可する
 
             「このアプリケーションはこの Mac ではサポートされていない」と出たら、zip を間違えています。Intel の Mac は **StreamMediaViewer-macOS-intel.zip** を使ってください。
+
+            `.exe` を開いても何も出ないときは、Windows 用です。Mac は **StreamMediaViewer.app** を右クリックして **開く** してください。
 
             詳しい使い方はリポジトリの README を見てください。
           files: |

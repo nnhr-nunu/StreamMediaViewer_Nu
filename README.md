@@ -11,7 +11,7 @@
 1. 上記最新版ダウンロードページを開きます。
 2. Windowsは `StreamMediaViewer-windows.zip` を、Macは下の表の zip をダウンロードします。
 3. ダウンロードしたzipを展開します。
-4. Windowsは展開したフォルダの `StreamMediaViewer.exe` を、Macは `StreamMediaViewer.app`（または `StreamMediaViewer`）を開きます。
+4. Windowsは展開したフォルダの `StreamMediaViewer.exe` を、Macは `StreamMediaViewer.app`（無いときは `StreamMediaViewer`）を開きます。Mac で `.exe` だけがあるときは Windows 用です。
 
 | OS | ダウンロードするファイル | 起動方法 |
 | -------- | ------------ | ---- |
@@ -26,6 +26,7 @@
 - **Windows** 「WindowsによってPCが保護されました」など → **詳細情報** → **実行**
 - **Mac** 「開発元を確認できない」→ アプリを右クリックして **開く**。まだダメなら **システム設定 → プライバシーとセキュリティ** で許可
 - **Mac** 「この Mac ではサポートされていない」→ zip を間違えています。Intel なら `StreamMediaViewer-macOS-intel.zip` を使ってください
+- **Mac** `.exe` を開いても何も出ない → Windows 用を取っています。`StreamMediaViewer.app` を右クリックして開いてください
 
 ## 使い方
 
@@ -89,7 +90,7 @@ A Windows/Mac app that automatically adds blur to faces in photos and videos bef
 1. Open the latest download page linked above.
 2. Download `StreamMediaViewer-windows.zip` for Windows, or the Mac zip from the table below.
 3. Unzip the downloaded file.
-4. On Windows, open `StreamMediaViewer.exe`. On Mac, open `StreamMediaViewer.app` (or `StreamMediaViewer`).
+4. On Windows, open `StreamMediaViewer.exe`. On Mac, open `StreamMediaViewer.app` (or `StreamMediaViewer` if there is no `.app`). If you only see `.exe` on a Mac, that zip is for Windows.
 
 | PC | File | How to start |
 | -- | ---- | ------------ |
@@ -104,6 +105,7 @@ The first launch may show an OS warning because this is not a store app. It is n
 - **Windows** “Windows protected your PC” → **More info** → **Run anyway**
 - **Mac** “can't be opened because the developer cannot be verified” → right-click the app → **Open**. If it still blocks, allow it in **System Settings → Privacy & Security**.
 - **Mac** “not supported on this Mac” → you grabbed the wrong zip. Intel Macs need `StreamMediaViewer-macOS-intel.zip`.
+- **Mac** opening `.exe` does nothing → that zip is for Windows. Right-click `StreamMediaViewer.app` and choose **Open**.
 
 ## Start in 3 minutes
 
