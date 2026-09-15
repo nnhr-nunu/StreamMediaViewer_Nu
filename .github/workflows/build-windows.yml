@@ -60,16 +60,18 @@ jobs:
       - name: Show CPU
         run: uname -m
       - run: python -m pip install -U pip
-      - run: pip install -e ".[dev]"
+      - run: python scripts/ci_macos_install.py
       - name: Confirm macOS 12 libraries
         run: |
           python - <<'PY'
           from importlib.metadata import version
+          import numpy
 
           pyside = version("PySide6")
           cv = version("opencv-python")
           print("PySide6", pyside)
           print("opencv-python", cv)
+          print("numpy", numpy.__version__, numpy.__file__)
 
           def major_minor(value):
               parts = value.split(".")
@@ -106,6 +108,8 @@ jobs:
           fi
           file "$bin"
           lipo -info "$bin" || true
+      - name: Confirm macOS 12 binaries
+        run: python scripts/ci_macos_minos.py
       - name: Zip
         run: |
           cp packaging/HOW_TO_RUN.txt dist/HOW_TO_RUN.txt
