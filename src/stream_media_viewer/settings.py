@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -186,12 +187,30 @@ class AppSettings:
         )
 
 
+def _legacy_frozen_settings_path() -> Path:
+    return Path(sys.executable).resolve().parent / SETTINGS_FILENAME
+
+
+def _maybe_migrate_frozen_settings(target: Path) -> None:
+    if not getattr(sys, "frozen", False) or target.is_file():
+        return
+    legacy = _legacy_frozen_settings_path()
+    if not legacy.is_file():
+        return
+    try:
+        if legacy.resolve() == target.resolve():
+            return
+        shutil.copy2(legacy, target)
+    except OSError as exc:
+        log_exception(exc)
+
+
 def settings_path() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent / SETTINGS_FILENAME
     directory = user_config_dir()
     directory.mkdir(parents=True, exist_ok=True)
-    return directory / SETTINGS_FILENAME
+    target = directory / SETTINGS_FILENAME
+    _maybe_migrate_frozen_settings(target)
+    return target
 
 
 def load_settings_with_error(path: Path | None = None) -> tuple[AppSettings, str | None]:

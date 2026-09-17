@@ -196,6 +196,19 @@ jobs:
 
             `.exe` を開いても何も出ないときは、Windows 用です。Mac は **StreamMediaViewer.app** を右クリックして **開く** してください。
 
+            ## 学習データの移行
+
+            誤検出の学習、星、手動ぼかし、最近使ったフォルダなどは、zip の中ではなく PC 側に保存します。最新版の zip を展開し直しても消えません。
+
+            **いつも使っているフォルダに上書き展開してから起動**すると、古い `settings.json` を初回起動で自動的に引き継ぎます。一度引き継げば、あとは別のフォルダへ展開しても残ります。
+
+            新しいフォルダへ展開して学習が戻らないときは:
+
+            1. 古い展開フォルダから `settings.json` を探す（Windows は `StreamMediaViewer.exe` と同じ場所。Mac は `StreamMediaViewer.app` を右クリック → **パッケージの内容を表示** → `Contents/MacOS`）
+            2. そのファイルを新しい展開フォルダへコピーしてから起動する
+
+            古いフォルダを消す前に、`settings.json` が残っているか確認してください。
+
             詳しい使い方はリポジトリの README を見てください。
           files: |
             windows-zip/StreamMediaViewer-windows.zip
