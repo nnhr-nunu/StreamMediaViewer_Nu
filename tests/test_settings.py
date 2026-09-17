@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 from stream_media_viewer.settings import (
@@ -8,6 +9,7 @@ from stream_media_viewer.settings import (
     load_settings_with_error,
     parse_face_pipeline,
     save_settings,
+    settings_path,
 )
 from stream_media_viewer.ui.overlays import OUTPUT_LOUPE_PX
 
@@ -105,3 +107,68 @@ def test_corrupt_note_is_skipped_not_fatal(tmp_path: Path) -> None:
     assert loaded.blur_strength == 40
     assert "a.jpg" not in loaded.notes
     assert loaded.note_for("b.jpg").favorite is True
+
+
+def _freeze_settings(monkeypatch, config: Path, exe_dir: Path) -> None:
+    exe_dir.mkdir(parents=True, exist_ok=True)
+    exe = exe_dir / "StreamMediaViewer.exe"
+    if not exe.exists():
+        exe.write_bytes(b"")
+    monkeypatch.setattr("stream_media_viewer.settings.user_config_dir", lambda: config)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(exe))
+
+
+def test_frozen_settings_path_lives_in_user_config_dir(tmp_path: Path, monkeypatch) -> None:
+    config = tmp_path / "config"
+    _freeze_settings(monkeypatch, config, tmp_path / "app")
+    assert settings_path() == config / "settings.json"
+
+
+def test_frozen_settings_copy_legacy_file_into_user_config(tmp_path: Path, monkeypatch) -> None:
+    config = tmp_path / "config"
+    exe_dir = tmp_path / "app"
+    _freeze_settings(monkeypatch, config, exe_dir)
+    (exe_dir / "settings.json").write_text(
+        '{"false_face_hashes": ["abc"], "last_folder": "D:/media"}',
+        encoding="utf-8",
+    )
+    target = settings_path()
+    loaded = load_settings()
+    assert target == config / "settings.json"
+    assert target.is_file()
+    assert loaded.false_face_hashes == ["abc"]
+    assert loaded.last_folder == "D:/media"
+    assert (exe_dir / "settings.json").is_file()
+
+
+def test_frozen_settings_keep_existing_user_config(tmp_path: Path, monkeypatch) -> None:
+    config = tmp_path / "config"
+    config.mkdir()
+    (config / "settings.json").write_text(
+        '{"false_face_hashes": ["keep"]}',
+        encoding="utf-8",
+    )
+    exe_dir = tmp_path / "app"
+    _freeze_settings(monkeypatch, config, exe_dir)
+    (exe_dir / "settings.json").write_text(
+        '{"false_face_hashes": ["old"]}',
+        encoding="utf-8",
+    )
+    loaded = load_settings()
+    assert loaded.false_face_hashes == ["keep"]
+
+
+def test_source_launch_ignores_settings_beside_python(tmp_path: Path, monkeypatch) -> None:
+    config = tmp_path / "config"
+    exe_dir = tmp_path / "python"
+    exe_dir.mkdir()
+    (exe_dir / "settings.json").write_text(
+        '{"false_face_hashes": ["nope"]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("stream_media_viewer.settings.user_config_dir", lambda: config)
+    monkeypatch.setattr(sys, "frozen", False, raising=False)
+    monkeypatch.setattr(sys, "executable", str(exe_dir / "python.exe"))
+    assert settings_path() == config / "settings.json"
+    assert load_settings().false_face_hashes == []
