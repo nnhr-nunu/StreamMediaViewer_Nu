@@ -78,6 +78,16 @@ X: [@nnhr_nunu](https://x.com/nnhr_nunu)
 
 配信でご利用いただける場合、もしよければフォローいただけたらとても嬉しいです。
 
+## ライセンス
+
+このソフトウェアは [MIT License](./LICENSE) です。
+
+## 利用上の注意
+
+顔などのぼかしはできるだけ自動でつけますが、取りこぼしや、つけすぎてしまうこともあります。配信に出す前に、操作用ウィンドウで一度見て確認してください。
+
+このソフトは、できる範囲でお手伝いするものです。利用は自己責任でお願いいたします。利用によって何か困ったことが起きても、開発者は責任を負いかねます。
+
 ---
 
 # StreamMediaViewer (Nu) — English
@@ -153,3 +163,13 @@ X: [@nnhr_nunu](https://x.com/nnhr_nunu)
 For bug reports, please contact us by X direct message.
 
 If you use StreamMediaViewer for streaming, I would be very happy if you followed me on X.
+
+## License
+
+This software is released under the [MIT License](./LICENSE).
+
+## Notes
+
+Automatic blur is meant to help, but it can miss something or blur too much. Please review the operator window before you send a picture or video to the stream.
+
+Use this app at your own discretion. The developer is not responsible for any trouble that may come from using it.
