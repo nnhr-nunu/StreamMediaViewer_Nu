@@ -2,8 +2,7 @@ StreamMediaViewer(ぬ)
 
 起動するもの:
 - Windows: StreamMediaViewer.exe
-- Mac: StreamMediaViewer.app（無いときは StreamMediaViewer）
-Mac で .exe だけがあるときは、Windows 用の zip です。窓は出ません。
+- Mac: StreamMediaViewer.app
 
 1. この ZIP を展開する
 2. 上の「起動するもの」を開く（インストール不要）

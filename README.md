@@ -77,7 +77,7 @@ X: [@nnhr_nunu](https://x.com/nnhr_nunu)
 ## 利用上の注意
 
 顔などのぼかしはできるだけ自動でつけますが、取りこぼしやつけすぎもあり得るので、配信に出す前に操作用ウィンドウで一度確認をお願いします。
-このソフトはお手伝いツールとしてご自由にお使いいただき、利用による不都合については開発者は責任を負いかねます。
+このソフトウェアの利用による不都合について開発者は責任を負いかねます。
 
 ---
 
@@ -155,4 +155,4 @@ This software is released under the [MIT License](./LICENSE).
 
 Automatic blur is meant to help, but it can miss something or blur too much. Please review the operator window before you send a picture or video to the stream.
 
-Use this app at your own discretion. The developer is not responsible for any trouble that may come from using it.
+The developer is not responsible for any inconvenience caused by using this software.

@@ -167,9 +167,7 @@ jobs:
             1. このページ下部の **Assets** を開く
             2. 下の表の zip をダウンロードする
             3. ダウンロードした zip を展開する
-            4. Windows は `StreamMediaViewer.exe`、Mac は `StreamMediaViewer.app` を開く（無いときは `StreamMediaViewer`）
-
-            Mac で `StreamMediaViewer.exe` だけが見えるときは、Windows 用の zip です。窓は出ません。
+            4. Windows は `StreamMediaViewer.exe`、Mac は `StreamMediaViewer.app` を開く
 
             | PC | ダウンロードするファイル |
             | -- | ------------ |
