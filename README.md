@@ -19,14 +19,6 @@
 | Mac（M1 / M2 / M3 など Apple チップ） | `StreamMediaViewer-macOS.zip` | 展開して `StreamMediaViewer.app` を開く |
 | Mac（Intel。2016 の MacBook Pro など、macOS 12） | `StreamMediaViewer-macOS-intel.zip` | 展開して `StreamMediaViewer.app` を開く |
 
-Macでどのファイルか分からない場合は、[最新版のダウンロードページ](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/tag/latest)の案内を確認してください。
-
-起動時に警告が出ることがあります。ストア経由ではないためで、ウイルスではありません。
-
-- **Windows** 「WindowsによってPCが保護されました」など → **詳細情報** → **実行**
-- **Mac** 「開発元を確認できない」→ アプリを右クリックして **開く**。まだダメなら **システム設定 → プライバシーとセキュリティ** で許可
-- **Mac** 「この Mac ではサポートされていない」→ zip を間違えています。Intel なら `StreamMediaViewer-macOS-intel.zip` を使ってください
-
 ## 使い方
 
 1. 📁から写真や動画のフォルダを選びます。最近使ったフォルダも選択できます。
@@ -84,9 +76,8 @@ X: [@nnhr_nunu](https://x.com/nnhr_nunu)
 
 ## 利用上の注意
 
-顔などのぼかしはできるだけ自動でつけますが、取りこぼしや、つけすぎてしまうこともあります。配信に出す前に、操作用ウィンドウで一度見て確認してください。
-
-このソフトは、できる範囲でお手伝いするものです。利用は自己責任でお願いいたします。利用によって何か困ったことが起きても、開発者は責任を負いかねます。
+顔などのぼかしはできるだけ自動でつけますが、取りこぼしやつけすぎもあり得るので、配信に出す前に操作用ウィンドウで一度確認をお願いします。
+このソフトはお手伝いツールとしてご自由にお使いいただき、利用による不都合については開発者は責任を負いかねます。
 
 ---
 
@@ -108,14 +99,6 @@ A Windows/Mac app that automatically adds blur to faces in photos and videos bef
 | Windows 10 / 11 | `StreamMediaViewer-windows.zip` | Unzip and double-click `StreamMediaViewer.exe` |
 | Mac (Apple silicon: M1 / M2 / M3) | `StreamMediaViewer-macOS.zip` | Unzip and open `StreamMediaViewer.app` |
 | Mac (Intel, e.g. 2016 MacBook Pro on macOS 12) | `StreamMediaViewer-macOS-intel.zip` | Unzip and open `StreamMediaViewer.app` |
-
-If you are not sure which file to choose on a Mac, check the instructions on the [latest download page](https://github.com/nnhr-nunu/StreamMediaViewer_Nu/releases/tag/latest).
-
-The first launch may show an OS warning because this is not a store app. It is not a virus.
-
-- **Windows** “Windows protected your PC” → **More info** → **Run anyway**
-- **Mac** “can't be opened because the developer cannot be verified” → right-click the app → **Open**. If it still blocks, allow it in **System Settings → Privacy & Security**.
-- **Mac** “not supported on this Mac” → you grabbed the wrong zip. Intel Macs need `StreamMediaViewer-macOS-intel.zip`.
 
 ## Start in 3 minutes
 
