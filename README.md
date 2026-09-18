@@ -65,6 +65,7 @@
 
 開発者: ぬぬはら
 X: [@nnhr_nunu](https://x.com/nnhr_nunu)
+
 紹介ツイート： https://x.com/nnhr_nunu/status/2100926390078169405
 
 バグ報告はXのDMなどでお願いいたします。
