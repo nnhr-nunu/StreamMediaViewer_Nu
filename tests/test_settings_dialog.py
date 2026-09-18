@@ -30,3 +30,4 @@ def test_settings_dialog_keeps_blur_strength(qtbot) -> None:
     assert not hasattr(dialog, "cmb_enhance")
     assert not hasattr(dialog, "cmb_lang")
     assert not hasattr(dialog, "chk_audio")
+    assert not hasattr(dialog, "chk_dev_allow_capture")

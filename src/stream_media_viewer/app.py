@@ -64,6 +64,7 @@ from stream_media_viewer.settings import (
     save_settings,
 )
 from stream_media_viewer.ui.app_icon import apply_app_icon, configure_process_identity
+from stream_media_viewer.ui.capture_exclude import configure_dev_allow_capture
 from stream_media_viewer.ui.geometry import geometry_hex, restore_saved_geometry
 from stream_media_viewer.ui.list_row import FACE_MARK, row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
@@ -134,6 +135,7 @@ class ProtectThread(QThread):
 class StreamMediaViewerApp:
     def __init__(self, settings: AppSettings | None = None) -> None:
         self.settings = settings if settings is not None else load_settings()
+        configure_dev_allow_capture(self.settings.dev_allow_capture)
         self.gate = OutputGate()
         if self.settings.use_standby and self.settings.standby_path:
             self.gate.enable_standby(True)

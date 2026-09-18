@@ -6,7 +6,21 @@ import sys
 
 from PySide6.QtWidgets import QWidget
 
+_WDA_NONE = 0x00000000
 _WDA_EXCLUDEFROMCAPTURE = 0x00000011
+_dev_allow_capture = False
+
+
+def configure_dev_allow_capture(enabled: bool) -> None:
+    """ソース起動専用。exe では常に取り込み除外のまま。"""
+    global _dev_allow_capture
+    _dev_allow_capture = bool(enabled)
+
+
+def should_exclude_from_capture() -> bool:
+    if getattr(sys, "frozen", False):
+        return True
+    return not _dev_allow_capture
 
 
 def exclude_from_capture(widget: QWidget) -> None:
@@ -16,7 +30,9 @@ def exclude_from_capture(widget: QWidget) -> None:
         import ctypes
 
         hwnd = int(widget.winId())
-        if hwnd:
-            ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, _WDA_EXCLUDEFROMCAPTURE)
+        if not hwnd:
+            return
+        affinity = _WDA_NONE if not should_exclude_from_capture() else _WDA_EXCLUDEFROMCAPTURE
+        ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, affinity)
     except (AttributeError, OSError, ValueError):
         return

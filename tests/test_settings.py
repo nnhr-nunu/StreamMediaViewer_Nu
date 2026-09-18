@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -71,6 +72,20 @@ def test_face_pipeline_defaults_accurate_and_legacy_roundtrips(tmp_path: Path) -
     assert load_settings(path).face_pipeline == FACE_PIPELINE_LEGACY
     path.write_text('{"face_pipeline": "old"}', encoding="utf-8")
     assert load_settings(path).face_pipeline == FACE_PIPELINE_LEGACY
+
+
+def test_dev_allow_capture_is_hidden_and_omitted_when_off(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    assert load_settings(path).dev_allow_capture is False
+    save_settings(AppSettings(), path)
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    assert "dev_allow_capture" not in raw
+    path.write_text('{"dev_allow_capture": true}', encoding="utf-8")
+    loaded = load_settings(path)
+    assert loaded.dev_allow_capture is True
+    save_settings(loaded, path)
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    assert saved["dev_allow_capture"] is True
 
 
 def test_video_audio_defaults_on_when_missing(tmp_path: Path) -> None:

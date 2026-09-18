@@ -95,6 +95,7 @@ class AppSettings:
     list_sort: str = "date_asc"
     false_face_hashes: list[str] = field(default_factory=list)
     face_pipeline: str = FACE_PIPELINE_ACCURATE
+    dev_allow_capture: bool = False
 
     def note_for(self, path: str) -> FileNote:
         note = self.notes.get(path)
@@ -107,7 +108,7 @@ class AppSettings:
         return effective_false_face_hashes(self.false_face_hashes)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "last_folder": self.last_folder,
             "blur_strength": self.blur_strength,
             "language": self.language,
@@ -132,6 +133,9 @@ class AppSettings:
             "face_pipeline": parse_face_pipeline(self.face_pipeline),
             "notes": {key: note.to_dict() for key, note in self.notes.items()},
         }
+        if self.dev_allow_capture:
+            payload["dev_allow_capture"] = True
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AppSettings:
@@ -184,6 +188,7 @@ class AppSettings:
             list_sort=parse_list_sort(data.get("list_sort")),
             false_face_hashes=false_face_hashes,
             face_pipeline=parse_face_pipeline(data.get("face_pipeline")),
+            dev_allow_capture=bool(data.get("dev_allow_capture", False)),
         )
 
 
