@@ -1,3 +1,4 @@
+import sys
 import threading
 import time
 from pathlib import Path
@@ -18,9 +19,36 @@ from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.scan import scan_folder
 from stream_media_viewer.settings import AppSettings
 from stream_media_viewer.ui.app_icon import app_icon_path, load_app_icon
+from stream_media_viewer.ui.capture_exclude import (
+    configure_dev_allow_capture,
+    should_exclude_from_capture,
+)
 from stream_media_viewer.ui.output_window import IDLE_WINDOW_TITLE
 from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
 from test_library import _tiny_mp4
+
+
+def test_source_app_applies_hidden_dev_allow_capture(qtbot, monkeypatch) -> None:
+    monkeypatch.setattr(sys, "frozen", False, raising=False)
+    configure_dev_allow_capture(False)
+    app = StreamMediaViewerApp(AppSettings(dev_allow_capture=True))
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    try:
+        assert should_exclude_from_capture() is False
+    finally:
+        configure_dev_allow_capture(False)
+
+
+def test_frozen_app_ignores_hidden_dev_allow_capture(qtbot, monkeypatch) -> None:
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    app = StreamMediaViewerApp(AppSettings(dev_allow_capture=True))
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    try:
+        assert should_exclude_from_capture() is True
+    finally:
+        configure_dev_allow_capture(False)
 
 
 def test_two_windows_start_hidden(qtbot) -> None:
