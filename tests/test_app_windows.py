@@ -193,8 +193,13 @@ def test_second_protect_does_not_block_ui(qtbot, monkeypatch) -> None:
     app._start_protect(frame, [])
     elapsed = time.perf_counter() - started
     assert elapsed < 0.08
-    assert app._worker is not first
-    qtbot.waitUntil(lambda: app._worker is not None and not app._worker.isRunning(), timeout=8000)
+    second = app._worker
+    assert second is not None
+    assert second is not first
+    qtbot.waitUntil(second.isRunning, timeout=2000)
+    qtbot.waitUntil(lambda: not second.isRunning(), timeout=8000)
+    qtbot.waitUntil(lambda: not first.isRunning(), timeout=8000)
+    app.shutdown()
 
 
 def test_reload_photo_returns_before_decode(qtbot, tmp_path: Path, monkeypatch) -> None:
@@ -220,6 +225,7 @@ def test_reload_photo_returns_before_decode(qtbot, tmp_path: Path, monkeypatch) 
     elapsed = time.perf_counter() - started
     assert elapsed < 0.08
     qtbot.waitUntil(lambda: app._source_bgr is not None, timeout=8000)
+    app.shutdown()
 
 
 def test_folder_open_shows_list_before_exif_finishes(qtbot, tmp_path: Path, monkeypatch) -> None:
@@ -376,6 +382,7 @@ def test_stop_protect_keeps_running_thread(qtbot, monkeypatch) -> None:
         release.set()
         if first is not None:
             first.wait(5000)
+        app.shutdown()
 
 
 def test_settings_apply_error_stays_on_operator(qtbot, monkeypatch) -> None:
