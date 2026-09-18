@@ -671,11 +671,24 @@ class StreamMediaViewerApp:
         if self._thumb_worker is not thumb:
             self._stop_qthread(self._thumb_worker, timeout_ms=8000)
         self._thumb_worker = None
+        self._wait_kept_threads(timeout_ms=8000)
 
     def _keep_qthread(self, worker: QThread | None) -> None:
         self._kept_threads = [item for item in self._kept_threads if _qthread_live(item)]
         if worker is not None and _qthread_live(worker) and worker not in self._kept_threads:
             self._kept_threads.append(worker)
+
+    def _wait_kept_threads(self, *, timeout_ms: int) -> None:
+        leftover: list[QThread] = []
+        for worker in list(self._kept_threads):
+            try:
+                if _qthread_live(worker):
+                    worker.wait(max(1, int(timeout_ms)))
+                if _qthread_live(worker):
+                    leftover.append(worker)
+            except (RuntimeError, AttributeError):
+                continue
+        self._kept_threads = leftover
 
     def _stop_qthread(self, worker, *, timeout_ms: int) -> None:
         if worker is None:
