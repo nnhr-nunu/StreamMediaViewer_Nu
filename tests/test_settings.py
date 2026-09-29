@@ -196,3 +196,28 @@ def test_source_launch_ignores_settings_beside_python(tmp_path: Path, monkeypatc
     monkeypatch.setattr(sys, "executable", str(exe_dir / "python.exe"))
     assert settings_path() == config / "settings.json"
     assert load_settings().false_face_hashes == []
+
+
+def test_settings_saved_by_notepad_with_bom_or_shift_jis_still_load(tmp_path: Path) -> None:
+    # 手で直した設定（メモ帳の BOM 付き UTF-8 / ANSI）でも、星や手動ぼかしを失わない
+    payload = {"language": "en", "notes": {"C:/写真/京都.jpg": {"favorite": True}}}
+    text = json.dumps(payload, ensure_ascii=False)
+    for name, data in (
+        ("bom.json", b"\xef\xbb\xbf" + text.encode("utf-8")),
+        ("sjis.json", text.encode("cp932")),
+    ):
+        path = tmp_path / name
+        path.write_bytes(data)
+        settings, error = load_settings_with_error(path)
+        assert error is None, name
+        assert settings.language == "en"
+        assert settings.notes["C:/写真/京都.jpg"].favorite
+
+
+def test_blank_notes_are_not_written(tmp_path: Path) -> None:
+    # 開いただけのファイルの記録は書かない（数千枚で設定が膨らまない）
+    settings = AppSettings()
+    settings.note_for("a.jpg")
+    settings.note_for("b.jpg").favorite = True
+    data = settings.to_dict()
+    assert list(data["notes"]) == ["b.jpg"]

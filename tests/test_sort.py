@@ -25,3 +25,15 @@ def test_sorted_items_date_and_name() -> None:
     assert [it.path.name for it in desc] == ["a.jpg", "b.jpg", "z.jpg"]
     by_name = sorted_items(items, "name")
     assert [it.path.name for it in by_name] == ["a.jpg", "b.jpg", "z.jpg"]
+
+
+def test_sorted_items_survive_dates_before_1970() -> None:
+    # 時計が戻ったカメラの写真（1970 年など）で並べ替えが落ちないこと（Windows の timestamp）
+    old = MediaItem(
+        path=Path("old.jpg"), kind="image", captured_at=datetime(1969, 12, 31, 9), has_gps=False
+    )
+    new = MediaItem(
+        path=Path("new.jpg"), kind="image", captured_at=datetime(2024, 1, 1), has_gps=False
+    )
+    assert [it.path.name for it in sorted_items([new, old], "date_desc")] == ["new.jpg", "old.jpg"]
+    assert [it.path.name for it in sorted_items([new, old], "date_asc")] == ["old.jpg", "new.jpg"]
