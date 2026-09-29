@@ -180,6 +180,8 @@ class StreamMediaViewerApp:
         self._folder_total = 0
         self._wire()
         self._restore_checks()
+        if self.gate.window_visible:
+            self._show_standby_frame()
         if self.settings.last_folder:
             self._open_folder_path(self.settings.last_folder)
         else:
@@ -339,27 +341,33 @@ class StreamMediaViewerApp:
             self.settings.use_standby = applied.use_standby
             if applied.use_standby and applied.standby_path:
                 self.gate.enable_standby(True)
-                if self.gate.masked:
-                    image = load_rgb_image(Path(applied.standby_path))
-                    if image is not None:
-                        frame = fit_letterbox(rgb_to_bgr(np.array(image)))
-                        self.output.show_frame(frame)
+                self._show_standby_frame()
             else:
                 self.gate.enable_standby(False)
+            self._sync_windows()
             if prev_sub != applied.include_subfolders and self.settings.last_folder:
                 self._open_folder_path(self.settings.last_folder)
                 self._save_settings()
                 return
             self._protect_cache.clear()
-            self._refresh_list()
-            self._reload_current()
+            if not self._refresh_list():
+                self._reload_current()
             self._save_settings()
         except Exception as exc:
             log_exception(exc)
             for key, value in previous.items():
                 setattr(self.settings, key, value)
             self.gate.enable_standby(bool(previous["use_standby"] and previous["standby_path"]))
+            self._sync_windows()
             self._tell_error(user_error_key(exc, where="settings"), dialog=True)
+
+    def _show_standby_frame(self) -> None:
+        """待機中（まだ一度も送っていない）ときだけ、待機画像を配信用の窓に置く。"""
+        if not self.gate.masked or not self.settings.standby_path:
+            return
+        image = load_rgb_image(Path(self.settings.standby_path))
+        if image is not None:
+            self.output.show_frame(fit_letterbox(rgb_to_bgr(np.array(image))))
 
     def _cycle_language(self) -> None:
         self.settings.language = "en" if self.settings.language == "ja" else "ja"
@@ -774,7 +782,12 @@ class StreamMediaViewerApp:
             show_hidden=op.chk_hidden.isChecked(),
         )
 
-    def _refresh_list(self, *, keep_path: str | None = None) -> None:
+    def _refresh_list(self, *, keep_path: str | None = None, follow: bool = True) -> bool:
+        """一覧を作り直す。見ていたファイルが一覧から消えたら、表示もそれに合わせる。
+
+        follow=True なら、消えたときに新しい選択（または空の案内）を読み直して True を返す。
+        そうしないと、確認画面は前の絵のまま、手動ぼかしや送るは別のファイルに向いてしまう。
+        """
         current_path = keep_path or ""
         if not current_path and self._visible:
             current = self._current()
@@ -802,16 +815,22 @@ class StreamMediaViewerApp:
             rotations.append(self.settings.note_for(str(item.path)).rotation)
         self.operator.set_items(visible_items, labels, icons, tips, rotations)
         row = 0
+        found = False
         if current_path:
             for index, item_index in enumerate(self._visible):
                 if str(self._items[item_index].path) == current_path:
                     row = index
+                    found = True
                     break
         if self._visible:
             self._index = row
             self.operator.list.blockSignals(True)
             self.operator.list.setCurrentRow(row)
             self.operator.list.blockSignals(False)
+        if follow and current_path and not found:
+            self._reload_current()
+            return True
+        return False
 
     def _row_label(self, item: MediaItem) -> str:
         note = self.settings.note_for(str(item.path))
@@ -908,6 +927,11 @@ class StreamMediaViewerApp:
         self._playing_to_output = False
         self.operator.set_playing(False)
         self.gate.begin_load()
+        # 前のファイルの処理結果が、次のファイルの確認画面・キャッシュに入らないようにする。
+        self._protect_seq += 1
+        self._stop_protect_worker()
+        self._preview = None
+        self._source_bgr = None
         if item is None:
             self.operator.set_media_kind(None)
             key = "folder_empty" if self.settings.last_folder else "empty_guide"
@@ -1062,19 +1086,33 @@ class StreamMediaViewerApp:
         self._prefetch_worker = None
 
     def _on_prefetch_ready(self, key: str, bgr: object, faces: bool, texts: bool) -> None:
-        if isinstance(bgr, np.ndarray) and self._protect_cache.room() > 0:
-            self._protect_cache.put(key, bgr, bool(faces), bool(texts))
-        for item in self._items:
-            if self._key_for(item) != key:
+        if isinstance(bgr, np.ndarray):
+            if self._protect_cache.room() > 0:
+                self._protect_cache.put(key, bgr, bool(faces), bool(texts))
+            self._apply_prefetch_marks(key, bool(faces), bool(texts))
+        self._kick_prefetch()
+
+    def _apply_prefetch_marks(self, key: str, faces: bool, texts: bool) -> None:
+        # 先読みは現在の行の近くだけ。近い行から探し、その行だけ書き直す（全行は重い）。
+        total = len(self._visible)
+        near = list(neighbor_rows(self._index, total, radius=PREFETCH_RADIUS))
+        near_set = set(near)
+        order = near + [row for row in range(total) if row not in near_set]
+        for row in order:
+            if row < 0 or row >= total:
                 continue
-            item.has_face = item.has_face or bool(faces)
-            item.has_text_region = item.has_text_region or bool(texts)
+            item = self._items[self._visible[row]]
+            if item.kind != "image" or self._key_for(item) != key:
+                continue
+            item.has_face = item.has_face or faces
+            item.has_text_region = item.has_text_region or texts
             note = self.settings.note_for(str(item.path))
             note.has_face = item.has_face
             note.has_text_region = item.has_text_region
-            break
-        self._sync_live_marks()
-        self._kick_prefetch()
+            list_item = self.operator.list.item(row)
+            if list_item is not None:
+                list_item.setText(self._row_label(item))
+            return
 
     def _cached_protect_frame(self, item: MediaItem) -> tuple[np.ndarray, bool, bool] | None:
         key = self._key_for(item)
@@ -1092,7 +1130,7 @@ class StreamMediaViewerApp:
         self._preview = None
         self.operator.set_media_kind(None)
         self.operator.meta.setText(t(self.settings.language, "unreadable"))
-        self._refresh_list()
+        self._refresh_list(follow=False)
         self.operator.list.blockSignals(True)
         self.operator.list.setCurrentRow(-1)
         self.operator.list.blockSignals(False)
@@ -1102,6 +1140,10 @@ class StreamMediaViewerApp:
         self._protect_seq += 1
         seq = self._protect_seq
         self._stop_protect_worker()
+        # 手動ぼかし・回転を足した直後に、足す前の絵を送れないようにする。
+        self.gate.begin_load()
+        self._preview = None
+        self.operator.refresh_status()
         item = self._current()
         skip = bool(item and self.settings.note_for(str(item.path)).skip_faces)
         rotation = 0
@@ -1390,8 +1432,8 @@ class StreamMediaViewerApp:
         item = self._items[self._visible[row]]
         note = self.settings.note_for(str(item.path))
         note.hidden = not note.hidden
+        # 見ているファイルが一覧から消えたときだけ読み直す（配信中の動画を止めない）。
         self._refresh_list()
-        self._reload_current()
 
     def _on_preview_region(self, nx: float, ny: float) -> None:
         if self.operator.preview.mode != "off":

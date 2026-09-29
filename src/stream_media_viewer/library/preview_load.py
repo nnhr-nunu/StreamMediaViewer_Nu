@@ -67,7 +67,10 @@ class PrefetchWorker(QThread):
             if self.isInterruptionRequested():
                 return
             image = load_rgb_image(self._path)
-            if self.isInterruptionRequested() or image is None:
+            if self.isInterruptionRequested():
+                return
+            if image is None:
+                self._give_up()
                 return
             bgr = rgb_to_bgr(np.array(image))
             if not acquire_protect_lock(self.isInterruptionRequested):
@@ -78,7 +81,10 @@ class PrefetchWorker(QThread):
                 out, faces, texts = protect_for_note(bgr, self._settings, self._note)
             finally:
                 PROTECT_LOCK.release()
-            if self.isInterruptionRequested() or out is None:
+            if self.isInterruptionRequested():
+                return
+            if out is None:
+                self._give_up()
                 return
             out = enhance_bgr(out, level=self._settings.enhance_level)
             if not cache_is_ready(self._key, self._folder_id):
@@ -92,3 +98,9 @@ class PrefetchWorker(QThread):
             self.ready.emit(self._key, out, bool(faces), bool(texts))
         except Exception as exc:
             log_exception(exc)
+            if not self.isInterruptionRequested():
+                self._give_up()
+
+    def _give_up(self) -> None:
+        """この 1 枚は諦めて、次の先読みへ進めてもらう。"""
+        self.ready.emit(self._key, None, False, False)

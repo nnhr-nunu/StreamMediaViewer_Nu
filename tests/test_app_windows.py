@@ -784,6 +784,120 @@ def test_output_chrome_and_offscreen_send_keeps_position(qtbot) -> None:
     assert out._zoom_chrome.height() < out.height() / 2
 
 
+def test_old_protect_result_is_not_applied_to_next_photo(
+    qtbot, tmp_path: Path, monkeypatch
+) -> None:
+    release = threading.Event()
+    entered = threading.Event()
+    load_release = threading.Event()
+
+    def blocker(bgr, settings, note, **_kwargs):
+        entered.set()
+        release.wait(timeout=30)
+        return np.full_like(bgr, 255), False, False
+
+    def slow_load(path, **_kwargs):
+        load_release.wait(timeout=30)
+        return Image.new("RGB", (8, 8), (10, 20, 30))
+
+    monkeypatch.setattr("stream_media_viewer.app.protect_for_note", blocker)
+    monkeypatch.setattr("stream_media_viewer.library.preview_load.load_rgb_image", slow_load)
+    for name in ("a.jpg", "b.jpg"):
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / name)
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    first = None
+    try:
+        app._items = scan_folder(tmp_path, kinds={"image"})
+        app._visible = [0, 1]
+        app._index = 0
+        app._start_protect(np.zeros((48, 48, 3), dtype=np.uint8), [])
+        first = app._worker
+        qtbot.waitUntil(entered.is_set, timeout=2000)
+        app._index = 1
+        app._reload_current()
+        release.set()
+        assert first is not None
+        first.wait(5000)
+        qtbot.wait(200)
+        # 前の写真の処理結果は、次の写真の確認画面・キャッシュ・送る対象にならない。
+        assert app._preview is None
+        assert app.gate.ready is False
+        assert app._protect_cache.get(app._key_for(app._items[1])) is None
+    finally:
+        release.set()
+        load_release.set()
+        if first is not None:
+            first.wait(5000)
+        app.shutdown()
+
+
+def test_adding_manual_blur_blocks_send_until_reprocessed(qtbot, monkeypatch) -> None:
+    release = threading.Event()
+
+    def blocker(bgr, settings, note, **_kwargs):
+        release.wait(timeout=30)
+        return bgr.copy(), False, False
+
+    monkeypatch.setattr("stream_media_viewer.app.protect_for_note", blocker)
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    try:
+        app._preview = np.zeros((4, 4, 3), dtype=np.uint8)
+        app.gate.mark_processed()
+        app._start_protect(np.zeros((48, 48, 3), dtype=np.uint8), [])
+        assert app.gate.ready is False
+        assert app._preview is None
+        assert not app.operator.btn_send.isEnabled()
+    finally:
+        release.set()
+        app.shutdown()
+
+
+def test_filtering_out_current_photo_moves_the_preview(qtbot, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "stream_media_viewer.app.protect_for_note",
+        lambda bgr, *_a, **_k: (bgr.copy(), False, False),
+    )
+    monkeypatch.setattr(
+        "stream_media_viewer.library.preview_load.protect_for_note",
+        lambda bgr, *_a, **_k: (bgr.copy(), False, False),
+    )
+    for name in ("a.jpg", "b.jpg"):
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / name)
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    try:
+        app._items = scan_folder(tmp_path, kinds={"image"})
+        app._refresh_list()
+        app._index = 0
+        app._reload_current()
+        qtbot.waitUntil(lambda: app._preview is not None, timeout=8000)
+        before = app._current()
+        assert before is not None
+        app.settings.note_for(str(before.path)).hidden = True
+        assert app._refresh_list() is True
+        after = app._current()
+        assert after is not None
+        assert after.path != before.path
+        assert app.operator.meta.toolTip() == str(after.path)
+    finally:
+        app.shutdown()
+
+
+def test_standby_image_is_on_output_at_startup(qtbot, tmp_path: Path) -> None:
+    standby = tmp_path / "standby.png"
+    Image.new("RGB", (32, 18), (200, 10, 10)).save(standby)
+    app = StreamMediaViewerApp(AppSettings(use_standby=True, standby_path=str(standby)))
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    assert app.gate.window_visible is True
+    assert not app.output.canvas._source.isNull()
+
+
 def test_persist_survives_deleted_workers(qtbot) -> None:
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)

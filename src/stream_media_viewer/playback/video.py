@@ -8,6 +8,7 @@ import numpy as np
 from PySide6.QtCore import QObject, QTimer, QUrl, Signal
 
 from stream_media_viewer.library.scan import PREVIEW_MAX_SIDE, video_header_ok
+from stream_media_viewer.render.image_io import read_bgr
 
 try:
     from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
@@ -161,7 +162,7 @@ class VideoPlayer(QObject):
     def _apply(self, frame: np.ndarray) -> np.ndarray | None:
         self.last_raw = frame
         if self._protect is None:
-            self._last_ok = frame
+            # 未処理のコマは「最後に安全だった絵」にしない。保護失敗時に素顔へ戻らないように。
             return frame
         try:
             protected = self._protect(frame)
@@ -240,7 +241,7 @@ class VideoPlayer(QObject):
             self.pause()
             self.finished.emit()
             return
-        frame = cv2.imread(str(frame_path))
+        frame = read_bgr(frame_path)
         if frame is None:
             self.pause()
             self.finished.emit()

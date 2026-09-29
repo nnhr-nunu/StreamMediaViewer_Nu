@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 from dataclasses import dataclass, field
@@ -218,6 +219,14 @@ def settings_path() -> Path:
     return target
 
 
+def _keep_broken_copy(target: Path) -> None:
+    """読めなかった設定は、次の保存で上書きされる前に控えを残す。"""
+    try:
+        shutil.copy2(target, target.with_name(target.name + ".broken"))
+    except OSError as exc:
+        log_exception(exc)
+
+
 def load_settings_with_error(path: Path | None = None) -> tuple[AppSettings, str | None]:
     target = path or settings_path()
     if not target.is_file():
@@ -226,13 +235,16 @@ def load_settings_with_error(path: Path | None = None) -> tuple[AppSettings, str
         raw = json.loads(target.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         log_exception(exc)
+        _keep_broken_copy(target)
         return AppSettings(), "settings_load_failed"
     if not isinstance(raw, dict):
+        _keep_broken_copy(target)
         return AppSettings(), "settings_load_failed"
     try:
         return AppSettings.from_dict(raw), None
     except Exception as exc:
         log_exception(exc)
+        _keep_broken_copy(target)
         return AppSettings(), "settings_load_failed"
 
 
@@ -244,8 +256,11 @@ def load_settings(path: Path | None = None) -> AppSettings:
 def save_settings(settings: AppSettings, path: Path | None = None) -> Path:
     target = path or settings_path()
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
+    # 書きかけで落ちても前の設定（手動ぼかし・星・区間）が壊れないよう、別名に書いてから置き換える。
+    temp = target.with_name(target.name + ".tmp")
+    temp.write_text(
         json.dumps(settings.to_dict(), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    os.replace(temp, target)
     return target

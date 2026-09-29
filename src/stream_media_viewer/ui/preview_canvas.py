@@ -145,11 +145,13 @@ class PreviewCanvas(QLabel):
             return
         box = self._content_rect()
         if self.mode == "rect" and self._current and box.width() > 0 and box.height() > 0:
-            nx = (self._current.x() - box.x()) / box.width()
-            ny = (self._current.y() - box.y()) / box.height()
-            nw = self._current.width() / box.width()
-            nh = self._current.height() / box.height()
-            if nw > 0.01 and nh > 0.01:
+            # 黒帯から引き始めても、写真の中に入った部分だけをぼかす。
+            inside = self._current.intersected(box)
+            nx = (inside.x() - box.x()) / box.width()
+            ny = (inside.y() - box.y()) / box.height()
+            nw = inside.width() / box.width()
+            nh = inside.height() / box.height()
+            if not inside.isEmpty() and nw > 0.01 and nh > 0.01:
                 self.mark_added.emit({"kind": "rect", "x": nx, "y": ny, "w": nw, "h": nh})
         elif self.mode == "stroke" and len(self._stroke) >= 2:
             pix_w = max(1, box.width())

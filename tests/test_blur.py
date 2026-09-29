@@ -48,6 +48,27 @@ def test_gaussian_oval_angle_blurs_box_corners_more() -> None:
     assert rotated_shift > 0
 
 
+def test_rect_starting_outside_the_image_still_blurs_the_inside() -> None:
+    bgr = np.zeros((60, 60, 3), dtype=np.uint8)
+    bgr[:, ::2] = 255
+    original = bgr.copy()
+    # 黒帯から引き始めた四角（x が負）。末尾から数えるスライスで空振りしないこと。
+    apply_marks(bgr, [{"kind": "rect", "x": -0.1, "y": 0.2, "w": 0.5, "h": 0.5}], 31)
+    assert not np.array_equal(bgr[30, 5:20], original[30, 5:20])
+    assert np.array_equal(bgr[30, 40:], original[30, 40:])
+
+
+def test_box_with_negative_size_blurs_the_same_area() -> None:
+    bgr = np.zeros((40, 40, 3), dtype=np.uint8)
+    bgr[:, ::2] = 255
+    forward = bgr.copy()
+    backward = bgr.copy()
+    gaussian_region(forward, Box(5, 5, 20, 20), 31)
+    gaussian_region(backward, Box(25, 25, -20, -20), 31)
+    assert np.array_equal(forward, backward)
+    assert not np.array_equal(forward, bgr)
+
+
 def test_max_blur_strength_on_tiny_roi_does_not_raise() -> None:
     bgr = np.zeros((8, 8, 3), dtype=np.uint8)
     gaussian_region(bgr, Box(0, 0, 8, 8), 300)
