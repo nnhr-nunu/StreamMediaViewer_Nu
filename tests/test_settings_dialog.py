@@ -31,3 +31,27 @@ def test_settings_dialog_keeps_blur_strength(qtbot) -> None:
     assert not hasattr(dialog, "cmb_lang")
     assert not hasattr(dialog, "chk_audio")
     assert not hasattr(dialog, "chk_dev_allow_capture")
+
+
+def test_cancelling_the_file_picker_keeps_the_standby_image(qtbot, monkeypatch) -> None:
+    dialog = SettingsDialog(
+        None,
+        SettingsDraft(
+            blur_strength=25,
+            face_blur=True,
+            text_blur=False,
+            enhance_level="weak",
+            language="ja",
+            standby_path="C:/pics/break.png",
+            use_standby=True,
+        ),
+    )
+    qtbot.addWidget(dialog)
+    monkeypatch.setattr(
+        "stream_media_viewer.ui.settings_dialog.QFileDialog.getOpenFileName",
+        lambda *_a, **_k: ("", ""),
+    )
+    dialog._pick_standby()
+    draft = dialog.draft()
+    assert draft.standby_path == "C:/pics/break.png"
+    assert draft.use_standby is True

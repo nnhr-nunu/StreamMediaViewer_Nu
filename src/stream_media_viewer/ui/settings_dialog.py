@@ -107,8 +107,7 @@ class SettingsDialog(QDialog):
     def _pick_standby(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, t(self._lang, "standby"))
         if not path:
-            self.chk_standby.setChecked(False)
-            self.edit_standby.setText("")
+            # 選ぶのをやめたときは、今の待機画像のまま
             return
         self.edit_standby.setText(path)
         self.chk_standby.setChecked(True)

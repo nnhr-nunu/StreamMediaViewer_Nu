@@ -423,6 +423,9 @@ def test_settings_apply_error_stays_on_operator(qtbot, monkeypatch) -> None:
         def exec(self) -> QDialog.DialogCode:
             return QDialog.DialogCode.Accepted
 
+        def deleteLater(self) -> None:  # noqa: N802
+            pass
+
         def draft(self) -> SettingsDraft:
             return SettingsDraft(
                 blur_strength=200,

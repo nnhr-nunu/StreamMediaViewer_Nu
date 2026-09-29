@@ -12,3 +12,10 @@ def test_row_marks_omit_what_is_off() -> None:
     assert row_marks(favorite=False, live=True, ready=False) == "【表示中】"
     assert row_marks(favorite=False, live=False, ready=True) == "✓"
     assert row_marks(favorite=False, live=False, ready=False) == ""
+
+
+def test_row_marks_follow_the_language() -> None:
+    marks = row_marks(favorite=False, live=True, ready=False, manual=True, lang="en")
+    assert "【表示中】" not in marks
+    assert "手動" not in marks
+    assert "💧" in marks

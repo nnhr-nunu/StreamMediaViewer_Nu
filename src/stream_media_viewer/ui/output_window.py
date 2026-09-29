@@ -22,6 +22,7 @@ from stream_media_viewer import OUTPUT_WINDOW_TITLE
 from stream_media_viewer.render.canvas import OUTPUT_HEIGHT, OUTPUT_WIDTH
 from stream_media_viewer.safety.output_gate import OutputGate
 from stream_media_viewer.ui.app_icon import apply_app_icon
+from stream_media_viewer.ui.capture_exclude import CAPTURE_ALLOWED
 from stream_media_viewer.ui.overlays import (
     MAX_LOUPE_PX,
     MIN_LOUPE_PX,
@@ -147,6 +148,8 @@ class OutputCanvas(QLabel):
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
+        # 拡大（＋）や画面の拡大率（125% など）で引き伸ばすとき、ギザギザにしない
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         painter.fillRect(self.rect(), QColor(0, 0, 0))
         self._paint_contents(painter)
 
@@ -188,6 +191,8 @@ class OutputWindow(QMainWindow):
         self.setStyleSheet(DARK_QSS)
         # ソフトを終えるかは操作画面が決める（この窓が残っても終われるように）
         self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
+        # OBS が取り込む窓。取り込み除外はしない
+        self.setProperty(CAPTURE_ALLOWED, True)
         host = QWidget()
         grid = QGridLayout(host)
         grid.setContentsMargins(0, 0, 0, 0)

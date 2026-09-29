@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 
+from PySide6.QtCore import QEvent, QObject
 from PySide6.QtWidgets import QWidget
 
 _WDA_NONE = 0x00000000
@@ -21,6 +22,38 @@ def should_exclude_from_capture() -> bool:
     if getattr(sys, "frozen", False):
         return True
     return not _dev_allow_capture
+
+
+# 取り込みから外さない窓（配信用の窓）に付ける印
+CAPTURE_ALLOWED = "captureAllowed"
+
+
+class _PopupCaptureGuard(QObject):
+    """操作画面から出る別の窓（ツールチップ・メニュー・確認・設定）も取り込みから外す。
+
+    ツールチップにはファイル名やフォルダの場所が出る。OBS の画面キャプチャに映さない。
+    """
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802
+        if (
+            event.type() == QEvent.Type.Show
+            and isinstance(watched, QWidget)
+            and watched.isWindow()
+            and not watched.property(CAPTURE_ALLOWED)
+        ):
+            exclude_from_capture(watched)
+        return False
+
+
+_popup_guard: _PopupCaptureGuard | None = None
+
+
+def guard_popups_from_capture(app) -> None:
+    global _popup_guard
+    if app is None or _popup_guard is not None or sys.platform != "win32":
+        return
+    _popup_guard = _PopupCaptureGuard(app)
+    app.installEventFilter(_popup_guard)
 
 
 def exclude_from_capture(widget: QWidget) -> None:
