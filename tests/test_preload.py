@@ -39,6 +39,15 @@ def test_cache_key_changes_when_marks_or_range_change(tmp_path: Path) -> None:
     assert first == cache_key(path, **base)
 
 
+def test_cache_key_for_photos_follows_the_photo_detector(tmp_path: Path) -> None:
+    # 写真の探し方を変えたら写真の下準備は作り直す。動画の鍵（still なし）は変えない。
+    path = tmp_path / "photo.jpg"
+    path.write_bytes(b"fake")
+    base = dict(in_ms=0, out_ms=None, face_blur=True, text_blur=False, strength=25, marks=[])
+    assert cache_key(path, **base, still=True) != cache_key(path, **base)
+    assert cache_key(path, **base, still=False) == cache_key(path, **base)
+
+
 def test_estimate_photos_are_small_videos_scale_with_time() -> None:
     photo = estimate_item_bytes("image", 0)
     minute = estimate_item_bytes("video", 60_000, 30.0)

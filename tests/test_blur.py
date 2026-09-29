@@ -1,6 +1,12 @@
 import numpy as np
 
-from stream_media_viewer.detect.blur import Box, apply_marks, gaussian_oval, gaussian_region
+from stream_media_viewer.detect.blur import (
+    Box,
+    apply_marks,
+    gaussian_oval,
+    gaussian_region,
+    oval_tilt,
+)
 
 
 def test_gaussian_oval_leaves_box_corners_closer_to_original() -> None:
@@ -79,3 +85,28 @@ def test_max_blur_strength_on_tiny_roi_does_not_raise() -> None:
         [{"kind": "rect", "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}],
         300,
     )
+
+
+def test_oval_tilt_keeps_small_tilts_and_folds_sideways_ones() -> None:
+    assert oval_tilt(0.0) == 0.0
+    assert oval_tilt(30.0) == 30.0
+    assert oval_tilt(-45.0) == -45.0
+    assert oval_tilt(45.0) == 45.0
+    assert oval_tilt(90.0) == 0.0
+    assert oval_tilt(-90.0) == 0.0
+    assert oval_tilt(60.0) == -30.0
+    assert oval_tilt(180.0) == 0.0
+    assert oval_tilt(float("nan")) == 0.0
+
+
+def test_gaussian_oval_sideways_face_blurs_both_ends_of_a_wide_box() -> None:
+    # 横倒しの顔（目の線が縦 = 90°）の枠は横長。楕円が縦長になって左右の端が残らないこと。
+    bgr = np.zeros((100, 200, 3), dtype=np.uint8)
+    bgr[:, ::2] = 255
+    upright = bgr.copy()
+    sideways = bgr.copy()
+    gaussian_oval(upright, Box(0, 0, 200, 100), 41)
+    gaussian_oval(sideways, Box(0, 0, 200, 100, angle=90.0), 41)
+    assert not np.array_equal(sideways[50, 20:40], bgr[50, 20:40])
+    assert not np.array_equal(sideways[50, 160:180], bgr[50, 160:180])
+    assert np.array_equal(sideways, upright)

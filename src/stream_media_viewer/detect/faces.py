@@ -10,16 +10,37 @@ import cv2
 import numpy as np
 
 from stream_media_viewer.detect.blur import Box, expand_box
+from stream_media_viewer.errors import log_exception
 from stream_media_viewer.settings import FACE_PIPELINE_LEGACY, parse_face_pipeline
 
 _MODEL = Path(__file__).resolve().parent.parent / "assets" / "blaze_face_short_range.tflite"
 _YUNET = Path(__file__).resolve().parent.parent / "assets" / "face_detection_yunet_2023mar.onnx"
+# 写真の探し方を変えたら上げる。前の探し方で作った写真の下準備を作り直す。
+STILL_DETECT_VERSION = 2
 _DETECT_SIDES = (640, 960)
+# 写真だけ: 確認用の大きさ（長い辺 1920 まで）のままでも探し、遠くの小さい顔を拾う
+_STILL_SIDE = 1920
+# 写真だけ: 90° 回しても探し、寝転び・横倒しの顔を拾う
+_TURNED_SIDE = 640
+# 足した探し方の枠が、いつもの探し方の枠とこれだけ重なるなら同じ顔として足さない
+_EXTRA_SAME_IOU = 0.35
 _FALSE_HASH_LIMIT = 300
 _FALSE_HAMMING = 10
 _YUNET_SCORE = 0.75
 _YUNET_MIN_SIDE = 128
 _YUNET_LOCK = threading.Lock()
+_MEDIAPIPE_LOCK = threading.Lock()
+_mediapipe_logged = False
+
+
+class FaceDetectorUnavailable(RuntimeError):
+    """顔を探す部品が使えない。顔なしとして素顔を通さず、処理の失敗にする。"""
+
+
+def _model_bytes(path: Path) -> bytes:
+    # cv2 と MediaPipe は、Windows でパスに日本語などが入ると部品のファイルを開けない。
+    # （zip を「山田」のユーザーフォルダなどに展開したとき）。中身を読んで渡す。
+    return path.read_bytes()
 
 
 def _downscale(bgr: np.ndarray, max_side: int) -> tuple[np.ndarray, float]:
@@ -108,7 +129,7 @@ def _image_detector() -> object:
     import mediapipe as mp
 
     options = mp.tasks.vision.FaceDetectorOptions(
-        base_options=mp.tasks.BaseOptions(model_asset_path=str(_MODEL)),
+        base_options=mp.tasks.BaseOptions(model_asset_buffer=_model_bytes(_MODEL)),
         running_mode=mp.tasks.vision.RunningMode.IMAGE,
         min_detection_confidence=0.42,
     )
@@ -117,37 +138,46 @@ def _image_detector() -> object:
 
 @lru_cache(maxsize=1)
 def _yunet() -> cv2.FaceDetectorYN | None:
-    if not _YUNET.is_file():
+    try:
+        model = np.frombuffer(_model_bytes(_YUNET), dtype=np.uint8)
+    except OSError:
         return None
+    config = np.empty(0, dtype=np.uint8)
     backend = int(getattr(cv2.dnn, "DNN_BACKEND_OPENCV", 3))
     target = int(getattr(cv2.dnn, "DNN_TARGET_CPU", 0))
-    try:
-        return cv2.FaceDetectorYN.create(
-            str(_YUNET),
-            "",
-            (320, 320),
-            float(_YUNET_SCORE),
-            0.3,
-            5000,
-            backend,
-            target,
-        )
-    except (cv2.error, TypeError, OSError, ValueError):
+    attempts = (
+        ("onnx", model, config, (320, 320), float(_YUNET_SCORE), 0.3, 5000, backend, target),
+        ("onnx", model, config, (320, 320), float(_YUNET_SCORE), 0.3, 5000),
+        # 中身を渡す作り方が無い古い cv2 向け（パスが ASCII のときだけ開ける）
+        (str(_YUNET), "", (320, 320), float(_YUNET_SCORE), 0.3, 5000),
+    )
+    for args in attempts:
         try:
-            return cv2.FaceDetectorYN.create(
-                str(_YUNET), "", (320, 320), _YUNET_SCORE, 0.3, 5000
-            )
-        except cv2.error:
-            return None
+            return cv2.FaceDetectorYN.create(*args)
+        except (cv2.error, TypeError, ValueError):
+            continue
+    return None
 
 
 @lru_cache(maxsize=1)
 def _profile_cascade() -> cv2.CascadeClassifier | None:
     try:
-        path = cv2.data.haarcascades + "haarcascade_profileface.xml"
+        path = Path(cv2.data.haarcascades) / "haarcascade_profileface.xml"
     except AttributeError:
         return None
-    cascade = cv2.CascadeClassifier(path)
+    if not path.is_file():
+        # OpenCV 5 の配布物には入っていない
+        return None
+    cascade = cv2.CascadeClassifier()
+    try:
+        # パスに日本語などが入っても読めるよう、中身から読む
+        storage = cv2.FileStorage(
+            path.read_text(encoding="utf-8"),
+            cv2.FILE_STORAGE_READ | cv2.FILE_STORAGE_MEMORY,
+        )
+        cascade.read(storage.getFirstTopLevelNode())
+    except (OSError, UnicodeDecodeError, cv2.error):
+        cascade = cv2.CascadeClassifier(str(path))
     if cascade.empty():
         return None
     return cascade
@@ -174,18 +204,29 @@ def _mediapipe_eyes(
     return right, left
 
 
-def _mediapipe_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
+def _mediapipe_boxes(
+    small: np.ndarray, scale: float, w: int, h: int, *, strict: bool = False
+) -> list[Box]:
+    """strict=True（MediaPipe だけで探す以前の検出）は、使えないとき処理の失敗にする。"""
+    global _mediapipe_logged
     if sys.platform == "darwin":
         return []
-    import mediapipe as mp
-
     try:
+        import mediapipe as mp
+
         rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
         if not rgb.flags["C_CONTIGUOUS"]:
             rgb = np.ascontiguousarray(rgb)
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        result = _image_detector().detect(image)
-    except Exception:
+        with _MEDIAPIPE_LOCK:
+            result = _image_detector().detect(image)
+    except Exception as exc:
+        if strict:
+            raise FaceDetectorUnavailable("MediaPipe") from exc
+        # 既定の検出では足しの部品。YuNet だけで続ける（Mac と同じ）が、記録は残す。
+        if not _mediapipe_logged:
+            _mediapipe_logged = True
+            log_exception(exc)
         return []
     boxes: list[Box] = []
     if not result.detections:
@@ -206,23 +247,29 @@ def _mediapipe_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Bo
     return boxes
 
 
-def _yunet_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
+def _yunet_rows(small: np.ndarray) -> np.ndarray | None:
+    """YuNet の結果の行。小さすぎる絵は探さない（None）。部品が使えないときは例外。"""
     ih, iw = small.shape[:2]
     if min(ih, iw) < _YUNET_MIN_SIDE:
-        return []
+        return None
     if not small.flags["C_CONTIGUOUS"]:
         small = np.ascontiguousarray(small)
     detector = _yunet()
     if detector is None:
-        return []
+        raise FaceDetectorUnavailable("YuNet")
     try:
         with _YUNET_LOCK:
             detector.setInputSize((iw, ih))
             _ok, faces = detector.detect(small)
             if faces is not None:
                 faces = faces.copy()
-    except cv2.error:
-        return []
+    except cv2.error as exc:
+        raise FaceDetectorUnavailable("YuNet") from exc
+    return faces
+
+
+def _yunet_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
+    faces = _yunet_rows(small)
     if faces is None:
         return []
     boxes: list[Box] = []
@@ -236,6 +283,50 @@ def _yunet_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
         right = (float(row[4]) * scale, float(row[5]) * scale)
         left = (float(row[6]) * scale, float(row[7]) * scale)
         boxes.append(face_box_from_eyes(raw, right, left, w, h, pad=0.32))
+    return boxes
+
+
+def unturn_point(
+    x: float, y: float, code: int, width: int, height: int
+) -> tuple[float, float]:
+    """90° 回した絵の点を、回す前の絵（幅 width・高さ height）の点へ戻す。"""
+    if code == cv2.ROTATE_90_CLOCKWISE:
+        return y, height - x
+    return width - y, x
+
+
+def _turned_yunet_boxes(small: np.ndarray, scale: float, w: int, h: int) -> list[Box]:
+    sh, sw = small.shape[:2]
+    boxes: list[Box] = []
+    for code in (cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE):
+        faces = _yunet_rows(cv2.rotate(small, code))
+        if faces is None:
+            continue
+        for row in faces:
+            corners = [
+                unturn_point(float(row[0]), float(row[1]), code, sw, sh),
+                unturn_point(float(row[0] + row[2]), float(row[1] + row[3]), code, sw, sh),
+            ]
+            xs = [point[0] for point in corners]
+            ys = [point[1] for point in corners]
+            raw = Box(
+                int(min(xs) * scale),
+                int(min(ys) * scale),
+                int((max(xs) - min(xs)) * scale),
+                int((max(ys) - min(ys)) * scale),
+            )
+            right = unturn_point(float(row[4]), float(row[5]), code, sw, sh)
+            left = unturn_point(float(row[6]), float(row[7]), code, sw, sh)
+            boxes.append(
+                face_box_from_eyes(
+                    raw,
+                    (right[0] * scale, right[1] * scale),
+                    (left[0] * scale, left[1] * scale),
+                    w,
+                    h,
+                    pad=0.32,
+                )
+            )
     return boxes
 
 
@@ -329,20 +420,34 @@ def reject_false_faces(bgr: np.ndarray, boxes: list[Box], hashes: list[str]) -> 
     return kept
 
 
+def _still_extra_boxes(bgr: np.ndarray, w: int, h: int) -> list[Box]:
+    """写真だけの追加の探し方。遠くの小さい顔と、横倒しの顔。"""
+    boxes: list[Box] = []
+    full, full_scale = _downscale(bgr, _STILL_SIDE)
+    if max(full.shape[:2]) > max(_DETECT_SIDES):
+        boxes.extend(_yunet_boxes(full, full_scale, w, h))
+    turned, turned_scale = _downscale(bgr, _TURNED_SIDE)
+    boxes.extend(_turned_yunet_boxes(turned, turned_scale, w, h))
+    return boxes
+
+
 def detect_face_boxes(
     bgr: np.ndarray,
     *,
     false_face_hashes: list[str] | None = None,
     pipeline: str | None = None,
+    still: bool = False,
 ) -> list[Box]:
+    """顔の枠。still=True（写真）は時間をかけて小さい顔・横倒しの顔も探す。"""
     h, w = bgr.shape[:2]
     if h < 16 or w < 16:
         return []
     boxes: list[Box] = []
-    if parse_face_pipeline(pipeline) == FACE_PIPELINE_LEGACY:
+    legacy = parse_face_pipeline(pipeline) == FACE_PIPELINE_LEGACY
+    if legacy:
         for max_side in _DETECT_SIDES:
             small, scale = _downscale(bgr, max_side)
-            boxes.extend(_mediapipe_boxes(small, scale, w, h))
+            boxes.extend(_mediapipe_boxes(small, scale, w, h, strict=True))
         profile_small, profile_scale = _downscale(bgr, 640)
         boxes.extend(_profile_boxes(profile_small, profile_scale, w, h))
     else:
@@ -351,7 +456,17 @@ def detect_face_boxes(
             boxes.extend(_yunet_boxes(small, scale, w, h))
         close, close_scale = _downscale(bgr, 640)
         boxes.extend(_mediapipe_boxes(close, close_scale, w, h))
-    merged = _merge(boxes)
+    base = _merge(boxes)
+    kept = reject_false_faces(bgr, base, false_face_hashes) if false_face_hashes else base
+    if not still or legacy:
+        return kept
+    # 足した探し方は、いつもの探し方が見ていない所だけ足す。
+    # いつもの枠（誤検出として学習済みで消した枠も含む）と重なるものは、これまでの判定のままにする。
+    extra = [
+        box
+        for box in _still_extra_boxes(bgr, w, h)
+        if all(_iou(box, other) < _EXTRA_SAME_IOU for other in base)
+    ]
     if false_face_hashes:
-        merged = reject_false_faces(bgr, merged, false_face_hashes)
-    return merged
+        extra = reject_false_faces(bgr, extra, false_face_hashes)
+    return kept + _merge(extra)

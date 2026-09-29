@@ -101,9 +101,11 @@ class ProtectThread(QThread):
         *,
         skip_faces: bool = False,
         rotation: int = 0,
+        still: bool = False,
     ) -> None:
         super().__init__()
         self._bgr = bgr
+        self._still = still
         self._settings = settings
         self._marks = marks
         self.seq = seq
@@ -118,7 +120,9 @@ class ProtectThread(QThread):
                 rotation=self._rotation,
             )
             with PROTECT_LOCK:
-                out, faces, texts = protect_for_note(self._bgr, self._settings, note)
+                out, faces, texts = protect_for_note(
+                    self._bgr, self._settings, note, still=self._still
+                )
             if self.isInterruptionRequested():
                 return
             if out is None:
@@ -1167,6 +1171,7 @@ class StreamMediaViewerApp:
             seq,
             skip_faces=skip,
             rotation=rotation,
+            still=bool(item and item.kind == "image"),
         )
         self._worker.done.connect(self._on_protected)
         self._worker.failed.connect(self._on_protect_failed)
@@ -1241,6 +1246,7 @@ class StreamMediaViewerApp:
         if self._preview is None:
             return
         item = self._current()
+        preview = self._preview
         if item and item.kind == "image" and item.has_face:
             answer = QMessageBox.question(
                 self.operator, "", t(self.settings.language, "confirm_faces")
@@ -1254,6 +1260,9 @@ class StreamMediaViewerApp:
             if answer != QMessageBox.StandardButton.Yes:
                 return
             self.settings.blur_off_confirmed = True
+        # 確認のあいだに裏の処理で見ているファイルや確認用の絵が変わったら、確認していない絵は送らない
+        if self._current() is not item or self._preview is not preview:
+            return
         if not self.gate.send_to_output():
             return
         self._live = self._preview
@@ -1462,6 +1471,7 @@ class StreamMediaViewerApp:
             oriented,
             false_face_hashes=self.settings.all_false_face_hashes(),
             pipeline=self.settings.face_pipeline,
+            still=item.kind == "image",
         )
         height, width = oriented.shape[:2]
         hit = face_box_at(boxes, nx, ny, width, height)
@@ -1562,6 +1572,7 @@ class StreamMediaViewerApp:
             false_face_hashes=self.settings.all_false_face_hashes(),
             rotation=note.rotation,
             face_pipeline=self.settings.face_pipeline,
+            still=item.kind == "image",
         )
 
     def _folder_id(self) -> str:

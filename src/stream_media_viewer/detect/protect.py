@@ -38,11 +38,12 @@ def protect_frame(
     false_face_hashes: list[str] | None = None,
     pipeline: str | None = None,
     face_hold: FaceHold | None = None,
+    still: bool = False,
 ) -> tuple[np.ndarray, bool, bool]:
     out = bgr.copy()
     if face_blur:
         detected = detect_face_boxes(
-            out, false_face_hashes=false_face_hashes, pipeline=pipeline
+            out, false_face_hashes=false_face_hashes, pipeline=pipeline, still=still
         )
         faces = face_hold.step(detected) if face_hold is not None else detected
     else:
@@ -68,6 +69,7 @@ def protect_frame_safe(
     false_face_hashes: list[str] | None = None,
     pipeline: str | None = None,
     face_hold: FaceHold | None = None,
+    still: bool = False,
 ) -> tuple[np.ndarray | None, bool, bool]:
     if bgr.ndim != 3 or bgr.shape[0] < 2 or bgr.shape[1] < 2 or bgr.shape[2] != 3:
         return None, False, False
@@ -81,6 +83,7 @@ def protect_frame_safe(
             false_face_hashes=false_face_hashes,
             pipeline=pipeline,
             face_hold=face_hold,
+            still=still,
         )
     except Exception as exc:
         log_exception(exc)
@@ -93,7 +96,9 @@ def protect_for_note(
     note: FileNote,
     *,
     face_hold: FaceHold | None = None,
+    still: bool = False,
 ) -> tuple[np.ndarray | None, bool, bool]:
+    """still=True は写真。時間をかけて小さい顔・横倒しの顔も探す（動画のコマは False）。"""
     oriented = rotate_bgr(bgr, note.rotation)
     return protect_frame_safe(
         oriented,
@@ -104,4 +109,5 @@ def protect_for_note(
         false_face_hashes=settings.all_false_face_hashes(),
         pipeline=settings.face_pipeline,
         face_hold=face_hold,
+        still=still,
     )

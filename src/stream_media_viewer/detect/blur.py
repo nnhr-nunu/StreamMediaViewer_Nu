@@ -81,6 +81,24 @@ def gaussian_region(bgr: np.ndarray, box: Box, strength: int = DEFAULT_BLUR_STRE
     bgr[y1:y2, x1:x2] = _gaussian(roi, strength)
 
 
+def oval_tilt(angle: float) -> float:
+    """楕円を枠に合わせて傾ける角度（-45〜45°）。
+
+    枠は顔を囲む縦横の枠。横倒し（目の線が縦）の顔は枠が横長なので、
+    目の線の角度そのままで回すと楕円が縦横逆になり、顔の端がぼけない。
+    楕円の長い軸が、枠の長い辺の向きから 45° 以内になるようにそろえる。
+    """
+    try:
+        value = float(angle)
+    except (TypeError, ValueError):
+        return 0.0
+    if not np.isfinite(value):
+        return 0.0
+    if -45.0 <= value <= 45.0:
+        return value
+    return ((value + 45.0) % 90.0) - 45.0
+
+
 def gaussian_oval(bgr: np.ndarray, box: Box, strength: int = DEFAULT_BLUR_STRENGTH) -> None:
     """矩形の角は残し、顔の形に近い楕円でぼかす。"""
     x1, y1, x2, y2 = _clip(bgr, box)
@@ -94,7 +112,7 @@ def gaussian_oval(bgr: np.ndarray, box: Box, strength: int = DEFAULT_BLUR_STRENG
     blurred = _gaussian(roi, strength)
     mask = np.zeros((rh, rw), dtype=np.float32)
     axes = (max(1, rw // 2 - 1), max(1, rh // 2 - 1))
-    cv2.ellipse(mask, (rw // 2, rh // 2), axes, float(box.angle), 0, 360, 1.0, -1)
+    cv2.ellipse(mask, (rw // 2, rh // 2), axes, oval_tilt(box.angle), 0, 360, 1.0, -1)
     feather = max(3, (min(rw, rh) // 8) | 1)
     mask = cv2.GaussianBlur(mask, (feather, feather), 0)
     alpha = mask[..., None]
