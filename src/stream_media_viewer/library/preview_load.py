@@ -7,7 +7,13 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtCore import QThread, Signal
 
-from stream_media_viewer.detect.protect import PROTECT_LOCK, acquire_protect_lock, protect_for_note
+from stream_media_viewer.detect.protect import (
+    PROTECT_LOCK,
+    ProtectSettings,
+    acquire_protect_lock,
+    note_snapshot,
+    protect_for_note,
+)
 from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.library.scan import load_rgb_image
@@ -57,8 +63,9 @@ class PrefetchWorker(QThread):
     ) -> None:
         super().__init__()
         self._path = path
-        self._settings = settings
-        self._note = note
+        # 鍵は今の設定で作ってあるので、中身も今の設定で作る（途中の変更を混ぜない）
+        self._settings = ProtectSettings.of(settings)
+        self._note = note_snapshot(note)
         self._key = key
         self._folder_id = folder_id
 

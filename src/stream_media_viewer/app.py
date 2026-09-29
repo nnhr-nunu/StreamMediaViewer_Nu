@@ -22,7 +22,12 @@ from stream_media_viewer.detect.false_faces import (
     try_remove_shipped_hash,
     try_update_shipped_catalog,
 )
-from stream_media_viewer.detect.protect import PROTECT_LOCK, protect_for_note, protect_frame_safe
+from stream_media_viewer.detect.protect import (
+    PROTECT_LOCK,
+    ProtectSettings,
+    protect_for_note,
+    protect_frame_safe,
+)
 from stream_media_viewer.errors import install_excepthook, log_exception, user_error_key
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.filters import passes_filters
@@ -106,7 +111,7 @@ class ProtectThread(QThread):
         super().__init__()
         self._bgr = bgr
         self._still = still
-        self._settings = settings
+        self._settings = ProtectSettings.of(settings)
         self._marks = marks
         self.seq = seq
         self._skip_faces = skip_faces
@@ -229,6 +234,8 @@ class StreamMediaViewerApp:
         op.timeline.sliderReleased.connect(self._apply_in_out)
         op.timeline_out.sliderReleased.connect(self._apply_in_out)
         op.destroyed.connect(self._on_operator_gone)
+        # 操作画面を閉じたら配信用の窓も消す（ソフトを閉じた → 消える）
+        op.closing.connect(self._on_panic)
         self.output.hide_requested.connect(self._on_panic)
         op._viewer_app = self
         op.set_live_probe(self._current_is_live)
@@ -1394,17 +1401,24 @@ class StreamMediaViewerApp:
         turn = clamp_rotation(step)
         if turn == 0:
             return
+        source = self._ensure_source_bgr()
+        if item.kind == "video" and self._video.last_raw is not None:
+            source = self._video.last_raw
+            self._source_bgr = source
+        aspect = None
+        if source is not None and source.shape[0] > 0 and source.shape[1] > 0:
+            # 手動ぼかしは今の向きの絵の上の位置。回す前の向きの 幅÷高さ を渡す
+            height, width = source.shape[:2]
+            if note.rotation in (90, 270):
+                width, height = height, width
+            aspect = width / height
         note.rotation = clamp_rotation(note.rotation + turn)
-        note.marks = rotate_marks(note.marks, turn)
+        note.marks = rotate_marks(note.marks, turn, aspect=aspect)
         self._protect_cache.clear()
         self._undo = []
         if item.kind == "video":
             self._stop_preload()
             self._video.set_protect(lambda frame, marks=note.marks: self._protect_sync(frame, marks))
-        source = self._ensure_source_bgr()
-        if item.kind == "video" and self._video.last_raw is not None:
-            source = self._video.last_raw
-            self._source_bgr = source
         if source is not None:
             self._show_operator_frame(rotate_bgr(source, note.rotation))
         self._reprotect_current()
@@ -1802,6 +1816,8 @@ def run() -> int:
         settings, load_error = load_settings_with_error()
         app = StreamMediaViewerApp(settings)
         qt_app.aboutToQuit.connect(app.persist)
+        # 配信用の窓が出ていても、操作画面を閉じたらソフトを終える
+        app.operator.closing.connect(qt_app.quit)
         app.show()
         if load_error:
             app._tell_error(load_error, dialog=True)

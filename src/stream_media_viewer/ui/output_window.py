@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPixmap
+from PySide6.QtGui import QColor, QKeySequence, QMouseEvent, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -186,6 +186,8 @@ class OutputWindow(QMainWindow):
         apply_app_icon(self)
         self.setFixedSize(OUTPUT_WIDTH, OUTPUT_HEIGHT)
         self.setStyleSheet(DARK_QSS)
+        # ソフトを終えるかは操作画面が決める（この窓が残っても終われるように）
+        self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
         host = QWidget()
         grid = QGridLayout(host)
         grid.setContentsMargins(0, 0, 0, 0)
@@ -235,6 +237,9 @@ class OutputWindow(QMainWindow):
         self.btn_zoom_in.clicked.connect(lambda: self.canvas.zoom_step(zoom_in=True))
         self.btn_zoom_out.clicked.connect(lambda: self.canvas.zoom_step(zoom_in=False))
         self.slider_loupe.valueChanged.connect(self.canvas.set_loupe_px)
+        # ⦿・🔍 などを押してこの窓が前に来ていても、緊急（Esc／0）で隠せるように
+        for key in ("Esc", "0"):
+            QShortcut(QKeySequence(key), self, self.hide_requested.emit)
         self.refresh()
 
     def set_loupe(self, on: bool) -> None:
@@ -253,8 +258,13 @@ class OutputWindow(QMainWindow):
         self.present_canvas()
 
     def closeEvent(self, event) -> None:  # noqa: N802
-        event.ignore()
-        self.hide_requested.emit()
+        if event.spontaneous():
+            # 人が × を押したときは「隠す」と同じ。ソフトは終えない
+            event.ignore()
+            self.hide_requested.emit()
+            return
+        # ソフトを終えるときの close は通す（拒むと終われず、窓だけ残る）
+        event.accept()
 
     def present_canvas(self) -> None:
         if not self.isVisible() or not self._gate.window_visible:

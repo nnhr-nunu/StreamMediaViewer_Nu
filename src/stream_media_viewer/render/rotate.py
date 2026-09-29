@@ -43,7 +43,14 @@ def _map_point(x: float, y: float, degrees: int) -> tuple[float, float]:
     return x, y
 
 
-def rotate_marks(marks: list[dict[str, Any]], degrees: int) -> list[dict[str, Any]]:
+def rotate_marks(
+    marks: list[dict[str, Any]], degrees: int, *, aspect: float | None = None
+) -> list[dict[str, Any]]:
+    """手動ぼかしを絵といっしょに回す。aspect は回す前の絵の 幅÷高さ。
+
+    筆の太さは絵の幅に対する割合なので、90° 回して幅と高さが入れ替わると、
+    そのままでは細くなって塗った顔の縁が出る。回す前の太さ（画素）に合わせ直す。
+    """
     deg = clamp_rotation(degrees)
     if deg == 0:
         return [dict(mark) for mark in marks]
@@ -78,5 +85,10 @@ def rotate_marks(marks: list[dict[str, Any]], degrees: int) -> list[dict[str, An
                 nx, ny = _map_point(float(point[0]), float(point[1]), deg)
                 moved.append([nx, ny])
             item["points"] = moved
+            if deg in (90, 270) and aspect and aspect > 0 and item.get("width"):
+                try:
+                    item["width"] = float(item["width"]) * float(aspect)
+                except (TypeError, ValueError):
+                    pass
         out.append(item)
     return out

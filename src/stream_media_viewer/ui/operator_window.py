@@ -113,6 +113,7 @@ class OperatorWindow(QMainWindow):
     audio_changed = Signal()
     false_undo_requested = Signal()
     brush_width_changed = Signal(int)
+    closing = Signal()
 
     def __init__(self, gate: OutputGate) -> None:
         super().__init__()
@@ -648,6 +649,11 @@ class OperatorWindow(QMainWindow):
         self._place_tool_frames()
         self.preview.set_loupe(on)
         self.preview.set_loupe_px(self.slider_loupe.value())
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        super().closeEvent(event)
+        if event.isAccepted():
+            self.closing.emit()
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
