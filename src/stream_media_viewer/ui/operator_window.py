@@ -825,7 +825,9 @@ class OperatorWindow(QMainWindow):
         menu = QMenu(self)
         key = "unhide_item" if self.chk_hidden.isChecked() else "hide_item"
         chosen = menu.addAction(t(self.lang, key))
-        if menu.exec(self.list.mapToGlobal(pos)) is chosen:
+        picked = menu.exec(self.list.mapToGlobal(pos)) is chosen
+        menu.deleteLater()
+        if picked:
             self.hide_item_requested.emit(row)
 
     def set_media_kind(self, kind: str | None) -> None:
@@ -1147,7 +1149,9 @@ class OperatorWindow(QMainWindow):
         return dialog
 
     def _show_shortcuts(self) -> None:
-        self._shortcuts_dialog().exec()
+        dialog = self._shortcuts_dialog()
+        dialog.exec()
+        dialog.deleteLater()
 
     def refresh_status(self) -> None:
         reason = self._gate.reason

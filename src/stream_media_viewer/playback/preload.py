@@ -280,7 +280,11 @@ class PreloadWorker(QThread):
         duration = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         if duration > 0:
             start_f = int(self._in_ms / 1000 * fps)
-            end_f = int((self._out_ms or 10**9) / 1000 * fps)
+            # 終わりを決めていないときは最後まで（コマの総数）。
+            # 10 億ミリ秒で見積もると「35/30000000」のような進み具合になっていた
+            end_f = duration
+            if self._out_ms:
+                end_f = min(duration, int(self._out_ms / 1000 * fps))
             estimated = max(1, end_f - start_f)
         saw_face = False
         saw_text = False

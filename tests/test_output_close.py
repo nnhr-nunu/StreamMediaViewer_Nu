@@ -52,3 +52,41 @@ def test_output_window_has_its_own_panic_keys(qtbot) -> None:
     for shortcut in window.findChildren(QShortcut):
         shortcut.activated.emit()
     assert len(hits) == 2
+
+
+def test_unreadable_standby_image_keeps_the_output_hidden(qtbot, tmp_path) -> None:
+    # 待機画像が消えた・画像でないときに、黒い 1920×1080 の窓を OBS に出さない
+    broken = tmp_path / "gone.png"
+    settings = AppSettings(use_standby=True, standby_path=str(broken))
+    app = StreamMediaViewerApp(settings)
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    app.show()
+    assert app.gate.reason is OutputReason.STARTUP
+    assert not app.output.isVisible()
+
+
+def test_popups_from_the_operator_are_kept_out_of_capture(qtbot, monkeypatch) -> None:
+    # ツールチップ・メニューなど別の窓にもファイル名が出る。配信用の窓だけは取り込ませる。
+    import sys
+
+    from PySide6.QtWidgets import QApplication, QMenu
+
+    from stream_media_viewer.ui import capture_exclude
+
+    if sys.platform != "win32":
+        return
+    excluded: list[object] = []
+    monkeypatch.setattr(capture_exclude, "exclude_from_capture", lambda w: excluded.append(w))
+    capture_exclude.guard_popups_from_capture(QApplication.instance())
+    menu = QMenu()
+    qtbot.addWidget(menu)
+    menu.addAction("a.jpg")
+    menu.popup(menu.pos())
+    qtbot.waitUntil(lambda: menu in excluded, timeout=2000)
+    menu.hide()
+    output = OutputWindow(OutputGate())
+    qtbot.addWidget(output)
+    output.show()
+    qtbot.waitExposed(output)
+    assert output not in excluded

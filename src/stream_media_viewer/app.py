@@ -7,7 +7,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from PySide6.QtCore import QDate, QThread, Signal
+from PySide6.QtCore import QDate, QThread, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessageBox
 
@@ -69,8 +69,11 @@ from stream_media_viewer.settings import (
     save_settings,
 )
 from stream_media_viewer.ui.app_icon import apply_app_icon, configure_process_identity
-from stream_media_viewer.ui.capture_exclude import configure_dev_allow_capture
-from stream_media_viewer.ui.geometry import geometry_hex, restore_saved_geometry
+from stream_media_viewer.ui.capture_exclude import (
+    configure_dev_allow_capture,
+    guard_popups_from_capture,
+)
+from stream_media_viewer.ui.geometry import restore_saved_geometry, window_pos_text
 from stream_media_viewer.ui.list_row import FACE_MARK, row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
 from stream_media_viewer.ui.output_window import OutputWindow
@@ -146,8 +149,9 @@ class StreamMediaViewerApp:
         self.settings = settings if settings is not None else load_settings()
         configure_dev_allow_capture(self.settings.dev_allow_capture)
         self.gate = OutputGate()
-        if self.settings.use_standby and self.settings.standby_path:
-            self.gate.enable_standby(True)
+        # 待機画像が読めたときだけ待機にする（読めないのに黒い窓を OBS に出さない）
+        standby = self._standby_frame()
+        self.gate.enable_standby(standby is not None)
         self.operator = OperatorWindow(self.gate)
         self.output = OutputWindow(self.gate)
         self.operator.lang = self.settings.language
@@ -187,10 +191,15 @@ class StreamMediaViewerApp:
         self._preload: PreloadWorker | None = None
         self._folder_queue: list[MediaItem] = []
         self._folder_total = 0
+        # 先読みで下準備が増えたら、上の段の容量も少し待ってから直す（数えるのは重いので間引く）
+        self._cache_label_timer = QTimer()
+        self._cache_label_timer.setSingleShot(True)
+        self._cache_label_timer.timeout.connect(self._refresh_cache_label)
         self._wire()
         self._restore_checks()
-        if self.gate.window_visible:
-            self._show_standby_frame()
+        guard_popups_from_capture(QApplication.instance())
+        if standby is not None and self.gate.window_visible:
+            self.output.show_frame(standby)
         if self.settings.last_folder:
             self._open_folder_path(self.settings.last_folder)
         else:
@@ -271,7 +280,8 @@ class StreamMediaViewerApp:
         op.date_from.blockSignals(False)
         op.date_to.blockSignals(False)
         if self.settings.operator_geometry:
-            self.operator.restoreGeometry(bytes.fromhex(self.settings.operator_geometry))
+            # 壊れた・手で直した値でも起動できるように（読めなければ既定の位置）
+            restore_saved_geometry(self.operator, self.settings.operator_geometry)
         self.operator.clamp_to_screen()
         restore_saved_geometry(self.output, self.settings.output_pos)
 
@@ -336,9 +346,11 @@ class StreamMediaViewerApp:
                 use_standby=self.settings.use_standby,
             ),
         )
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
         applied = dialog.draft()
+        dialog.deleteLater()
+        if not accepted:
+            return
         previous = {
             "blur_strength": self.settings.blur_strength,
             "include_subfolders": self.settings.include_subfolders,
@@ -351,12 +363,13 @@ class StreamMediaViewerApp:
             self.settings.include_subfolders = applied.include_subfolders
             self.settings.standby_path = applied.standby_path
             self.settings.use_standby = applied.use_standby
-            if applied.use_standby and applied.standby_path:
-                self.gate.enable_standby(True)
-                self._show_standby_frame()
-            else:
-                self.gate.enable_standby(False)
+            standby = self._standby_frame()
+            self.gate.enable_standby(standby is not None)
+            if standby is not None and self.gate.masked:
+                self.output.show_frame(standby)
             self._sync_windows()
+            if applied.use_standby and applied.standby_path and standby is None:
+                self._tell_error("standby_unreadable", dialog=True)
             if prev_sub != applied.include_subfolders and self.settings.last_folder:
                 self._open_folder_path(self.settings.last_folder)
                 self._save_settings()
@@ -373,13 +386,14 @@ class StreamMediaViewerApp:
             self._sync_windows()
             self._tell_error(user_error_key(exc, where="settings"), dialog=True)
 
-    def _show_standby_frame(self) -> None:
-        """待機中（まだ一度も送っていない）ときだけ、待機画像を配信用の窓に置く。"""
-        if not self.gate.masked or not self.settings.standby_path:
-            return
+    def _standby_frame(self) -> np.ndarray | None:
+        """待機画像（1920×1080 に収めた絵）。使わない・読めないときは None。"""
+        if not self.settings.use_standby or not self.settings.standby_path:
+            return None
         image = load_rgb_image(Path(self.settings.standby_path))
-        if image is not None:
-            self.output.show_frame(fit_letterbox(rgb_to_bgr(np.array(image))))
+        if image is None:
+            return None
+        return fit_letterbox(rgb_to_bgr(np.array(image)))
 
     def _cycle_language(self) -> None:
         self.settings.language = "en" if self.settings.language == "ja" else "ja"
@@ -407,13 +421,12 @@ class StreamMediaViewerApp:
         browse = menu.addAction(t(lang, "browse_folder"))
         anchor = self.operator.btn_folder.rect().bottomLeft()
         chosen = menu.exec(self.operator.btn_folder.mapToGlobal(anchor))
-        if chosen is None:
-            return
-        if chosen is browse:
+        picked_browse = chosen is not None and chosen is browse
+        path = "" if chosen is None or picked_browse else str(chosen.data() or "")
+        menu.deleteLater()
+        if picked_browse:
             self._browse_folder()
-            return
-        path = str(chosen.data() or "")
-        if path:
+        elif path:
             self._open_folder_path(path)
 
     def _browse_folder(self) -> None:
@@ -674,6 +687,7 @@ class StreamMediaViewerApp:
 
     def shutdown(self) -> None:
         self._closing = True
+        self._cache_label_timer.stop()
         self._scan_token += 1
         self._pending_thumbs = []
         try:
@@ -851,6 +865,7 @@ class StreamMediaViewerApp:
             live=self._live_path == str(item.path) and not self.gate.masked,
             ready=cache_is_ready(self._key_for(item), self._folder_id()),
             manual=bool(note.marks),
+            lang=self.settings.language,
         )
         warn = FACE_MARK if item.has_face else ""
         when = item.captured_at.strftime("%m/%d %H:%M") if item.captured_at else ""
@@ -871,7 +886,7 @@ class StreamMediaViewerApp:
         if item.relative_folder:
             parts.append(item.relative_folder)
         if item.kind == "video":
-            parts.append(t(lang, "filter_video"))
+            parts.append(t(lang, "kind_video"))
         if duration_ms and duration_ms > 0:
             parts.append(_format_duration(duration_ms))
         if item.has_face:
@@ -1103,6 +1118,7 @@ class StreamMediaViewerApp:
 
     def _on_prefetch_ready(self, key: str, bgr: object, faces: bool, texts: bool) -> None:
         if isinstance(bgr, np.ndarray):
+            self._cache_label_timer.start(1500)
             if self._protect_cache.room() > 0:
                 self._protect_cache.put(key, bgr, bool(faces), bool(texts))
             self._apply_prefetch_marks(key, bool(faces), bool(texts))
@@ -1227,6 +1243,7 @@ class StreamMediaViewerApp:
                         has_face=has_face,
                         has_text=has_text,
                     )
+                    self._cache_label_timer.start(1500)
             duration = self.operator.timeline.maximum() if item.kind == "video" else None
             self.operator.meta.setText(self._item_meta_text(item, duration_ms=duration))
         fitted = fit_letterbox(bgr)
@@ -1754,6 +1771,7 @@ class StreamMediaViewerApp:
         box.addButton(t(lang, "cancel"), QMessageBox.ButtonRole.RejectRole)
         box.exec()
         clicked = box.clickedButton()
+        box.deleteLater()
         if clicked is not this_btn and clicked is not all_btn:
             return
         self._stop_preload()
@@ -1792,7 +1810,7 @@ class StreamMediaViewerApp:
         try:
             geo = self.operator.saveGeometry()
             self.settings.operator_geometry = geo.toHex().data().decode("ascii")
-            self.settings.output_pos = geometry_hex(self.output)
+            self.settings.output_pos = window_pos_text(self.output)
         except RuntimeError:
             pass
         self._save_settings()

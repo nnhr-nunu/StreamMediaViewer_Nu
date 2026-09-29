@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+from stream_media_viewer.i18n import t
+
 FACE_MARK = "😊"
 
 
-def row_marks(*, favorite: bool, live: bool, ready: bool, manual: bool = False) -> str:
+def row_marks(
+    *, favorite: bool, live: bool, ready: bool, manual: bool = False, lang: str = "ja"
+) -> str:
     parts: list[str] = []
     if favorite:
         parts.append("⭐")
     if live:
-        parts.append("【表示中】")
+        parts.append(t(lang, "mark_live"))
     if ready:
         parts.append("✓")
     if manual:
-        parts.append("💧手動ぼかし")
+        parts.append("💧" + t(lang, "btn_manual"))
     return " ".join(parts)
