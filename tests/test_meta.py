@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from PIL import Image
@@ -49,7 +49,20 @@ def test_mp4_creation_datetime_reads_mvhd(tmp_path: Path) -> None:
     path.write_bytes(ftyp + moov)
     got = mp4_creation_datetime(path)
     assert got is not None
-    assert abs((got - created) - timedelta(0)) < timedelta(seconds=2)
+    # mvhd は UTC。写真と並べるので PC の時刻に直して返す
+    local = created.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+    assert abs((got - local) - timedelta(0)) < timedelta(seconds=2)
+    assert got.tzinfo is None
+
+
+def test_image_capture_meta_prefers_the_shot_time_over_the_edit_time(tmp_path: Path) -> None:
+    exif = Image.Exif()
+    exif[0x0132] = "2024:05:06 20:00:00"  # IFD0 の DateTime は編集した日時
+    exif.get_ifd(0x8769)[0x9003] = "2024:05:01 09:30:00"  # DateTimeOriginal
+    path = tmp_path / "edited.jpg"
+    Image.new("RGB", (16, 16)).save(path, exif=exif)
+    captured, _, _ = image_capture_meta(path)
+    assert captured == datetime(2024, 5, 1, 9, 30, 0)
 
 
 def test_image_capture_meta_skips_xmp(tmp_path: Path, monkeypatch) -> None:

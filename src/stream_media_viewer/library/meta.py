@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from PIL import Image, IptcImagePlugin
@@ -100,6 +100,10 @@ def image_capture_meta(path: Path) -> tuple[datetime | None, bool, str]:
     gps_place = ""
     if raw:
         named = {TAGS.get(k, k): v for k, v in raw.items()}
+        # 撮影日時（DateTimeOriginal）は Exif の区画にある。IFD0 の DateTime は編集した日時。
+        exif_ifd = raw.get_ifd(0x8769) if hasattr(raw, "get_ifd") else None
+        if exif_ifd:
+            named.update({TAGS.get(k, k): v for k, v in exif_ifd.items()})
         for key in ("DateTimeOriginal", "DateTimeDigitized", "DateTime"):
             captured = _parse_exif_datetime(named.get(key))
             if captured:
@@ -165,9 +169,16 @@ def _mvhd_time(payload: bytes) -> datetime | None:
     if seconds <= 0:
         return None
     try:
-        return _sane(_MAC_EPOCH + timedelta(seconds=seconds))
+        utc = _MAC_EPOCH + timedelta(seconds=seconds)
     except OverflowError:
         return None
+    if _sane(utc) is None:
+        return None
+    # mvhd の時刻は UTC。写真（撮影地の時計）と並べるので、この PC の時刻に直す。
+    try:
+        return utc.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+    except (OverflowError, OSError, ValueError):
+        return utc
 
 
 def mp4_creation_datetime(path: Path) -> datetime | None:

@@ -27,6 +27,7 @@ from stream_media_viewer.render.enhance import parse_enhance_level
 from stream_media_viewer.ui.overlays import OPERATOR_LOUPE_PX, OUTPUT_LOUPE_PX, clamp_loupe_px
 
 RECENT_FOLDER_LIMIT = 8
+_BLANK_NOTE = FileNote()
 FACE_PIPELINE_ACCURATE = "accurate"
 FACE_PIPELINE_LEGACY = "legacy"
 _FACE_PIPELINE_LEGACY_ALIASES = frozenset(
@@ -132,7 +133,11 @@ class AppSettings:
             "list_sort": self.list_sort,
             "false_face_hashes": list(self.false_face_hashes),
             "face_pipeline": parse_face_pipeline(self.face_pipeline),
-            "notes": {key: note.to_dict() for key, note in self.notes.items()},
+            # 開いただけのファイル（何も記録していない）は書かない。数千枚のフォルダで
+            # 設定ファイルが大きくなり、保存のたびに重くなるのを防ぐ
+            "notes": {
+                key: note.to_dict() for key, note in self.notes.items() if note != _BLANK_NOTE
+            },
         }
         if self.dev_allow_capture:
             payload["dev_allow_capture"] = True
@@ -227,13 +232,22 @@ def _keep_broken_copy(target: Path) -> None:
         log_exception(exc)
 
 
+def _read_settings_text(target: Path) -> str:
+    """手で直した設定も読む。メモ帳の「BOM 付き UTF-8」や「ANSI（Shift-JIS）」で保存されうる。"""
+    data = target.read_bytes()
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return data.decode("cp932")
+
+
 def load_settings_with_error(path: Path | None = None) -> tuple[AppSettings, str | None]:
     target = path or settings_path()
     if not target.is_file():
         return AppSettings(), None
     try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        raw = json.loads(_read_settings_text(target))
+    except (OSError, ValueError) as exc:
         log_exception(exc)
         _keep_broken_copy(target)
         return AppSettings(), "settings_load_failed"
