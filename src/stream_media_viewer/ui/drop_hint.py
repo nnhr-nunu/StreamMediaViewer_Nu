@@ -51,9 +51,13 @@ class CalendarDateEdit(QDateEdit):
         self.setCalendarWidget(calendar)
         calendar.clicked.connect(lambda _date: self.picked.emit())
         calendar.activated.connect(lambda _date: self.picked.emit())
+        # 日付はカレンダーで選ぶだけ。キーの入力を受けると、選んだあとにテンキーの 0（緊急）や
+        # 4/6/5・→ が日付欄に吸われて効かなくなるので、キーの受け先にならないようにする。
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         edit = self.lineEdit()
         if edit is not None:
             edit.setReadOnly(True)
+            edit.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             edit.installEventFilter(self)
 
     def paintEvent(self, event) -> None:  # noqa: N802
@@ -61,7 +65,17 @@ class CalendarDateEdit(QDateEdit):
         painter = QPainter(self)
         _paint_hint(self, painter)
 
+    def event(self, event) -> bool:  # noqa: D102
+        if event.type() == QEvent.Type.ShortcutOverride:
+            # キーは操作画面のショートカット（緊急の 0 など）へ回す
+            event.ignore()
+            return True
+        return super().event(event)
+
     def eventFilter(self, watched, event) -> bool:  # noqa: N802
+        if watched is self.lineEdit() and event.type() == QEvent.Type.ShortcutOverride:
+            event.ignore()
+            return True
         if watched is self.lineEdit() and event.type() == QEvent.Type.MouseButtonPress:
             if event.button() == Qt.MouseButton.LeftButton:
                 self._open_calendar()
