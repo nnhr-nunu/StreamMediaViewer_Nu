@@ -1,3 +1,9 @@
+"""暗い画面の見た目。配信中に光らない色だけを使う。"""
+
+from stream_media_viewer.ui.app_icon import assets_dir
+
+_CHECK = (assets_dir() / "check.png").as_posix()
+
 DARK_QSS = """
 QMainWindow, QDialog {
   background: #121212;
@@ -49,6 +55,50 @@ QToolButton:hover, QPushButton:hover {
 QToolButton:checked {
   background: #6b3fa0;
 }
+QToolButton:checked:hover {
+  background: #7d4bb8;
+}
+QToolButton:disabled, QPushButton:disabled {
+  background: #1e1e1e;
+  color: #6a6a6a;
+}
+QToolButton#sendButton {
+  border: 2px solid #6b3fa0;
+}
+QToolButton#sendButton[live="true"] {
+  background: #6b3fa0;
+}
+QToolButton#sendButton:disabled {
+  border-color: #33283d;
+}
+QToolButton#panicButton {
+  background: #4a1f24;
+}
+QToolButton#panicButton:hover {
+  background: #6a2830;
+}
+QLabel#outputStatus {
+  background: #1f1f1f;
+  color: #a8a8a8;
+  border: 1px solid #333;
+  border-radius: 11px;
+  padding: 2px 10px;
+}
+QLabel#outputStatus[state="live"] {
+  background: #2a1719;
+  color: #ffb4b4;
+  border-color: #8a3a44;
+}
+QLabel#outputStatus[state="standby"] {
+  color: #c9a0ff;
+  border-color: #4a3560;
+}
+QToolTip {
+  background: #2a2a2a;
+  color: #e8e8e8;
+  border: 1px solid #555;
+  padding: 4px 6px;
+}
 QSlider::groove:horizontal {
   height: 6px;
   background: #333;
@@ -67,6 +117,24 @@ QSlider#rangeOut::handle:horizontal {
   background: #e8a070;
 }
 QCheckBox { spacing: 4px; padding: 2px 6px 2px 2px; }
+QCheckBox::indicator {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #777;
+  border-radius: 4px;
+  background: #1b1b1b;
+}
+QCheckBox::indicator:hover {
+  border-color: #c9a0ff;
+}
+QCheckBox::indicator:checked {
+  background: #6b3fa0;
+  border-color: #c9a0ff;
+  image: url(__CHECK__);
+}
+QCheckBox:disabled {
+  color: #6a6a6a;
+}
 QComboBox, QDateEdit {
   background: #1b1b1b;
   color: #e8e8e8;
@@ -76,8 +144,10 @@ QComboBox, QDateEdit {
   min-height: 32px;
 }
 QDateEdit {
-  min-width: 118px;
-  max-width: 132px;
+  padding: 4px 2px 4px 8px;
+}
+QDateEdit[inactive="true"] {
+  color: #7a7a7a;
 }
 QComboBox::drop-down, QDateEdit::drop-down {
   subcontrol-origin: border;
@@ -211,4 +281,4 @@ QLineEdit {
   padding: 6px 10px;
   min-height: 28px;
 }
-"""
+""".replace("__CHECK__", _CHECK)

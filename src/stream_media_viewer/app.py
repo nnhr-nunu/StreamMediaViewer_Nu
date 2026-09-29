@@ -227,6 +227,7 @@ class StreamMediaViewerApp:
         op.destroyed.connect(self._on_operator_gone)
         self.output.hide_requested.connect(self._on_panic)
         op._viewer_app = self
+        op.set_live_probe(self._current_is_live)
 
     def _restore_checks(self) -> None:
         op = self.operator
@@ -899,6 +900,10 @@ class StreamMediaViewerApp:
         list_item = self.operator.list.item(self._index)
         if list_item is not None:
             list_item.setText(self._row_label(item))
+
+    def _current_is_live(self) -> bool:
+        item = self._current()
+        return bool(item and self._live_path == str(item.path) and not self.gate.masked)
 
     def _current(self) -> MediaItem | None:
         if not self._visible:
@@ -1740,7 +1745,7 @@ class StreamMediaViewerApp:
     def _refresh_cache_label(self) -> None:
         folder = format_bytes(cache_size_bytes(self._folder_id()))
         total = format_bytes(cache_size_bytes())
-        self.operator.cache_label.setText(
+        self.operator.set_cache_text(
             t(self.settings.language, "cache_label").format(folder=folder, total=total)
         )
 

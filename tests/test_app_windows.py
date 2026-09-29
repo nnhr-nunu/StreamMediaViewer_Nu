@@ -577,7 +577,8 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert "絞り込み" in op.filter_box.title()
     assert op.btn_star.isCheckable()
     assert "手動ぼかし" in op.btn_manual.text()
-    assert "💧" in op.btn_manual.text()
+    assert op.btn_manual.property("glyph") == "💧"
+    assert not op.btn_manual.icon().isNull()
     assert not hasattr(op, "chk_gps")
     assert op.chk_filter_face.text() == "😊"
     lay = op.filter_box.layout()
@@ -621,7 +622,7 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert op.preview.mode == "stroke"
     assert not op.slider_brush.isHidden()
     assert "キー説明" in op.btn_help.text()
-    assert "あ/A" in op.btn_lang.text()
+    assert op.btn_lang.property("glyph") == "あ/A"
     dialog = op._shortcuts_dialog()
     qtbot.addWidget(dialog)
     assert dialog.windowTitle() == "キー説明"
@@ -655,6 +656,25 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert "0 / 1" not in op.scan_count.text()
     op.set_places(["京都"], "")
     assert op.combo_place.findData("__none__") >= 0
+
+
+def test_operator_status_and_date_filter_ux(qtbot) -> None:
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    op = app.operator
+    assert op.output_status.text() == t("ja", "status_hidden")
+    assert op.output_status.property("state") == "hidden"
+    app.gate.panic()
+    op.refresh_status()
+    assert op.output_status.text() == t("ja", "status_panic")
+    op.set_cache_text("下準備: このフォルダ 1 KB / 全体 2 KB")
+    assert "1 KB" in op.btn_clear_cache.toolTip()
+    assert not op.chk_dates.isChecked()
+    assert op.date_from.property("inactive") is True
+    op.date_from.picked.emit()
+    assert op.chk_dates.isChecked()
+    assert op.date_from.property("inactive") is False
 
 
 def test_folder_dates_span_oldest_to_newest(qtbot) -> None:
