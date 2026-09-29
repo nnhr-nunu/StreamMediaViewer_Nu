@@ -10,7 +10,7 @@ import numpy as np
 from PySide6.QtCore import QThread, Signal
 
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
-from stream_media_viewer.detect.faces import FaceHold
+from stream_media_viewer.detect.faces import STILL_DETECT_VERSION, FaceHold
 from stream_media_viewer.detect.protect import protect_for_note
 from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import FileNote
@@ -100,6 +100,7 @@ def cache_key(
     false_face_hashes: list[str] | None = None,
     rotation: int = 0,
     face_pipeline: str = "accurate",
+    still: bool = False,
 ) -> str:
     stat = path.stat() if path.is_file() else None
     payload = {
@@ -118,6 +119,9 @@ def cache_key(
         "rotation": int(rotation or 0),
         "face_pipeline": parse_face_pipeline(face_pipeline),
     }
+    if still:
+        # 写真の探し方を変えたら、前の探し方で作った下準備は使わない（動画の下準備は残す）。
+        payload["still_detect"] = STILL_DETECT_VERSION
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()[:20]
 
@@ -233,14 +237,16 @@ class PreloadWorker(QThread):
         self._folder_id = folder_id
         self._face_hold = FaceHold()
 
-    def _protect_frame(self, bgr: Any) -> tuple[Any, bool, bool]:
+    def _protect_frame(self, bgr: Any, *, still: bool = False) -> tuple[Any, bool, bool]:
         note = self._settings.note_for(str(self._path))
         snap = FileNote(
             marks=self._marks,
             skip_faces=note.skip_faces,
             rotation=note.rotation,
         )
-        return protect_for_note(bgr, self._settings, snap, face_hold=self._face_hold)
+        return protect_for_note(
+            bgr, self._settings, snap, face_hold=self._face_hold, still=still
+        )
 
     def run(self) -> None:
         try:
@@ -333,7 +339,7 @@ class PreloadWorker(QThread):
             self.finished_ok.emit(self._key)
             return
         bgr = rgb_to_bgr(np.array(image))
-        out, faces, texts = self._protect_frame(bgr)
+        out, faces, texts = self._protect_frame(bgr, still=True)
         if out is None:
             shutil.rmtree(dest, ignore_errors=True)
             self.finished_ok.emit(self._key)

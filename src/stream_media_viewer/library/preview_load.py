@@ -78,7 +78,9 @@ class PrefetchWorker(QThread):
             try:
                 if self.isInterruptionRequested():
                     return
-                out, faces, texts = protect_for_note(bgr, self._settings, self._note)
+                out, faces, texts = protect_for_note(
+                    bgr, self._settings, self._note, still=True
+                )
             finally:
                 PROTECT_LOCK.release()
             if self.isInterruptionRequested():
