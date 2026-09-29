@@ -1434,7 +1434,10 @@ class StreamMediaViewerApp:
         self._protect_cache.clear()
         self._undo = []
         if item.kind == "video":
-            self._stop_preload()
+            # フォルダの下準備の途中なら止めない（止めると列が進まなくなる）。
+            # 動いている分は始めたときの向きの鍵で作るので、新しい向きの絵と混ざらない。
+            if not self._folder_queue:
+                self._stop_preload()
             self._video.set_protect(lambda frame, marks=note.marks: self._protect_sync(frame, marks))
         if source is not None:
             self._show_operator_frame(rotate_bgr(source, note.rotation))

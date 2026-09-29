@@ -90,3 +90,23 @@ def test_popups_from_the_operator_are_kept_out_of_capture(qtbot, monkeypatch) ->
     output.show()
     qtbot.waitExposed(output)
     assert output not in excluded
+
+
+def test_rotating_a_video_does_not_stall_the_folder_prep(qtbot, monkeypatch, tmp_path) -> None:
+    # フォルダの動画の下準備の途中で動画を回しても、下準備の列を止めない
+    from stream_media_viewer.library.item import MediaItem
+
+    app = StreamMediaViewerApp(AppSettings())
+    qtbot.addWidget(app.operator)
+    qtbot.addWidget(app.output)
+    clip = MediaItem(path=tmp_path / "clip.mp4", kind="video", captured_at=None, has_gps=False)
+    other = MediaItem(path=tmp_path / "next.mp4", kind="video", captured_at=None, has_gps=False)
+    app._items = [clip, other]
+    app._visible = [0, 1]
+    app._index = 0
+    app._folder_queue = [other]
+    stops: list[int] = []
+    monkeypatch.setattr(app, "_stop_preload", lambda: stops.append(1))
+    app._rotate_current(90)
+    assert stops == []
+    assert app.settings.note_for(str(clip.path)).rotation == 90
