@@ -17,6 +17,7 @@ from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.library.scan import video_header_ok
 from stream_media_viewer.render.canvas import OUTPUT_HEIGHT, OUTPUT_WIDTH, fit_letterbox
 from stream_media_viewer.render.enhance import enhance_bgr
+from stream_media_viewer.render.image_io import read_bgr, write_jpeg
 from stream_media_viewer.settings import AppSettings, parse_face_pipeline
 
 
@@ -173,7 +174,7 @@ def write_protected_image(
     dest.mkdir(parents=True, exist_ok=True)
     fitted = _fit_photo_for_cache(bgr)
     path = dest / "000000.jpg"
-    ok = cv2.imwrite(str(path), fitted, [int(cv2.IMWRITE_JPEG_QUALITY), IMAGE_JPEG_QUALITY])
+    ok = write_jpeg(path, fitted, IMAGE_JPEG_QUALITY)
     if not ok or not path.is_file():
         return False
     (dest / "meta.json").write_text(
@@ -198,7 +199,7 @@ def read_protected_image(
     if not cache_is_ready(key, folder_id):
         return None
     dest = item_cache_dir(folder_id, key)
-    frame = cv2.imread(str(dest / "000000.jpg"))
+    frame = read_bgr(dest / "000000.jpg")
     if frame is None:
         return None
     try:
@@ -291,7 +292,10 @@ class PreloadWorker(QThread):
             fitted = fit_letterbox(
                 enhance_bgr(out, level=self._settings.enhance_level)
             )
-            cv2.imwrite(str(dest / f"{index:06d}.jpg"), fitted, [int(cv2.IMWRITE_JPEG_QUALITY), IMAGE_JPEG_QUALITY])
+            if not write_jpeg(dest / f"{index:06d}.jpg", fitted, IMAGE_JPEG_QUALITY):
+                # 途中までの下準備を「完成」と扱わない。
+                index = 0
+                break
             index += 1
             self.progress.emit(index, estimated)
         cap.release()

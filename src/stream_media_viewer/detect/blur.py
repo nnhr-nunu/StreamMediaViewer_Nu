@@ -65,22 +65,28 @@ def _gaussian(roi: np.ndarray, strength: int, *, cap: int | None = None) -> np.n
             return roi
 
 
+def _clip(bgr: np.ndarray, box: Box) -> tuple[int, int, int, int]:
+    """画像内に収めた (x1, y1, x2, y2)。負の座標でスライスが末尾から数えないようにする。"""
+    x1, x2 = sorted((int(box.x), int(box.x) + int(box.w)))
+    y1, y2 = sorted((int(box.y), int(box.y) + int(box.h)))
+    height, width = bgr.shape[:2]
+    return max(0, x1), max(0, y1), min(width, x2), min(height, y2)
+
+
 def gaussian_region(bgr: np.ndarray, box: Box, strength: int = DEFAULT_BLUR_STRENGTH) -> None:
-    x2 = min(bgr.shape[1], box.x + box.w)
-    y2 = min(bgr.shape[0], box.y + box.h)
-    roi = bgr[box.y : y2, box.x : x2]
-    if roi.size == 0:
+    x1, y1, x2, y2 = _clip(bgr, box)
+    if x2 <= x1 or y2 <= y1:
         return
-    bgr[box.y : y2, box.x : x2] = _gaussian(roi, strength)
+    roi = bgr[y1:y2, x1:x2]
+    bgr[y1:y2, x1:x2] = _gaussian(roi, strength)
 
 
 def gaussian_oval(bgr: np.ndarray, box: Box, strength: int = DEFAULT_BLUR_STRENGTH) -> None:
     """矩形の角は残し、顔の形に近い楕円でぼかす。"""
-    x2 = min(bgr.shape[1], box.x + box.w)
-    y2 = min(bgr.shape[0], box.y + box.h)
-    roi = bgr[box.y : y2, box.x : x2]
-    if roi.size == 0:
+    x1, y1, x2, y2 = _clip(bgr, box)
+    if x2 <= x1 or y2 <= y1:
         return
+    roi = bgr[y1:y2, x1:x2]
     rh, rw = roi.shape[:2]
     if rh < 4 or rw < 4:
         gaussian_region(bgr, box, strength)
@@ -93,7 +99,7 @@ def gaussian_oval(bgr: np.ndarray, box: Box, strength: int = DEFAULT_BLUR_STRENG
     mask = cv2.GaussianBlur(mask, (feather, feather), 0)
     alpha = mask[..., None]
     mixed = blurred.astype(np.float32) * alpha + roi.astype(np.float32) * (1.0 - alpha)
-    bgr[box.y : y2, box.x : x2] = mixed.astype(np.uint8)
+    bgr[y1:y2, x1:x2] = mixed.astype(np.uint8)
 
 
 def apply_marks(bgr: np.ndarray, marks: list[dict], strength: int = DEFAULT_BLUR_STRENGTH) -> None:

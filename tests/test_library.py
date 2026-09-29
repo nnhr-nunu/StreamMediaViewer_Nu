@@ -47,6 +47,20 @@ def test_scan_reports_found_before_reading_exif(tmp_path: Path, monkeypatch) -> 
     assert [it.path.name for it in items] == ["a.jpg", "b.jpg"]
 
 
+def test_scan_keeps_folder_when_one_exif_is_broken(tmp_path: Path, monkeypatch) -> None:
+    Image.new("RGB", (8, 8)).save(tmp_path / "a.jpg")
+    Image.new("RGB", (8, 8)).save(tmp_path / "b.jpg")
+
+    def broken_meta(path: Path):
+        if path.name == "a.jpg":
+            raise ValueError("bad EXIF")
+        return None, False, ""
+
+    monkeypatch.setattr("stream_media_viewer.library.scan.image_capture_meta", broken_meta)
+    items = scan_folder(tmp_path, kinds={"image"})
+    assert [item.path.name for item in items] == ["a.jpg", "b.jpg"]
+
+
 def test_scan_reads_nested_folders_when_recursive(tmp_path: Path) -> None:
     Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / "root.jpg")
     nested = tmp_path / "day1"

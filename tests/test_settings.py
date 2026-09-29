@@ -110,6 +110,15 @@ def test_corrupt_settings_file_returns_defaults_and_load_error(tmp_path: Path) -
     settings, error_key = load_settings_with_error(path)
     assert settings.blur_strength == 180
     assert error_key == "settings_load_failed"
+    assert (tmp_path / "settings.json.broken").read_text(encoding="utf-8") == "{"
+
+
+def test_save_settings_replaces_file_without_leaving_temp(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text("old", encoding="utf-8")
+    save_settings(AppSettings(last_folder="D:/写真"), path)
+    assert load_settings(path).last_folder == "D:/写真"
+    assert not (tmp_path / "settings.json.tmp").exists()
 
 
 def test_corrupt_note_is_skipped_not_fatal(tmp_path: Path) -> None:

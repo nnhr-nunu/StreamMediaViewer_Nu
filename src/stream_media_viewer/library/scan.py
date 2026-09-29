@@ -8,6 +8,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 from stream_media_viewer.config import SUPPORTED_IMAGE_SUFFIXES, SUPPORTED_VIDEO_SUFFIXES
+from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import MediaItem
 from stream_media_viewer.library.meta import image_capture_meta, video_captured_at
 
@@ -106,12 +107,17 @@ def sort_media_items(items: list[MediaItem]) -> None:
 
 
 def _fill_capture_meta(item: MediaItem) -> None:
-    if item.kind == "image":
-        captured, has_gps, place_name = image_capture_meta(item.path)
-    else:
-        captured = video_captured_at(item.path)
-        has_gps = False
-        place_name = ""
+    try:
+        if item.kind == "image":
+            captured, has_gps, place_name = image_capture_meta(item.path)
+        else:
+            captured = video_captured_at(item.path)
+            has_gps = False
+            place_name = ""
+    except Exception as exc:
+        # 1 枚の壊れた EXIF でフォルダ全体が「空」にならないよう、日時・場所なしで続ける。
+        log_exception(exc)
+        captured, has_gps, place_name = None, False, ""
     item.captured_at = captured
     item.has_gps = has_gps
     item.place_name = place_name
@@ -180,6 +186,9 @@ def scan_folder(
             done_n = 0
             for fut in as_completed(futures):
                 if should_stop and should_stop():
+                    # 残りを捨ててすぐ抜ける（with を出るときに全件の終了待ちにならないように）。
+                    for pending in futures:
+                        pending.cancel()
                     return []
                 fut.result()
                 done_n += 1
@@ -191,11 +200,13 @@ def scan_folder(
 
 def load_rgb_image(path: Path, *, max_side: int = PREVIEW_MAX_SIDE) -> Image.Image | None:
     try:
-        image = Image.open(path)
-        if hasattr(image, "draft"):
-            image.draft("RGB", (max_side, max_side))
-        image = ImageOps.exif_transpose(image)
-        image.thumbnail((max_side, max_side), Image.Resampling.BILINEAR)
-        return image.convert("RGB")
-    except OSError:
+        with Image.open(path) as opened:
+            image = opened
+            if hasattr(image, "draft"):
+                image.draft("RGB", (max_side, max_side))
+            image = ImageOps.exif_transpose(image)
+            image.thumbnail((max_side, max_side), Image.Resampling.BILINEAR)
+            return image.convert("RGB")
+    except (OSError, ValueError, SyntaxError, MemoryError, Image.DecompressionBombError):
+        # 壊れた・巨大すぎるファイルは「読めない」扱いにする（操作画面の処理中に落とさない）。
         return None
