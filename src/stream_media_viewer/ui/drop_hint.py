@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QPointF, QRect, Qt
+from PySide6.QtCore import QEvent, QPointF, QRect, Qt, Signal
 from PySide6.QtGui import QMouseEvent, QPainter
 from PySide6.QtWidgets import QAbstractSpinBox, QCalendarWidget, QComboBox, QDateEdit
 
@@ -36,6 +36,9 @@ class DropHintCombo(QComboBox):
 
 
 class CalendarDateEdit(QDateEdit):
+    # カレンダーで人が日付を選んだとき。プログラムからの setDate では出ない。
+    picked = Signal()
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setCalendarPopup(True)
@@ -46,10 +49,17 @@ class CalendarDateEdit(QDateEdit):
         calendar.setGridVisible(True)
         calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
         self.setCalendarWidget(calendar)
+        calendar.clicked.connect(lambda _date: self.picked.emit())
+        calendar.activated.connect(lambda _date: self.picked.emit())
         edit = self.lineEdit()
         if edit is not None:
             edit.setReadOnly(True)
             edit.installEventFilter(self)
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        super().paintEvent(event)
+        painter = QPainter(self)
+        _paint_hint(self, painter)
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802
         if watched is self.lineEdit() and event.type() == QEvent.Type.MouseButtonPress:

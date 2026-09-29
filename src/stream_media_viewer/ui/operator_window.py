@@ -40,6 +40,8 @@ from stream_media_viewer.safety.output_gate import OutputGate, OutputReason
 from stream_media_viewer.ui.app_icon import apply_app_icon
 from stream_media_viewer.ui.capture_exclude import exclude_from_capture
 from stream_media_viewer.ui.drop_hint import CalendarDateEdit, DropHintCombo
+from stream_media_viewer.ui.flow_layout import FlowLayout
+from stream_media_viewer.ui.glyph_icon import set_glyph
 from stream_media_viewer.ui.list_thumb import with_video_mark
 from stream_media_viewer.ui.overlays import MAX_LOUPE_PX, MIN_LOUPE_PX, OPERATOR_LOUPE_PX
 from stream_media_viewer.ui.preview_canvas import PreviewCanvas
@@ -55,6 +57,13 @@ _ROLE_PIX = Qt.ItemDataRole.UserRole
 _ROLE_KIND = Qt.ItemDataRole.UserRole + 1
 _ROLE_ROT = Qt.ItemDataRole.UserRole + 2
 _ROLE_PATH = Qt.ItemDataRole.UserRole + 3
+# これより狭いと上の段の「下準備」の容量表示を隠す（容量は🧹のカーソル説明に残る）
+_CACHE_LABEL_MIN_W = 1120
+_STATUS_KEYS = {
+    OutputReason.STARTUP: ("status_hidden", "hidden"),
+    OutputReason.PANIC: ("status_panic", "hidden"),
+    OutputReason.STANDBY: ("status_standby", "standby"),
+}
 
 
 def _bar_button() -> QToolButton:
@@ -66,8 +75,13 @@ def _bar_button() -> QToolButton:
 
 
 def _caption(button: QToolButton, glyph: str, short: str, tip: str) -> None:
-    button.setText(f"{glyph}\n{short}")
-    button.setToolTip(tip)
+    set_glyph(button, glyph, short, tip)
+
+
+def _repolish(widget: QWidget) -> None:
+    """property を変えたあと、見た目の指定を掛け直す。"""
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
 
 
 class OperatorWindow(QMainWindow):
@@ -131,6 +145,8 @@ class OperatorWindow(QMainWindow):
         self.btn_settings = _bar_button()
         self.cache_label = QLabel()
         self.cache_label.setObjectName("meta")
+        self._cache_text = ""
+        self._live_probe = lambda: False
         top.addWidget(self.btn_folder)
         top.addWidget(self.chk_face)
         top.addWidget(self.chk_text)
@@ -144,8 +160,7 @@ class OperatorWindow(QMainWindow):
         outer.addLayout(top)
 
         self.filter_box = QGroupBox()
-        filters = QHBoxLayout(self.filter_box)
-        filters.setSpacing(8)
+        filters = FlowLayout(self.filter_box, h_spacing=8, v_spacing=6)
         filters.setContentsMargins(8, 6, 8, 6)
         self.chk_star_only = QCheckBox()
         self.chk_photos = QCheckBox()
@@ -155,7 +170,7 @@ class OperatorWindow(QMainWindow):
         self.combo_place = DropHintCombo()
         self.combo_place.setMinimumWidth(150)
         self.combo_folder = DropHintCombo()
-        self.combo_folder.setMinimumWidth(150)
+        self.combo_folder.setMinimumWidth(176)
         self.date_from = CalendarDateEdit()
         self.date_to = CalendarDateEdit()
         self.date_from.setMinimumWidth(118)
@@ -188,7 +203,6 @@ class OperatorWindow(QMainWindow):
         self.chk_hidden = QCheckBox()
         self.chk_hidden.setChecked(False)
         filters.addWidget(self.chk_hidden)
-        filters.addStretch()
         self.sort_box = QGroupBox()
         self.combo_sort = DropHintCombo()
         self.combo_sort.setMinimumWidth(128)
@@ -198,7 +212,7 @@ class OperatorWindow(QMainWindow):
         filter_row = QHBoxLayout()
         filter_row.setSpacing(10)
         filter_row.addWidget(self.filter_box, stretch=1)
-        filter_row.addWidget(self.sort_box)
+        filter_row.addWidget(self.sort_box, alignment=Qt.AlignmentFlag.AlignTop)
         outer.addLayout(filter_row)
 
         body = QHBoxLayout()
@@ -262,7 +276,13 @@ class OperatorWindow(QMainWindow):
             self.btn_star, 0, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight
         )
         self.btn_star.raise_()
-        preview_col.addWidget(self.meta)
+        self.output_status = QLabel()
+        self.output_status.setObjectName("outputStatus")
+        meta_row = QHBoxLayout()
+        meta_row.setContentsMargins(0, 0, 0, 0)
+        meta_row.addWidget(self.meta, stretch=1)
+        meta_row.addWidget(self.output_status, alignment=Qt.AlignmentFlag.AlignTop)
+        preview_col.addLayout(meta_row)
         preview_col.addWidget(preview_stage, stretch=1)
         self.lbl_in = QLabel()
         self.lbl_in.setObjectName("meta")
@@ -293,13 +313,22 @@ class OperatorWindow(QMainWindow):
         body.addLayout(preview_col, stretch=1)
         outer.addLayout(body, stretch=1)
 
+        # 幅が足りないときだけ、手動ぼかし・拡大の枠をここ（下の段の上）へ移す
+        self._tools_host = QWidget()
+        self._tools_row = QHBoxLayout(self._tools_host)
+        self._tools_row.setContentsMargins(0, 0, 0, 0)
+        self._tools_row.addStretch()
+        self._tools_host.setVisible(False)
         bar_host = QWidget()
         bar = QHBoxLayout(bar_host)
         bar.setContentsMargins(0, 0, 0, 0)
+        self._bar = bar
         self.btn_prev = _bar_button()
         self.btn_next = _bar_button()
         self.btn_send = _bar_button()
         self.btn_panic = _bar_button()
+        self.btn_send.setObjectName("sendButton")
+        self.btn_panic.setObjectName("panicButton")
         self.btn_manual = _bar_button()
         self.btn_rot_left = _bar_button()
         self.btn_rot_right = _bar_button()
@@ -388,6 +417,7 @@ class OperatorWindow(QMainWindow):
         bar.addWidget(self.btn_false_undo)
         bar.addWidget(self.btn_lang)
         bar.addWidget(self.btn_help)
+        outer.addWidget(self._tools_host)
         outer.addWidget(bar_host)
 
         self._relayout_timer = QTimer(self)
@@ -476,6 +506,9 @@ class OperatorWindow(QMainWindow):
         self.combo_place.currentIndexChanged.connect(lambda _=0: self.filters_changed.emit())
         self.combo_folder.currentIndexChanged.connect(lambda _=0: self.filters_changed.emit())
         self.combo_sort.currentIndexChanged.connect(lambda _=0: self.filters_changed.emit())
+        self.chk_dates.toggled.connect(self._sync_date_style)
+        self.date_from.picked.connect(self._on_date_picked)
+        self.date_to.picked.connect(self._on_date_picked)
         self.date_from.dateChanged.connect(lambda _=None: self.filters_changed.emit())
         self.date_to.dateChanged.connect(lambda _=None: self.filters_changed.emit())
         QShortcut(QKeySequence("A"), self, self.prev_requested.emit)
@@ -517,6 +550,7 @@ class OperatorWindow(QMainWindow):
         self.btn_brush.setChecked(on and self.preview.mode == "stroke")
         self.btn_rect.setChecked(on and self.preview.mode == "rect")
         self.manual_tools.setVisible(on)
+        self._place_tool_frames()
         self.lbl_brush.setVisible(stroke)
         self.slider_brush.setVisible(stroke)
 
@@ -525,6 +559,32 @@ class OperatorWindow(QMainWindow):
             self._tool(mode)
             return
         self._set_manual(False)
+
+    def _on_date_picked(self) -> None:
+        # カレンダーで日付を選んだら、その絞り込みを効かせる（選んだのに効かない、を防ぐ）
+        if not self.chk_dates.isChecked():
+            self.chk_dates.setChecked(True)
+
+    def _sync_date_style(self, *_args) -> None:
+        inactive = not self.chk_dates.isChecked()
+        for edit in (self.date_from, self.date_to):
+            edit.setProperty("inactive", inactive)
+            _repolish(edit)
+
+    def set_cache_text(self, text: str) -> None:
+        self._cache_text = text
+        self.cache_label.setText(text)
+        self._sync_cache_tip()
+
+    def _sync_cache_tip(self) -> None:
+        tip = t(self.lang, "clear_cache")
+        if self._cache_text:
+            tip = f"{tip}\n{self._cache_text}"
+        self.btn_clear_cache.setToolTip(tip)
+
+    def set_live_probe(self, probe) -> None:
+        """いま確認している物が、配信に出している物と同じかを返す関数。状態の表示に使う。"""
+        self._live_probe = probe
 
     def _on_brush_width(self, value: int) -> None:
         self.preview.brush_width = value
@@ -549,6 +609,7 @@ class OperatorWindow(QMainWindow):
             self.preview.mode = "off"
             self._sync_manual_extras()
         self.loupe_tools.setVisible(on)
+        self._place_tool_frames()
         self.preview.set_loupe(on)
         self.preview.set_loupe_px(self.slider_loupe.value())
 
@@ -560,7 +621,7 @@ class OperatorWindow(QMainWindow):
         lang = self.lang
         _caption(self.btn_folder, "📁", t(lang, "btn_folder"), t(lang, "open_folder"))
         _caption(self.btn_send, "⬆", t(lang, "btn_send"), t(lang, "send"))
-        _caption(self.btn_panic, "⬛", t(lang, "btn_panic"), t(lang, "panic"))
+        _caption(self.btn_panic, "■", t(lang, "btn_panic"), t(lang, "panic"))
         _caption(self.btn_prev, "◀", t(lang, "btn_prev"), t(lang, "prev"))
         _caption(self.btn_next, "▶", t(lang, "btn_next"), t(lang, "next"))
         self.set_playing(self._playing)
@@ -582,6 +643,7 @@ class OperatorWindow(QMainWindow):
         self.btn_prep_videos.setText(f"🎦{t(lang, 'btn_prep_videos')}\n{t(lang, 'btn_prep_action')}")
         self.btn_prep_videos.setToolTip(t(lang, "prepare_videos"))
         _caption(self.btn_clear_cache, "🧹", t(lang, "btn_clear"), t(lang, "clear_cache"))
+        self._sync_cache_tip()
         _caption(self.btn_settings, "⚙", t(lang, "btn_settings"), t(lang, "settings"))
         _caption(self.btn_lang, "あ/A", t(lang, "btn_lang"), t(lang, "language"))
         _caption(self.btn_help, "?", t(lang, "btn_help"), t(lang, "shortcuts"))
@@ -614,6 +676,8 @@ class OperatorWindow(QMainWindow):
         self.timeline_out.setToolTip(t(lang, "range_out"))
         if self._preview_stack.currentWidget() is self.guide_page and not self.list.count():
             self.show_guide(t(lang, "empty_guide"))
+        self._sync_date_style()
+        self.refresh_status()
 
     def _set_combo_all(self, combo: QComboBox, key: str) -> None:
         if combo.count() == 0:
@@ -735,6 +799,7 @@ class OperatorWindow(QMainWindow):
             self.chk_audio,
         ):
             widget.setVisible(video)
+        self._place_tool_frames()
 
     def set_range_visible(self, visible: bool) -> None:
         self.set_media_kind("video" if visible else "image")
@@ -883,6 +948,8 @@ class OperatorWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
+        self.cache_label.setVisible(self.width() >= _CACHE_LABEL_MIN_W)
+        self._place_tool_frames()
         self._relayout_list(rescale=False)
         self._relayout_timer.start(60)
 
@@ -915,6 +982,47 @@ class OperatorWindow(QMainWindow):
 
     def set_false_face_visible(self, visible: bool) -> None:
         self.btn_false_face.setVisible(visible)
+        self._place_tool_frames()
+
+    def _place_tool_frames(self) -> None:
+        """枠はふだん元のボタンの右。下の段に収まらないときだけ、1 段上に並べる。"""
+        bar = getattr(self, "_bar", None)
+        if bar is None:
+            return
+        frames = [
+            (self.manual_tools, self.btn_manual),
+            (self.loupe_tools, self.btn_loupe),
+        ]
+        spacing = bar.spacing() if bar.spacing() >= 0 else 6
+        width = 0
+        for index in range(bar.count()):
+            widget = bar.itemAt(index).widget()
+            if widget is None or widget.isHidden():
+                continue
+            if any(widget is frame for frame, _ in frames):
+                continue
+            width += widget.sizeHint().width() + spacing
+        for frame, _ in frames:
+            if not frame.isHidden():
+                width += frame.sizeHint().width() + spacing
+        inline = width <= max(0, self.centralWidget().width() if self.centralWidget() else 0)
+        for frame, anchor in frames:
+            in_bar = bar.indexOf(frame) >= 0
+            if inline and not in_bar:
+                self._tools_row.removeWidget(frame)
+                bar.insertWidget(bar.indexOf(anchor) + 1, frame)
+            elif not inline and in_bar:
+                bar.removeWidget(frame)
+                # 手動ぼかし → 拡大 の順。最後の伸び縮みの前に入れて左に寄せる
+                self._tools_row.insertWidget(self._tools_row.count() - 1, frame)
+        if not inline:
+            for frame, _ in frames:
+                self._tools_row.removeWidget(frame)
+            for frame, _ in frames:
+                self._tools_row.insertWidget(self._tools_row.count() - 1, frame)
+        self._tools_host.setVisible(
+            not inline and any(not frame.isHidden() for frame, _ in frames)
+        )
 
     def set_false_undo_visible(self, visible: bool) -> None:
         self.btn_false_undo.setVisible(visible)
@@ -940,6 +1048,19 @@ class OperatorWindow(QMainWindow):
         self._shortcuts_dialog().exec()
 
     def refresh_status(self) -> None:
-        live = self._gate.reason is OutputReason.LIVE
+        reason = self._gate.reason
+        live = reason is OutputReason.LIVE
         self.btn_send.setEnabled(self._gate.ready)
-        self.btn_send.setStyleSheet("background:#6b3fa0;" if live else "")
+        if bool(self.btn_send.property("live")) != live:
+            self.btn_send.setProperty("live", live)
+            _repolish(self.btn_send)
+        if live:
+            key = "status_live_this" if self._live_probe() else "status_live_other"
+            state = "live"
+        else:
+            key, state = _STATUS_KEYS.get(reason, ("status_hidden", "hidden"))
+        self.output_status.setText(t(self.lang, key))
+        self.output_status.setToolTip(t(self.lang, "status_tip"))
+        if self.output_status.property("state") != state:
+            self.output_status.setProperty("state", state)
+            _repolish(self.output_status)
