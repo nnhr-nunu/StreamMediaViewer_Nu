@@ -37,3 +37,33 @@ def test_protect_for_note_applies_rotation() -> None:
     out, _, _ = protect_for_note(bgr, settings, FileNote(rotation=90))
     assert out is not None
     assert out.shape[:2] == (20, 10)
+
+
+def test_rotate_marks_keeps_the_brush_as_thick_in_pixels() -> None:
+    # 筆の太さは幅に対する割合。横長を 90° 回すと幅が縮むので、割合を太くして画素を保つ。
+    marks = [{"kind": "stroke", "points": [[0.2, 0.5], [0.8, 0.5]], "width": 0.05}]
+    turned = rotate_marks(marks, 90, aspect=1920 / 1080)
+    assert abs(turned[0]["width"] * 1080 - 0.05 * 1920) < 1e-6
+    back = rotate_marks(turned, 270, aspect=1080 / 1920)
+    assert abs(back[0]["width"] - 0.05) < 1e-9
+    # 180° は幅が変わらない
+    assert rotate_marks(marks, 180, aspect=1920 / 1080)[0]["width"] == 0.05
+    # 縦横が分からないときは今まで通り
+    assert rotate_marks(marks, 90)[0]["width"] == 0.05
+
+
+def test_rotated_brush_still_covers_the_same_band() -> None:
+    from stream_media_viewer.detect.blur import apply_marks
+
+    h, w = 108, 192
+    bgr = np.zeros((h, w, 3), dtype=np.uint8)
+    bgr[:, ::2] = 255
+    marks = [{"kind": "stroke", "points": [[0.1, 0.5], [0.9, 0.5]], "width": 0.1}]
+    flat = bgr.copy()
+    apply_marks(flat, marks, 31)
+    turned_img = rotate_bgr(bgr, 90)
+    turned = turned_img.copy()
+    apply_marks(turned, rotate_marks(marks, 90, aspect=w / h), 31)
+    flat_rows = int((np.abs(flat.astype(int) - bgr.astype(int)).sum(axis=(1, 2)) > 0).sum())
+    diff = np.abs(turned.astype(int) - turned_img.astype(int)).sum(axis=(0, 2)) > 0
+    assert abs(int(diff.sum()) - flat_rows) <= 2

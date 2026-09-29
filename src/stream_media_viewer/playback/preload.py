@@ -11,7 +11,7 @@ from PySide6.QtCore import QThread, Signal
 
 from stream_media_viewer.config import SUPPORTED_VIDEO_SUFFIXES, user_config_dir
 from stream_media_viewer.detect.faces import STILL_DETECT_VERSION, FaceHold
-from stream_media_viewer.detect.protect import protect_for_note
+from stream_media_viewer.detect.protect import ProtectSettings, note_snapshot, protect_for_note
 from stream_media_viewer.errors import log_exception
 from stream_media_viewer.library.item import FileNote
 from stream_media_viewer.library.scan import video_header_ok
@@ -230,7 +230,9 @@ class PreloadWorker(QThread):
         super().__init__()
         self._path = path
         self._key = key
-        self._settings = settings
+        # 鍵は始めたときの設定で作ってあるので、中身も同じ設定で作り切る
+        self._settings = ProtectSettings.of(settings)
+        self._note = note_snapshot(settings.note_for(str(path)))
         self._marks = marks
         self._in_ms = in_ms
         self._out_ms = out_ms
@@ -238,11 +240,10 @@ class PreloadWorker(QThread):
         self._face_hold = FaceHold()
 
     def _protect_frame(self, bgr: Any, *, still: bool = False) -> tuple[Any, bool, bool]:
-        note = self._settings.note_for(str(self._path))
         snap = FileNote(
             marks=self._marks,
-            skip_faces=note.skip_faces,
-            rotation=note.rotation,
+            skip_faces=self._note.skip_faces,
+            rotation=self._note.rotation,
         )
         return protect_for_note(
             bgr, self._settings, snap, face_hold=self._face_hold, still=still
