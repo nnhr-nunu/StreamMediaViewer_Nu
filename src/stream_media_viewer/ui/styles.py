@@ -62,6 +62,10 @@ QToolButton:disabled, QPushButton:disabled {
   background: #1e1e1e;
   color: #6a6a6a;
 }
+QToolButton[compact="true"] {
+  min-width: 30px;
+  padding: 6px 6px;
+}
 QToolButton#sendButton {
   border: 2px solid #6b3fa0;
 }

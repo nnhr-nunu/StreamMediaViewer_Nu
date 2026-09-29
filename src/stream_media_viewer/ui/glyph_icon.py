@@ -38,11 +38,18 @@ def glyph_icon(glyph: str, px: int = GLYPH_PX, color: str = _INK) -> tuple[QIcon
 
 
 def set_glyph(button: QToolButton, glyph: str, text: str, tip: str) -> None:
-    """記号を上の絵に、短い文字を下に。記号は property("glyph") で取り出せる。"""
+    """記号を上の絵に、短い文字を下に。記号は property("glyph") で取り出せる。
+
+    property("compact") が True のボタン（狭い窓の下の段）は記号だけにする。
+    """
     icon, size = glyph_icon(glyph)
     button.setIcon(icon)
     button.setIconSize(size)
-    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+    button.setToolButtonStyle(
+        Qt.ToolButtonStyle.ToolButtonIconOnly
+        if button.property("compact")
+        else Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+    )
     button.setText(text)
     button.setToolTip(tip)
     button.setProperty("glyph", glyph)

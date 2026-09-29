@@ -19,7 +19,8 @@ class PreviewCanvas(QLabel):
         super().__init__()
         self.setObjectName("preview")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumSize(560, 315)
+        # 小さすぎる窓でも枠からはみ出して絵の下が切れないよう、最小は小さめにする
+        self.setMinimumSize(320, 100)
         self.setContentsMargins(0, 0, 0, 0)
         self.mode = "off"
         self.click_toggles_play = False

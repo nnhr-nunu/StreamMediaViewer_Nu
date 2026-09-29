@@ -419,6 +419,23 @@ class OperatorWindow(QMainWindow):
         bar.addWidget(self.btn_help)
         outer.addWidget(self._tools_host)
         outer.addWidget(bar_host)
+        self._bar_host = bar_host
+        # 下の段が収まらないときだけ記号だけにするボタン（前・次・送る・隠すは文字も残す）
+        self._compact_buttons = (
+            self.btn_manual,
+            self.btn_rot_left,
+            self.btn_rot_right,
+            self.btn_loupe,
+            self.btn_play,
+            self.btn_prep,
+            self.btn_false_face,
+            self.btn_false_undo,
+            self.btn_lang,
+            self.btn_help,
+        )
+        self._bar_compact = False
+        self._bar_full_need = 0
+        self._bar_min_w: dict[QToolButton, int] = {}
 
         self._relayout_timer = QTimer(self)
         self._relayout_timer.setSingleShot(True)
@@ -525,6 +542,25 @@ class OperatorWindow(QMainWindow):
         QShortcut(QKeySequence("5"), self, self.play_requested.emit)
         QShortcut(QKeySequence("F"), self, self.star_requested.emit)
         QShortcut(QKeySequence("Ctrl+Z"), self, self.undo_requested.emit)
+        # ショートカットが拾えずに窓まで届いたテンキーの受け皿（片手の操作と緊急は必ず効かせる）
+        self._fallback_keys = {
+            Qt.Key.Key_0: self.panic_requested,
+            Qt.Key.Key_Escape: self.panic_requested,
+            Qt.Key.Key_4: self.prev_requested,
+            Qt.Key.Key_6: self.next_requested,
+            Qt.Key.Key_5: self.play_requested,
+            Qt.Key.Key_Enter: self.send_requested,
+            Qt.Key.Key_Return: self.send_requested,
+        }
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        modifiers = event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+        signal = self._fallback_keys.get(event.key())
+        if signal is not None and modifiers == Qt.KeyboardModifier.NoModifier:
+            event.accept()
+            signal.emit()
+            return
+        super().keyPressEvent(event)
 
     def _set_manual(self, on: bool) -> None:
         if on:
@@ -616,6 +652,7 @@ class OperatorWindow(QMainWindow):
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
         exclude_from_capture(self)
+        self._place_tool_frames(remeasure=True)
 
     def retranslate(self) -> None:
         lang = self.lang
@@ -678,6 +715,7 @@ class OperatorWindow(QMainWindow):
             self.show_guide(t(lang, "empty_guide"))
         self._sync_date_style()
         self.refresh_status()
+        self._place_tool_frames(remeasure=True)
 
     def _set_combo_all(self, combo: QComboBox, key: str) -> None:
         if combo.count() == 0:
@@ -769,7 +807,9 @@ class OperatorWindow(QMainWindow):
     def _sync_false_face_caption(self) -> None:
         lang = self.lang
         state = t(lang, "toggle_on" if self.btn_false_face.isChecked() else "toggle_off")
-        self.btn_false_face.setText(f"❗️{t(lang, 'btn_false_face')}\n{state}")
+        # 狭いときは名前を外し、ON／OFF だけ残す（名前はカーソル説明に出る）
+        name = "" if self.btn_false_face.property("compact") else t(lang, "btn_false_face")
+        self.btn_false_face.setText(f"❗️{name}\n{state}")
         self.btn_false_face.setToolTip(t(lang, "false_face"))
 
     def _list_menu(self, pos) -> None:
@@ -799,7 +839,7 @@ class OperatorWindow(QMainWindow):
             self.chk_audio,
         ):
             widget.setVisible(video)
-        self._place_tool_frames()
+        self._place_tool_frames(remeasure=True)
 
     def set_range_visible(self, visible: bool) -> None:
         self.set_media_kind("video" if visible else "image")
@@ -981,14 +1021,68 @@ class OperatorWindow(QMainWindow):
                 item.setIcon(QIcon(fitted))
 
     def set_false_face_visible(self, visible: bool) -> None:
-        self.btn_false_face.setVisible(visible)
-        self._place_tool_frames()
+        if self.btn_false_face.isHidden() != (not visible):
+            self.btn_false_face.setVisible(visible)
+            self._place_tool_frames(remeasure=True)
 
-    def _place_tool_frames(self) -> None:
+    def _bar_need(self) -> int:
+        """下の段のボタン（手動ぼかし・拡大の枠を除く）を並べるのに要る幅。"""
+        bar = self._bar
+        spacing = bar.spacing() if bar.spacing() >= 0 else 6
+        widths = []
+        for index in range(bar.count()):
+            widget = bar.itemAt(index).widget()
+            if widget is None or widget.isHidden():
+                continue
+            if widget is self.manual_tools or widget is self.loupe_tools:
+                continue
+            widths.append(widget.sizeHint().width())
+        return sum(widths) + spacing * max(0, len(widths) - 1)
+
+    def _set_bar_compact(self, on: bool) -> None:
+        if self._bar_compact == on:
+            return
+        self._bar_compact = on
+        for button in self._compact_buttons:
+            if on:
+                self._bar_min_w.setdefault(button, button.minimumWidth())
+                button.setMinimumWidth(40)
+            else:
+                button.setMinimumWidth(self._bar_min_w.get(button, button.minimumWidth()))
+            button.setProperty("compact", on)
+            if button is not self.btn_false_face:
+                button.setToolButtonStyle(
+                    Qt.ToolButtonStyle.ToolButtonIconOnly
+                    if on
+                    else Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+                )
+            _repolish(button)
+        self._sync_false_face_caption()
+
+    def _fit_bar(self, *, remeasure: bool = False) -> None:
+        """下の段が収まらないときは、前・次・送る・隠す のほかを記号だけにする。"""
+        # 出す前の窓は幅が仮の値なので決めない（出したときの大きさで決める）
+        room = self._bar_host.width()
+        if not self.isVisible() or room <= 0:
+            return
+        if remeasure:
+            self._set_bar_compact(False)
+        if not self._bar_compact:
+            self._bar_full_need = self._bar_need()
+            if self._bar_full_need > room:
+                self._set_bar_compact(True)
+        elif room >= self._bar_full_need:
+            self._set_bar_compact(False)
+            self._bar_full_need = self._bar_need()
+            if self._bar_full_need > room:
+                self._set_bar_compact(True)
+
+    def _place_tool_frames(self, *, remeasure: bool = False) -> None:
         """枠はふだん元のボタンの右。下の段に収まらないときだけ、1 段上に並べる。"""
         bar = getattr(self, "_bar", None)
-        if bar is None:
+        if bar is None or not hasattr(self, "_bar_host"):
             return
+        self._fit_bar(remeasure=remeasure)
         frames = [
             (self.manual_tools, self.btn_manual),
             (self.loupe_tools, self.btn_loupe),
@@ -1025,7 +1119,9 @@ class OperatorWindow(QMainWindow):
         )
 
     def set_false_undo_visible(self, visible: bool) -> None:
-        self.btn_false_undo.setVisible(visible)
+        if self.btn_false_undo.isHidden() != (not visible):
+            self.btn_false_undo.setVisible(visible)
+            self._place_tool_frames(remeasure=True)
 
     def _shortcuts_dialog(self) -> QDialog:
         dialog = QDialog(self)
