@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import cv2
 import numpy as np
 from PySide6.QtCore import QDate, QThread, QTimer, Signal
 from PySide6.QtGui import QPixmap
@@ -31,30 +30,24 @@ from stream_media_viewer.detect.protect import (
 from stream_media_viewer.errors import install_excepthook, log_exception, user_error_key
 from stream_media_viewer.i18n import t
 from stream_media_viewer.library.filters import passes_filters
+from stream_media_viewer.library.auto_prep import PAUSE_POLL_MS, AutoPrepQueue
 from stream_media_viewer.library.item import FileNote, MediaItem
-from stream_media_viewer.library.neighbors import PREFETCH_RADIUS, neighbor_rows
+from stream_media_viewer.library.neighbors import neighbor_rows
 from stream_media_viewer.library.preview_load import ImageLoadWorker, PrefetchWorker
 from stream_media_viewer.library.protect_cache import ProtectFrameCache
-from stream_media_viewer.library.scan import load_rgb_image, merge_media_items, video_header_ok
+from stream_media_viewer.library.scan import load_rgb_image, merge_media_items
 from stream_media_viewer.library.sort import sorted_items
 from stream_media_viewer.library.thumbs import thumb_paths_for
 from stream_media_viewer.library.workers import ScanWorker, ThumbWorker
 from stream_media_viewer.playback.preload import (
     PreloadWorker,
-    cache_folder,
     cache_is_ready,
-    cache_key,
-    cache_size_bytes,
-    clear_folder_cache,
-    clear_preload_cache,
-    estimate_item_bytes,
-    folder_cache_id,
-    format_bytes,
-    read_meta,
     read_protected_image,
     write_protected_image,
 )
 from stream_media_viewer.playback.video import VideoPlayer
+from stream_media_viewer.prep_flow import PrepFlowMixin
+from stream_media_viewer.prep_flow import qthread_live as _qthread_live
 from stream_media_viewer.render.canvas import fit_letterbox, rgb_to_bgr
 from stream_media_viewer.render.enhance import enhance_bgr, next_enhance_level
 from stream_media_viewer.render.rotate import clamp_rotation, rotate_bgr, rotate_marks
@@ -78,6 +71,7 @@ from stream_media_viewer.ui.list_row import FACE_MARK, row_marks
 from stream_media_viewer.ui.operator_window import OperatorWindow
 from stream_media_viewer.ui.output_window import OutputWindow
 from stream_media_viewer.ui.overlays import clamp_loupe_px
+from stream_media_viewer.ui.panic_keys import PanicKeyFilter
 from stream_media_viewer.ui.pixmaps import bgr_to_pixmap
 from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
 
@@ -85,15 +79,6 @@ from stream_media_viewer.ui.settings_dialog import SettingsDialog, SettingsDraft
 def _format_duration(ms: int) -> str:
     sec = max(0, int(ms) // 1000)
     return f"{sec // 60}:{sec % 60:02d}"
-
-
-def _qthread_live(worker: QThread | None) -> bool:
-    if worker is None:
-        return False
-    try:
-        return not worker.isFinished()
-    except (RuntimeError, AttributeError):
-        return False
 
 
 class ProtectThread(QThread):
@@ -144,7 +129,7 @@ class ProtectThread(QThread):
                 self.failed.emit(self.seq)
 
 
-class StreamMediaViewerApp:
+class StreamMediaViewerApp(PrepFlowMixin):
     def __init__(self, settings: AppSettings | None = None) -> None:
         self.settings = settings if settings is not None else load_settings()
         configure_dev_allow_capture(self.settings.dev_allow_capture)
@@ -191,25 +176,39 @@ class StreamMediaViewerApp:
         self._preload: PreloadWorker | None = None
         self._folder_queue: list[MediaItem] = []
         self._folder_total = 0
-        # 先読みで下準備が増えたら、上の段の容量も少し待ってから直す（数えるのは重いので間引く）
-        self._cache_label_timer = QTimer()
-        self._cache_label_timer.setSingleShot(True)
-        self._cache_label_timer.timeout.connect(self._refresh_cache_label)
+        # 写真の下準備は自動で少しずつ（見ている写真に近い順。休みながら、手前の作業を優先）
+        self._auto = AutoPrepQueue()
+        self._auto_item: MediaItem | None = None
+        self._auto_started = 0.0
+        self._auto_hold = False
+        self._auto_timer = QTimer()
+        self._auto_timer.setSingleShot(True)
+        self._auto_timer.timeout.connect(self._auto_prep_tick)
+        self._face_refresh_timer = QTimer()
+        self._face_refresh_timer.setSingleShot(True)
+        self._face_refresh_timer.timeout.connect(lambda: self._refresh_list(follow=False))
         self._wire()
         self._restore_checks()
         guard_popups_from_capture(QApplication.instance())
+        # 確認や設定の小窓が出ていても、テンキー0で必ず配信から隠す
+        self._panic_keys = PanicKeyFilter(self._on_panic, self.operator)
+        QApplication.instance().installEventFilter(self._panic_keys)
         if standby is not None and self.gate.window_visible:
             self.output.show_frame(standby)
+        self.operator.set_library_ready(False)
+        self.operator.set_dates_available(False)
         if self.settings.last_folder:
             self._open_folder_path(self.settings.last_folder)
         else:
-            self.operator.show_guide(t(self.settings.language, "empty_guide"))
+            self._show_nothing()
         self._sync_windows()
-        self._refresh_cache_label()
+        self._refresh_prep_label()
 
     def _wire(self) -> None:
         op = self.operator
         op.open_folder_requested.connect(self._on_folder_button)
+        op.recent_folder_requested.connect(self._open_folder_path)
+        op.clear_filters_requested.connect(self._clear_filters)
         op.send_requested.connect(self._on_send)
         op.panic_requested.connect(self._on_panic)
         op.prev_requested.connect(lambda: self._step(-1))
@@ -222,10 +221,7 @@ class StreamMediaViewerApp:
         op.settings_changed.connect(self._on_settings_ui)
         op.filters_changed.connect(self._on_filters_ui)
         op.loop_changed.connect(self._on_loop_ui)
-        op.prepare_requested.connect(self._start_preload)
-        op.prepare_photos_requested.connect(lambda: self._prepare_folder("image"))
         op.prepare_videos_requested.connect(lambda: self._prepare_folder("video"))
-        op.clear_cache_requested.connect(self._clear_cache)
         op.clear_marks_requested.connect(self._clear_marks)
         op.brush_width_changed.connect(self._on_brush_width)
         op.slider_loupe.valueChanged.connect(self._on_operator_loupe_px)
@@ -292,15 +288,22 @@ class StreamMediaViewerApp:
         self.settings.enhance_level = self.operator.enhance_level
         if prev_face and not self.settings.face_blur:
             self.settings.blur_off_confirmed = False
-        self._protect_cache.clear()
+        self._forget_prepared()
         self._reload_current()
 
     def _on_filters_ui(self) -> None:
         self.settings.date_from = self.operator.date_from.date().toString("yyyy-MM-dd")
         self.settings.date_to = self.operator.date_to.date().toString("yyyy-MM-dd")
         self.settings.list_sort = self.operator.selected_sort()
-        self._refresh_list()
+        reloaded = self._refresh_list()
+        # 動画を足すときは先に読み始める（読み込み中に「合うファイルがない」と出さない）
         self._maybe_load_videos()
+        if not reloaded:
+            if self._visible and self.operator.showing_guide():
+                # 絞り込みで空だった一覧に戻ってきたら、案内のままにせず先頭を確認に出す
+                self._select_visible(self._index)
+            elif not self._visible and not self._scanning():
+                self._show_nothing()
         if self.operator.chk_videos.isChecked() and self._videos_loaded:
             self._start_thumbs()
 
@@ -317,7 +320,7 @@ class StreamMediaViewerApp:
     def _cycle_enhance(self) -> None:
         self.settings.enhance_level = next_enhance_level(self.settings.enhance_level)
         self.operator.set_enhance_level(self.settings.enhance_level)
-        self._protect_cache.clear()
+        self._forget_prepared()
         self._reload_current()
 
     def _tell_error(self, key: str, *, dialog: bool = False) -> None:
@@ -345,6 +348,8 @@ class StreamMediaViewerApp:
                 standby_path=self.settings.standby_path,
                 use_standby=self.settings.use_standby,
             ),
+            cache_text=self._cache_size_text(),
+            clear_cache=self._clear_cache,
         )
         accepted = dialog.exec() == QDialog.DialogCode.Accepted
         applied = dialog.draft()
@@ -374,7 +379,7 @@ class StreamMediaViewerApp:
                 self._open_folder_path(self.settings.last_folder)
                 self._save_settings()
                 return
-            self._protect_cache.clear()
+            self._forget_prepared()
             if not self._refresh_list():
                 self._reload_current()
             self._save_settings()
@@ -403,8 +408,9 @@ class StreamMediaViewerApp:
         item = self._current()
         if item is not None:
             self.operator.meta.setText(self._item_meta_text(item))
-        elif not self._items:
-            self.operator.show_guide(t(self.settings.language, "empty_guide"))
+        elif not self._scanning():
+            self._show_nothing()
+        self._refresh_prep_label()
 
     def _on_folder_button(self) -> None:
         lang = self.settings.language
@@ -436,7 +442,52 @@ class StreamMediaViewerApp:
         if path:
             self._open_folder_path(path)
 
+    def _recent_folders(self, *, exclude: str = "") -> list[str]:
+        return [
+            path
+            for path in self.settings.recent_folders
+            if path != exclude and Path(path).is_dir()
+        ]
+
+    def _scanning(self) -> bool:
+        return _qthread_live(self._scan_worker)
+
+    def _show_nothing(self) -> None:
+        """確認できるファイルが無いときの案内。理由ごとに、次にやることのボタンを出す。"""
+        op = self.operator
+        op.set_media_kind(None)
+        op.set_false_face_visible(False)
+        if not self.settings.last_folder:
+            op.show_start(self._recent_folders())
+        elif self._items:
+            op.show_filtered_empty()
+        else:
+            op.show_guide(
+                t(self.settings.language, "folder_empty"),
+                pick=True,
+                recents=self._recent_folders(exclude=self.settings.last_folder),
+            )
+        op.refresh_status()
+
+    def _clear_filters(self) -> None:
+        """絞り込みを全部外す（写真は入れる）。案内の「絞り込みを解除」から。"""
+        op = self.operator
+        boxes = (op.chk_star_only, op.chk_filter_face, op.chk_dates, op.chk_hidden, op.chk_photos)
+        for box in (*boxes, op.combo_place, op.combo_folder):
+            box.blockSignals(True)
+        for box in boxes[:-1]:
+            box.setChecked(False)
+        op.chk_photos.setChecked(True)
+        op.combo_place.setCurrentIndex(0)
+        op.combo_folder.setCurrentIndex(0)
+        for box in (*boxes, op.combo_place, op.combo_folder):
+            box.blockSignals(False)
+        op._sync_date_style()
+        self._on_filters_ui()
+
     def _open_folder_path(self, path: str) -> None:
+        self.operator.set_library_ready(True)
+        self._auto_hold = False
         self.settings.last_folder = path
         self.settings.recent_folders = remember_folder(self.settings.recent_folders, path)
         self._start_scan(Path(path))
@@ -464,17 +515,21 @@ class StreamMediaViewerApp:
             self._thumb_worker = None
             self._pending_thumbs = []
             self._thumb_pix.clear()
-            self._protect_cache.clear()
+            self._forget_prepared()
             self._items = []
             self._visible = []
             self._index = 0
             self._videos_loaded = False
             self._prepare_after_videos = False
+            self._auto_timer.stop()
+            # 日付の幅はフォルダごとに作り直すので、前のフォルダの日付の絞り込みは外す
+            self.operator.chk_dates.blockSignals(True)
+            self.operator.chk_dates.setChecked(False)
+            self.operator.chk_dates.blockSignals(False)
             self.operator.set_items([], [])
             self.operator.set_media_kind(None)
-            lang = self.settings.language
-            self.operator.show_guide(t(lang, "scanning"), done=0, total=0)
-            self.operator.meta.setText(t(lang, "scanning"))
+            self.operator.show_guide(t(self.settings.language, "scanning"), done=0, total=0)
+            self._refresh_prep_label()
         else:
             self.operator.meta.setText(t(self.settings.language, "scanning"))
         worker = ScanWorker(folder, recursive=self.settings.include_subfolders, kinds=wanted)
@@ -495,18 +550,8 @@ class StreamMediaViewerApp:
     def _on_scan_progress(self, done: int, total: int, token: int) -> None:
         if token != self._scan_token:
             return
+        # 進み具合は確認欄の案内だけに出す（上の行に同じ数字を重ねない）
         self.operator.set_scan_progress(done, total)
-        if self._current() is not None:
-            return
-        lang = self.settings.language
-        if total <= 0:
-            if done > 0:
-                text = t(lang, "scanning_found").format(n=done)
-            else:
-                text = t(lang, "scanning_search")
-            self.operator.meta.setText(text)
-            return
-        self.operator.meta.setText(f"{t(lang, 'scanning')}  {done} / {total}")
 
     def _on_scan_found(
         self,
@@ -522,7 +567,7 @@ class StreamMediaViewerApp:
             return
         self._items = incoming
         self._apply_saved_marks()
-        self._apply_folder_dates()
+        self._apply_folder_dates(reset=True)
         self._index = 0
         self._refresh_list()
         if self._visible:
@@ -548,7 +593,7 @@ class StreamMediaViewerApp:
         if "video" in kinds:
             self._videos_loaded = True
         self._apply_saved_marks()
-        self._apply_folder_dates()
+        self._apply_folder_dates(reset=replace)
         if replace and current_path is None:
             self._index = 0
         waiting_videos = not self._videos_loaded and (
@@ -572,13 +617,11 @@ class StreamMediaViewerApp:
                 if current is not None:
                     self.operator.meta.setText(self._item_meta_text(current))
         elif waiting_videos:
-            self.operator.meta.setText(t(self.settings.language, "scanning"))
+            self.operator.show_guide(t(self.settings.language, "scanning"))
         else:
-            self.operator.set_media_kind(None)
-            self.operator.show_guide(t(self.settings.language, "folder_empty"))
-            self.operator.meta.setText(t(self.settings.language, "folder_empty"))
-            self.operator.refresh_status()
+            self._show_nothing()
         self._start_thumbs()
+        self._auto_schedule(1000)
         if self._prepare_after_videos and self._videos_loaded:
             self._prepare_after_videos = False
             self._prepare_folder("video")
@@ -687,7 +730,12 @@ class StreamMediaViewerApp:
 
     def shutdown(self) -> None:
         self._closing = True
-        self._cache_label_timer.stop()
+        for timer in (self._auto_timer, self._face_refresh_timer):
+            try:
+                timer.stop()
+            except RuntimeError:
+                # ソフトの終わりぎわは、窓より先にタイマーが消えていることがある
+                pass
         self._scan_token += 1
         self._pending_thumbs = []
         try:
@@ -756,24 +804,36 @@ class StreamMediaViewerApp:
             return
         self._keep_qthread(worker)
 
-    def _apply_folder_dates(self) -> None:
+    def _apply_folder_dates(self, *, reset: bool = True) -> None:
+        """日付欄の幅をフォルダ内の最古〜最新に合わせる。
+
+        reset=False（動画を足したときなど）は、選んでいた日付を残して幅だけ広げる。
+        """
         dates = [item.captured_at.date() for item in self._items if item.captured_at]
+        op = self.operator
         if not dates:
+            op.set_dates_available(False)
             return
+        op.set_dates_available(True)
         start, end = min(dates), max(dates)
         qmin = QDate(start.year, start.month, start.day)
         qmax = QDate(end.year, end.month, end.day)
-        op = self.operator
+        keep_from = op.date_from.date()
+        keep_to = op.date_to.date()
         op.date_from.blockSignals(True)
         op.date_to.blockSignals(True)
         op.date_from.setDateRange(qmin, qmax)
         op.date_to.setDateRange(qmin, qmax)
-        op.date_from.setDate(qmin)
-        op.date_to.setDate(qmax)
+        if reset or not op.chk_dates.isChecked():
+            op.date_from.setDate(qmin)
+            op.date_to.setDate(qmax)
+        else:
+            op.date_from.setDate(max(qmin, min(keep_from, qmax)))
+            op.date_to.setDate(max(qmin, min(keep_to, qmax)))
         op.date_from.blockSignals(False)
         op.date_to.blockSignals(False)
-        self.settings.date_from = qmin.toString("yyyy-MM-dd")
-        self.settings.date_to = qmax.toString("yyyy-MM-dd")
+        self.settings.date_from = op.date_from.date().toString("yyyy-MM-dd")
+        self.settings.date_to = op.date_to.date().toString("yyyy-MM-dd")
 
     def _apply_saved_marks(self) -> None:
         for item in self._items:
@@ -860,10 +920,11 @@ class StreamMediaViewerApp:
 
     def _row_label(self, item: MediaItem) -> str:
         note = self.settings.note_for(str(item.path))
+        # ✓（下準備できた）は動画だけ。写真は自動で下準備するので、印を並べても意味が薄い
         marks = row_marks(
             favorite=note.favorite,
             live=self._live_path == str(item.path) and not self.gate.masked,
-            ready=cache_is_ready(self._key_for(item), self._folder_id()),
+            ready=item.kind == "video" and cache_is_ready(self._key_for(item), self._folder_id()),
             manual=bool(note.marks),
             lang=self.settings.language,
         )
@@ -964,10 +1025,8 @@ class StreamMediaViewerApp:
         self._preview = None
         self._source_bgr = None
         if item is None:
-            self.operator.set_media_kind(None)
-            key = "folder_empty" if self.settings.last_folder else "empty_guide"
-            self.operator.show_guide(t(self.settings.language, key))
-            self.operator.meta.setText(t(self.settings.language, "empty"))
+            if not self._scanning():
+                self._show_nothing()
             self.operator.set_false_face_visible(False)
             self.operator.refresh_status()
             return
@@ -1061,90 +1120,6 @@ class StreamMediaViewerApp:
         except (TypeError, RuntimeError):
             pass
         self._stop_qthread(worker, timeout_ms=timeout_ms)
-
-    def _stop_prefetch(self, timeout_ms: int = 0) -> None:
-        self._prefetch_queue = []
-        worker = self._prefetch_worker
-        self._prefetch_worker = None
-        if worker is None:
-            return
-        try:
-            worker.ready.disconnect(self._on_prefetch_ready)
-        except (TypeError, RuntimeError):
-            pass
-        self._stop_qthread(worker, timeout_ms=timeout_ms)
-
-    def _prefetch_neighbors(self) -> None:
-        if self._folder_queue or not self._visible:
-            return
-        folder_id = self._folder_id()
-        queued: list[MediaItem] = []
-        for row in neighbor_rows(self._index, len(self._visible), radius=PREFETCH_RADIUS):
-            item = self._items[self._visible[row]]
-            if item.kind != "image":
-                continue
-            key = self._key_for(item)
-            if self._protect_cache.has(key):
-                continue
-            if cache_is_ready(key, folder_id):
-                if self._protect_cache.room() > 0:
-                    loaded = read_protected_image(folder_id, key)
-                    if loaded is not None:
-                        self._protect_cache.put(key, loaded[0], loaded[1], loaded[2])
-                continue
-            queued.append(item)
-        self._prefetch_queue = queued
-        if self._prefetch_worker is not None and _qthread_live(self._prefetch_worker):
-            return
-        self._kick_prefetch()
-
-    def _kick_prefetch(self) -> None:
-        current = self._current()
-        folder_id = self._folder_id()
-        while self._prefetch_queue:
-            item = self._prefetch_queue.pop(0)
-            if current is not None and item.path == current.path:
-                continue
-            key = self._key_for(item)
-            if self._protect_cache.has(key) or cache_is_ready(key, folder_id):
-                continue
-            note = self.settings.note_for(str(item.path))
-            worker = PrefetchWorker(item.path, self.settings, note, key, folder_id)
-            worker.ready.connect(self._on_prefetch_ready)
-            worker.start()
-            self._prefetch_worker = worker
-            return
-        self._prefetch_worker = None
-
-    def _on_prefetch_ready(self, key: str, bgr: object, faces: bool, texts: bool) -> None:
-        if isinstance(bgr, np.ndarray):
-            self._cache_label_timer.start(1500)
-            if self._protect_cache.room() > 0:
-                self._protect_cache.put(key, bgr, bool(faces), bool(texts))
-            self._apply_prefetch_marks(key, bool(faces), bool(texts))
-        self._kick_prefetch()
-
-    def _apply_prefetch_marks(self, key: str, faces: bool, texts: bool) -> None:
-        # 先読みは現在の行の近くだけ。近い行から探し、その行だけ書き直す（全行は重い）。
-        total = len(self._visible)
-        near = list(neighbor_rows(self._index, total, radius=PREFETCH_RADIUS))
-        near_set = set(near)
-        order = near + [row for row in range(total) if row not in near_set]
-        for row in order:
-            if row < 0 or row >= total:
-                continue
-            item = self._items[self._visible[row]]
-            if item.kind != "image" or self._key_for(item) != key:
-                continue
-            item.has_face = item.has_face or faces
-            item.has_text_region = item.has_text_region or texts
-            note = self.settings.note_for(str(item.path))
-            note.has_face = item.has_face
-            note.has_text_region = item.has_text_region
-            list_item = self.operator.list.item(row)
-            if list_item is not None:
-                list_item.setText(self._row_label(item))
-            return
 
     def _cached_protect_frame(self, item: MediaItem) -> tuple[np.ndarray, bool, bool] | None:
         key = self._key_for(item)
@@ -1243,7 +1218,6 @@ class StreamMediaViewerApp:
                         has_face=has_face,
                         has_text=has_text,
                     )
-                    self._cache_label_timer.start(1500)
             duration = self.operator.timeline.maximum() if item.kind == "video" else None
             self.operator.meta.setText(self._item_meta_text(item, duration_ms=duration))
         fitted = fit_letterbox(bgr)
@@ -1263,6 +1237,8 @@ class StreamMediaViewerApp:
         item = self._current()
         if item and item.kind == "video" and not self._folder_queue:
             self._start_preload()
+            # 写真の自動の下準備は、この動画の下準備が終わるまで待ってから続く
+            self._auto_schedule(PAUSE_POLL_MS)
         if item and item.kind == "image":
             self._prefetch_neighbors()
 
@@ -1271,17 +1247,12 @@ class StreamMediaViewerApp:
             return
         item = self._current()
         preview = self._preview
-        if item and item.kind == "image" and item.has_face:
-            answer = QMessageBox.question(
-                self.operator, "", t(self.settings.language, "confirm_faces")
-            )
-            if answer != QMessageBox.StandardButton.Yes:
+        # 顔ありの写真は毎回ひと呼吸おいて、ぼかしが足りているか見てもらう（Enter でそのまま出せる）
+        if item and item.kind == "image" and item.has_face and self.settings.face_blur:
+            if not self._ask_send("confirm_faces"):
                 return
         if not self.settings.face_blur and not self.settings.blur_off_confirmed:
-            answer = QMessageBox.question(
-                self.operator, "", t(self.settings.language, "confirm_no_blur")
-            )
-            if answer != QMessageBox.StandardButton.Yes:
+            if not self._ask_send("confirm_no_blur"):
                 return
             self.settings.blur_off_confirmed = True
         # 確認のあいだに裏の処理で見ているファイルや確認用の絵が変わったら、確認していない絵は送らない
@@ -1312,6 +1283,21 @@ class StreamMediaViewerApp:
         self._sync_windows()
         self.operator.refresh_status()
         self._sync_live_marks()
+
+    def _ask_send(self, key: str) -> bool:
+        """送る前の確認。ボタンは「配信に出す」（Enter）と「やめる」（Esc）。"""
+        lang = self.settings.language
+        box = QMessageBox(self.operator)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText(t(lang, key))
+        send = box.addButton(t(lang, "confirm_send"), QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(t(lang, "confirm_cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(send)
+        box.setEscapeButton(cancel)
+        box.exec()
+        chosen = box.clickedButton()
+        box.deleteLater()
+        return chosen is send
 
     def _protect_sync(self, frame: np.ndarray, marks: list[dict]) -> np.ndarray:
         item = self._current()
@@ -1431,7 +1417,7 @@ class StreamMediaViewerApp:
             aspect = width / height
         note.rotation = clamp_rotation(note.rotation + turn)
         note.marks = rotate_marks(note.marks, turn, aspect=aspect)
-        self._protect_cache.clear()
+        self._forget_prepared()
         self._undo = []
         if item.kind == "video":
             # フォルダの下準備の途中なら止めない（止めると列が進まなくなる）。
@@ -1457,7 +1443,7 @@ class StreamMediaViewerApp:
         if source is None:
             self._reload_current()
             return
-        self._protect_cache.clear()
+        self._forget_prepared()
         self._start_protect(source, note.marks)
         self._relabel_current_row()
         self._sync_false_face_button()
@@ -1520,7 +1506,7 @@ class StreamMediaViewerApp:
         try_update_shipped_catalog(learned)
         bundled = set(load_shipped_hashes())
         self.settings.false_face_hashes = [item for item in learned if item not in bundled]
-        self._protect_cache.clear()
+        self._forget_prepared()
         self._reprotect_current()
         self._save_settings()
         self._sync_false_face_button()
@@ -1534,7 +1520,7 @@ class StreamMediaViewerApp:
             item for item in self.settings.false_face_hashes if item != digest
         ]
         try_remove_shipped_hash(digest, protected=self._shipped_start)
-        self._protect_cache.clear()
+        self._forget_prepared()
         self._reprotect_current()
         self._save_settings()
         self._sync_false_face_button()
@@ -1590,210 +1576,6 @@ class StreamMediaViewerApp:
         if not self._folder_queue:
             self._stop_preload()
             self._start_preload()
-
-    def _key_for(self, item: MediaItem) -> str:
-        note = self.settings.note_for(str(item.path))
-        return cache_key(
-            item.path,
-            in_ms=note.in_ms,
-            out_ms=note.out_ms,
-            face_blur=self.settings.face_blur,
-            text_blur=self.settings.text_blur,
-            strength=self.settings.blur_strength,
-            marks=note.marks,
-            enhance_level=self.settings.enhance_level,
-            skip_faces=note.skip_faces,
-            false_face_hashes=self.settings.all_false_face_hashes(),
-            rotation=note.rotation,
-            face_pipeline=self.settings.face_pipeline,
-            still=item.kind == "image",
-        )
-
-    def _folder_id(self) -> str:
-        folder = self.settings.last_folder or "_none"
-        return folder_cache_id(folder)
-
-    def _bind_cache(self, item: MediaItem) -> None:
-        key = self._key_for(item)
-        folder_id = self._folder_id()
-        if cache_is_ready(key, folder_id):
-            meta = read_meta(key, folder_id)
-            self._video.set_cache(cache_folder(key, folder_id), float(meta.get("fps") or 30))
-            return
-        self._video.set_cache(None, 30)
-
-    def _stop_preload(self) -> None:
-        worker = self._preload
-        self._preload = None
-        self._stop_qthread(worker, timeout_ms=1500)
-
-    def _start_preload(self) -> None:
-        if self._folder_queue:
-            return
-        item = self._current()
-        if item is None:
-            return
-        self._start_preload_for(item)
-
-    def _start_preload_for(self, item: MediaItem) -> None:
-        note = self.settings.note_for(str(item.path))
-        key = self._key_for(item)
-        lang = self.settings.language
-        prefix = self.operator.meta.text().split(" · ")[0]
-        if cache_is_ready(key, self._folder_id()):
-            self.operator.meta.setText(f"{prefix} · {t(lang, 'prepared')}")
-            if self._folder_queue:
-                self._advance_folder_queue()
-            return
-        if self._preload is not None and self._preload.isRunning():
-            return
-        self._preload = PreloadWorker(
-            item.path,
-            key,
-            self.settings,
-            list(note.marks),
-            note.in_ms,
-            note.out_ms,
-            self._folder_id(),
-        )
-        self._preload.progress.connect(self._on_preload_progress)
-        self._preload.finished_ok.connect(self._on_preload_done)
-        self._preload.start()
-
-    def _on_preload_progress(self, done: int, total: int) -> None:
-        prefix = self.operator.meta.text().split(" · ")[0]
-        if self._folder_queue:
-            finished = self._folder_total - len(self._folder_queue)
-            folder = t(self.settings.language, "folder_progress").format(
-                done=finished + 1, total=max(1, self._folder_total)
-            )
-            self.operator.meta.setText(f"{prefix} · {folder} ({done}/{max(1, total)})")
-            return
-        label = t(self.settings.language, "preparing")
-        self.operator.meta.setText(f"{prefix} · {label} {done}/{max(1, total)}")
-
-    def _on_preload_done(self, key: str) -> None:
-        folder_id = self._folder_id()
-        if cache_is_ready(key, folder_id):
-            try:
-                meta = read_meta(key, folder_id)
-            except (OSError, ValueError):
-                meta = {}
-            has_face = bool(meta.get("has_face"))
-            has_text = bool(meta.get("has_text_region"))
-            for item in self._items:
-                if self._key_for(item) != key:
-                    continue
-                item.has_face = item.has_face or has_face
-                item.has_text_region = item.has_text_region or has_text
-                note = self.settings.note_for(str(item.path))
-                note.has_face = item.has_face
-                note.has_text_region = item.has_text_region
-                break
-        prefix = self.operator.meta.text().split(" · ")[0]
-        label_key = "prepared" if cache_is_ready(key, folder_id) else "protect_failed"
-        self.operator.meta.setText(f"{prefix} · {t(self.settings.language, label_key)}")
-        self._refresh_cache_label()
-        self._refresh_list()
-        self._advance_folder_queue()
-
-    def _advance_folder_queue(self) -> None:
-        if not self._folder_queue:
-            self._refresh_cache_label()
-            self._refresh_list()
-            return
-        self._folder_queue.pop(0)
-        if not self._folder_queue:
-            self._refresh_cache_label()
-            self._refresh_list()
-            return
-        self._start_preload_for(self._folder_queue[0])
-
-    def _prepare_folder(self, kind: str) -> None:
-        if kind == "video" and not self._videos_loaded:
-            if not self.settings.last_folder:
-                return
-            self._prepare_after_videos = True
-            self._maybe_load_videos()
-            return
-        if not self._items:
-            return
-        lang = self.settings.language
-        pending: list[MediaItem] = []
-        total_bytes = 0
-        for item in self._items:
-            if item.kind != kind:
-                continue
-            if cache_is_ready(self._key_for(item), self._folder_id()):
-                continue
-            pending.append(item)
-            note = self.settings.note_for(str(item.path))
-            duration_ms = 0
-            fps = 30.0
-            if item.kind == "video":
-                fps = 30.0
-                frames = 0.0
-                if video_header_ok(item.path):
-                    try:
-                        cap = cv2.VideoCapture(str(item.path))
-                        fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
-                        frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-                        cap.release()
-                    except Exception as exc:
-                        log_exception(exc)
-                        fps = 30.0
-                        frames = 0.0
-                full_ms = int(1000 * frames / max(fps, 1.0)) if frames else 0
-                end = note.out_ms if note.out_ms else full_ms
-                duration_ms = max(0, end - note.in_ms)
-            total_bytes += estimate_item_bytes(item.kind, duration_ms, fps)
-        if not pending:
-            QMessageBox.information(
-                self.operator, "", t(lang, "prepared")
-            )
-            self._refresh_cache_label()
-            return
-        ask_key = "prepare_photos_ask" if kind == "image" else "prepare_videos_ask"
-        ask = t(lang, ask_key).format(size=format_bytes(total_bytes))
-        if QMessageBox.question(self.operator, "", ask) != QMessageBox.StandardButton.Yes:
-            return
-        self._stop_preload()
-        self._folder_queue = pending
-        self._folder_total = len(pending)
-        self._start_preload_for(pending[0])
-
-    def _clear_cache(self) -> None:
-        lang = self.settings.language
-        folder_size = format_bytes(cache_size_bytes(self._folder_id()))
-        total_size = format_bytes(cache_size_bytes())
-        ask = t(lang, "clear_cache_ask").format(folder=folder_size, total=total_size)
-        box = QMessageBox(self.operator)
-        box.setText(ask)
-        this_btn = box.addButton(t(lang, "clear_this_folder"), QMessageBox.ButtonRole.AcceptRole)
-        all_btn = box.addButton(t(lang, "clear_all_cache"), QMessageBox.ButtonRole.DestructiveRole)
-        box.addButton(t(lang, "cancel"), QMessageBox.ButtonRole.RejectRole)
-        box.exec()
-        clicked = box.clickedButton()
-        box.deleteLater()
-        if clicked is not this_btn and clicked is not all_btn:
-            return
-        self._stop_preload()
-        self._folder_queue = []
-        if clicked is this_btn:
-            clear_folder_cache(self._folder_id())
-        else:
-            clear_preload_cache()
-        self._video.set_cache(None, 30)
-        self._protect_cache.clear()
-        self._refresh_cache_label()
-        self._refresh_list()
-
-    def _refresh_cache_label(self) -> None:
-        folder = format_bytes(cache_size_bytes(self._folder_id()))
-        total = format_bytes(cache_size_bytes())
-        self.operator.set_cache_text(
-            t(self.settings.language, "cache_label").format(folder=folder, total=total)
-        )
 
     def _sync_windows(self) -> None:
         self.output.refresh()
