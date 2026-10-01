@@ -24,10 +24,12 @@
 1. 📁から写真や動画のフォルダを選びます。最近使ったフォルダも選択できます。
 2. 一覧からファイルを選び、操作用ウィンドウで確認します。配信用ウィンドウにはまだ表示されません。
 3. 必要に応じて手動でぼかしを追加します。
-4. ✨ボタンでコントラストと彩度の自動補正を切り替えます。押すたびに「オフ → 弱 → 強」と変わります。
+4. ✨ボタンでコントラストと彩度の自動補正を切り替えます。押すたびに「オフ → 標準 → 強め」と変わります。
 5. ⬆ボタン または Enterキーで、確認中の写真や動画を配信用ウィンドウに表示します。
-6. OBSで「ウィンドウの取り込み」を追加し、`StreamMediaViewer(ぬ) - 配信出力` を選びます。
-7. ⬛ボタン、Escキー、またはテンキーの 0 で配信用ウィンドウを非表示にします。再び表示するには ⬆ボタン または Enterキーを押します。
+6. OBSで「ウィンドウの取り込み」を追加し、`StreamMediaViewer(ぬ) - 配信出力` を選びます（配信用ウィンドウは 1 枚送ると現れます）。
+7. ■ボタン、Escキー、またはテンキーの 0 で配信用ウィンドウを非表示にします。再び表示するには ⬆ボタン または Enterキーを押します。
+
+写真のぼかしは、フォルダを開くと裏で少しずつ自動で作り置きします（PC が重くならないよう休みながら）。キーの一覧と OBS への出し方は、操作画面右下の ？（使い方）でも見られます。
 
 ## よく使うキー・操作
 
@@ -36,11 +38,11 @@
 | 前のファイル | 4 | A / ← | ◀ |
 | 次のファイル | 6 | D / → | ▶ |
 | 配信出力に表示 | Enter | Enter | ⬆ |
-| 配信出力を非表示 | 0 | Esc | ⬛ |
+| 配信出力を非表示 | 0 | Esc | ■ |
 | 動画の再生／停止 | 5 | Space | ⏯／⏹ |
 | ブックマーク | | F | ☆ |
 | 手動ぼかしを取り消す | | Ctrl+Z（Mac では Command+Z のことがあります） | ↩ |
-| 非表示にする | | サムネイルを右クリック | |
+| 一覧から隠す | | サムネイルを右クリック | |
 
 ## 顔や個人情報
 
@@ -106,10 +108,12 @@ A Windows/Mac app that automatically adds blur to faces in photos and videos bef
 1. Click 📁 and choose the folder for today’s stream. Recent folders are available too.
 2. Select a file on the left and review it in the operator window. It is not shown in the output window yet.
 3. Add manual blur where needed.
-4. Click the ✨ button to cycle contrast and saturation enhancement: Off → Soft → Strong.
+4. Click the ✨ button to cycle contrast and saturation enhancement: Off → Normal → Strong.
 5. Press the ⬆ button or the Enter key to display the selected photo or video in the output window.
-6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力`.
-7. Press the ⬛ button, Esc key, or numpad 0 to hide the output window. Press the ⬆ button or Enter to display it again.
+6. In OBS, add a **Window Capture** of `StreamMediaViewer(ぬ) - 配信出力` (the output window appears after your first send).
+7. Press the ■ button, Esc key, or numpad 0 to hide the output window. Press the ⬆ button or Enter to display it again.
+
+Blurred photos are prepared in the background after you open a folder, pausing between photos to keep the PC light. The ? (Help) button at the bottom-right lists the keys and how to set up OBS.
 
 ## Keys
 
@@ -118,7 +122,7 @@ A Windows/Mac app that automatically adds blur to faces in photos and videos bef
 | Previous | 4 | A / ← | ◀ |
 | Next | 6 | D / → | ▶ |
 | Show in output | Enter | Enter | ⬆ |
-| Hide output | 0 | Esc | ⬛ |
+| Hide output | 0 | Esc | ■ |
 | Play / pause | 5 | Space | ⏯/⏹ |
 | Bookmark | | F | ☆ |
 | Undo hand-drawn blur | | Ctrl+Z (Command+Z on some Macs) | ↩ |
