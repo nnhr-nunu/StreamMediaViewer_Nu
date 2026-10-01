@@ -88,7 +88,15 @@ def test_operator_shows_guide_version_stays_in_settings(qtbot) -> None:
     shown = display_version()
     assert __version__ in shown
     assert not hasattr(app.operator, "version_label")
-    assert "フォルダを選択" in app.operator.guide.text()
+    assert app.operator.guide.text() == t("ja", "start_title")
+    assert not app.operator.guide_page.btn_pick.isHidden()
+    assert not app.operator.guide_page.steps.isHidden()
+    assert OUTPUT_WINDOW_TITLE in app.operator.guide_page.obs.text()
+    # 上の行に案内と同じ文を重ねない
+    assert app.operator.meta.text() == ""
+    # フォルダを開くまで、絞り込み・並び順・動画の下準備は押せない
+    assert not app.operator.filter_box.isEnabled()
+    assert not app.operator.btn_prep_videos.isEnabled()
     assert app.operator.btn_play.isHidden()
     assert "次" in app.operator.btn_next.text()
     dialog = SettingsDialog(
@@ -326,20 +334,24 @@ def test_protect_done_prefills_rest_of_photos(qtbot, tmp_path: Path, monkeypatch
     monkeypatch.setattr("stream_media_viewer.library.preview_load.protect_for_note", instant_protect)
     for index in range(20):
         Image.new("RGB", (8, 8), (10, 20, 30)).save(tmp_path / f"{index:02d}.jpg")
+    monkeypatch.setattr("stream_media_viewer.prep_flow.rest_ms", lambda *_a, **_k: 10)
     app = StreamMediaViewerApp(AppSettings())
     qtbot.addWidget(app.operator)
     qtbot.addWidget(app.output)
+    app.operator.show()
     app._open_folder_path(str(tmp_path))
     qtbot.waitUntil(lambda: len(app._items) == 20, timeout=8000)
     qtbot.waitUntil(lambda: len(app._visible) == 20, timeout=8000)
 
-    def disk_ready_count() -> int:
-        folder_id = app._folder_id()
-        return sum(1 for item in app._items if cache_is_ready(app._key_for(item), folder_id))
+    def disk_ready(item) -> bool:
+        return cache_is_ready(app._key_for(item), app._folder_id())
 
-    qtbot.waitUntil(lambda: disk_ready_count() >= 9, timeout=15000)
-    qtbot.wait(400)
-    assert disk_ready_count() == 9
+    # まず見ている写真の前後（先頭なので後ろの 4 枚）、そのあと残りも自動で少しずつ
+    qtbot.waitUntil(lambda: all(disk_ready(item) for item in app._items[:5]), timeout=15000)
+    qtbot.waitUntil(lambda: all(disk_ready(item) for item in app._items), timeout=30000)
+    qtbot.waitUntil(lambda: app._auto.progress() == (20, 20), timeout=10000)
+    assert "完了" in app.operator.prep_label.text()
+    # 手元のメモリに置くのは最近の分だけ
     assert len(app._protect_cache) <= 16
     app.shutdown()
 
@@ -457,13 +469,12 @@ def test_photo_and_video_show_different_controls(qtbot) -> None:
     qtbot.addWidget(app.operator)
     app.operator.set_media_kind("image")
     assert app.operator.btn_play.isHidden()
-    assert app.operator.btn_prep.isHidden()
+    assert not hasattr(app.operator, "btn_prep")
     assert app.operator.timeline.isHidden()
     assert app.operator.chk_loop.isHidden()
     assert app.operator.chk_audio.isHidden()
     app.operator.set_media_kind("video")
     assert not app.operator.btn_play.isHidden()
-    assert not app.operator.btn_prep.isHidden()
     assert not app.operator.timeline.isHidden()
     assert not app.operator.chk_loop.isHidden()
     assert not app.operator.chk_audio.isHidden()
@@ -474,8 +485,7 @@ def test_photo_and_video_show_different_controls(qtbot) -> None:
     assert bar.indexOf(app.operator.btn_rot_left) < bar.indexOf(app.operator.btn_rot_right)
     assert bar.indexOf(app.operator.btn_rot_right) < bar.indexOf(app.operator.btn_loupe)
     assert bar.indexOf(app.operator.btn_loupe) < bar.indexOf(app.operator.btn_play)
-    assert bar.indexOf(app.operator.btn_play) < bar.indexOf(app.operator.btn_prep)
-    assert bar.indexOf(app.operator.btn_prep) < bar.indexOf(app.operator.btn_false_face)
+    assert bar.indexOf(app.operator.btn_play) < bar.indexOf(app.operator.btn_false_face)
     assert bar.indexOf(app.operator.btn_false_face) < bar.indexOf(app.operator.btn_lang)
     assert bar.indexOf(app.operator.btn_lang) < bar.indexOf(app.operator.btn_help)
 
@@ -595,12 +605,16 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     assert op.filter_box.layout().indexOf(op.combo_sort) == -1
     assert op.sort_box.layout().indexOf(op.combo_sort) >= 0
     assert op.combo_sort.count() == 3
-    assert "写真" in op.btn_prep_photos.text()
+    # 写真の下準備は自動。上の段は動画のまとめ下準備だけ。削除は設定の中
+    assert not hasattr(op, "btn_prep_photos")
+    assert not hasattr(op, "btn_clear_cache")
     assert "動画" in op.btn_prep_videos.text()
+    assert "下準備" in op.btn_prep_videos.text()
+    # 🔍は拡大のボタンの印なので、絞り込みの見出しには使わない
+    assert "🔍" not in op.filter_box.title()
     assert "自動補正" in op.btn_enhance.text()
     assert "標準" in op.btn_enhance.text()
     assert "拡大" in op.btn_loupe.text()
-    assert "事前処理データ" in op.btn_clear_cache.text()
     assert op.chk_star_only.text() == "⭐"
     assert op.loupe_tools.isHidden()
     assert op.manual_tools.isHidden()
@@ -624,17 +638,25 @@ def test_operator_ux_labels_and_overlays(qtbot) -> None:
     op._tool("stroke")
     assert op.preview.mode == "stroke"
     assert not op.slider_brush.isHidden()
-    assert "キー説明" in op.btn_help.text()
+    assert "使い方" in op.btn_help.text()
     assert op.btn_lang.property("glyph") == "あ/A"
-    dialog = op._shortcuts_dialog()
+    # あ/A の下は「押すと何語になるか」
+    assert "English" in op.btn_lang.text()
+    dialog = op._help_dialog()
     qtbot.addWidget(dialog)
-    assert dialog.windowTitle() == "キー説明"
-    body = dialog.findChild(QLabel, "shortcutsBody")
-    assert body is not None
-    assert "←" in body.text()
-    assert "→" in body.text()
-    assert "非表示にする" in body.text()
-    assert "右下" in body.text()
+    assert dialog.windowTitle() == "使い方"
+    texts = " ".join(label.text() for label in dialog.findChildren(QLabel))
+    keys = " ".join(label.text() for label in dialog.key_labels)
+    assert "←" in keys
+    assert "→" in keys
+    assert "テンキー0" in keys
+    assert "右クリック" in keys
+    assert OUTPUT_WINDOW_TITLE in texts
+    assert "右下" in texts
+    # ボタンのカーソル説明に、同じ働きのキーが書いてある
+    assert "Enter" in op.btn_send.toolTip()
+    assert "Esc" in op.btn_panic.toolTip()
+    assert "A" in op.btn_prev.toolTip()
     assert op.minimumWidth() >= 900
     assert op.minimumHeight() >= 560
     assert op.btn_false_face.isHidden()
@@ -671,8 +693,8 @@ def test_operator_status_and_date_filter_ux(qtbot) -> None:
     app.gate.panic()
     op.refresh_status()
     assert op.output_status.text() == t("ja", "status_panic")
-    op.set_cache_text("下準備: このフォルダ 1 KB / 全体 2 KB")
-    assert "1 KB" in op.btn_clear_cache.toolTip()
+    op.set_prep_text("📸 写真の下準備 3/10")
+    assert "3/10" in op.btn_prep_videos.toolTip()
     assert not op.chk_dates.isChecked()
     assert op.date_from.property("inactive") is True
     op.date_from.picked.emit()

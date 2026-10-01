@@ -49,6 +49,14 @@ QDialog QPushButton {
   min-height: 36px;
   min-width: 72px;
 }
+/* 小窓に直に置いたボタンは「QDialog > QWidget」の背景に負けて平らに見えるので、ボタンの色を戻す */
+QDialog > QPushButton {
+  background: #2a2a2a;
+  padding: 6px 14px;
+}
+QDialog > QPushButton:hover {
+  background: #3a3a3a;
+}
 QToolButton:hover, QPushButton:hover {
   background: #3a3a3a;
 }
@@ -268,7 +276,43 @@ QLabel#guide {
   color: #e8e8e8;
   font-size: 16px;
   background: transparent;
-  padding: 28px;
+  padding: 20px 28px 12px 28px;
+}
+QScrollArea#guideScroll, QWidget#guideBody {
+  background: transparent;
+  border: none;
+}
+QPushButton#guidePick {
+  border: 2px solid #6b3fa0;
+  font-size: 16px;
+  padding: 10px 28px;
+  min-width: 220px;
+  min-height: 52px;
+}
+QPushButton#guideRecent, QPushButton#guideAction {
+  min-height: 36px;
+  min-width: 220px;
+  padding: 4px 16px;
+}
+QLabel#guideSteps {
+  color: #cfcfcf;
+  font-size: 14px;
+  padding-top: 18px;
+}
+QLabel#guideNote, QLabel#helpNote {
+  color: #a8a8a8;
+  font-size: 13px;
+}
+QLabel#helpHeading {
+  color: #c9a0ff;
+  font-size: 13px;
+  padding-top: 10px;
+}
+QLabel#helpKey {
+  color: #f0f0f0;
+  background: #2a2a2a;
+  border-radius: 6px;
+  padding: 2px 8px;
 }
 QLabel#preview {
   background: #000;

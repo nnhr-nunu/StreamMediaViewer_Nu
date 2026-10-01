@@ -11,6 +11,9 @@ Cursor で開発するときの最短導線。全文読み込みを避け、触�
 | 操作画面 | [`operator_window.py`](./src/stream_media_viewer/ui/operator_window.py) |
 | 配信用の窓（OBS 取り込み） | [`output_window.py`](./src/stream_media_viewer/ui/output_window.py) |
 | 出す／隠す／送る／緊急 | [`output_gate.py`](./src/stream_media_viewer/safety/output_gate.py) |
+| 下準備・先読み（写真は自動で少しずつ） | [`prep_flow.py`](./src/stream_media_viewer/prep_flow.py) |
+| 最初の案内・使い方の小窓 | [`guide_page.py`](./src/stream_media_viewer/ui/guide_page.py) / [`help_dialog.py`](./src/stream_media_viewer/ui/help_dialog.py) |
+| 画面の文言（日英） | [`i18n.py`](./src/stream_media_viewer/i18n.py)（先頭に言葉の決まり） |
 | 設定 JSON | [`settings.py`](./src/stream_media_viewer/settings.py) |
 | 未完了タスク | [`task.md`](./task.md) |
 | 製品の短い案内 | [`docs/product/overview.md`](./docs/product/overview.md) |

@@ -8,8 +8,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
-    QDialog,
-    QDialogButtonBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -20,7 +18,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMenu,
-    QProgressBar,
     QSizePolicy,
     QSlider,
     QStackedLayout,
@@ -42,6 +39,8 @@ from stream_media_viewer.ui.capture_exclude import exclude_from_capture
 from stream_media_viewer.ui.drop_hint import CalendarDateEdit, DropHintCombo
 from stream_media_viewer.ui.flow_layout import FlowLayout
 from stream_media_viewer.ui.glyph_icon import set_glyph
+from stream_media_viewer.ui.guide_page import GuidePage
+from stream_media_viewer.ui.help_dialog import HelpDialog
 from stream_media_viewer.ui.list_thumb import with_video_mark
 from stream_media_viewer.ui.overlays import MAX_LOUPE_PX, MIN_LOUPE_PX, OPERATOR_LOUPE_PX
 from stream_media_viewer.ui.preview_canvas import PreviewCanvas
@@ -57,8 +56,8 @@ _ROLE_PIX = Qt.ItemDataRole.UserRole
 _ROLE_KIND = Qt.ItemDataRole.UserRole + 1
 _ROLE_ROT = Qt.ItemDataRole.UserRole + 2
 _ROLE_PATH = Qt.ItemDataRole.UserRole + 3
-# これより狭いと上の段の「下準備」の容量表示を隠す（容量は🧹のカーソル説明に残る）
-_CACHE_LABEL_MIN_W = 1120
+# これより狭いと上の段の「写真の下準備」の進み具合を隠す（🎦のカーソル説明に残る）
+_PREP_LABEL_MIN_W = 1000
 _STATUS_KEYS = {
     OutputReason.STARTUP: ("status_hidden", "hidden"),
     OutputReason.PANIC: ("status_panic", "hidden"),
@@ -78,6 +77,14 @@ def _caption(button: QToolButton, glyph: str, short: str, tip: str) -> None:
     set_glyph(button, glyph, short, tip)
 
 
+def _list_icon(pixmap: QPixmap) -> QIcon:
+    """選んだ行でも縮小画の色を変えない（選択の色は行の背景で分かる）。"""
+    icon = QIcon()
+    icon.addPixmap(pixmap, QIcon.Mode.Normal)
+    icon.addPixmap(pixmap, QIcon.Mode.Selected)
+    return icon
+
+
 def _repolish(widget: QWidget) -> None:
     """property を変えたあと、見た目の指定を掛け直す。"""
     widget.style().unpolish(widget)
@@ -86,6 +93,8 @@ def _repolish(widget: QWidget) -> None:
 
 class OperatorWindow(QMainWindow):
     open_folder_requested = Signal()
+    recent_folder_requested = Signal(str)
+    clear_filters_requested = Signal()
     send_requested = Signal()
     panic_requested = Signal()
     prev_requested = Signal()
@@ -98,10 +107,7 @@ class OperatorWindow(QMainWindow):
     settings_changed = Signal()
     filters_changed = Signal()
     loop_changed = Signal()
-    prepare_requested = Signal()
-    prepare_photos_requested = Signal()
     prepare_videos_requested = Signal()
-    clear_cache_requested = Signal()
     clear_marks_requested = Signal()
     enhance_cycle_requested = Signal()
     settings_requested = Signal()
@@ -140,22 +146,19 @@ class OperatorWindow(QMainWindow):
         self._fit_cache: dict[tuple, QPixmap] = {}
         self._list_paths: list[str] = []
         self._fit_icon_size = 0
-        self.btn_prep_photos = _bar_button()
         self.btn_prep_videos = _bar_button()
-        self.btn_clear_cache = _bar_button()
         self.btn_settings = _bar_button()
-        self.cache_label = QLabel()
-        self.cache_label.setObjectName("meta")
-        self._cache_text = ""
+        # 写真の下準備は自動。進み具合だけ小さく出す
+        self.prep_label = QLabel()
+        self.prep_label.setObjectName("meta")
+        self._prep_tip = ""
         self._live_probe = lambda: False
         top.addWidget(self.btn_folder)
         top.addWidget(self.chk_face)
         top.addWidget(self.chk_text)
         top.addWidget(self.btn_enhance)
-        top.addWidget(self.btn_prep_photos)
         top.addWidget(self.btn_prep_videos)
-        top.addWidget(self.btn_clear_cache)
-        top.addWidget(self.cache_label)
+        top.addWidget(self.prep_label)
         top.addStretch()
         top.addWidget(self.btn_settings)
         outer.addLayout(top)
@@ -242,27 +245,10 @@ class OperatorWindow(QMainWindow):
         preview_host = QWidget()
         self._preview_stack = QStackedLayout(preview_host)
         self.preview = PreviewCanvas()
-        self.guide_page = QWidget()
-        guide_col = QVBoxLayout(self.guide_page)
-        self.guide = QLabel()
-        self.guide.setObjectName("guide")
-        self.guide.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.guide.setWordWrap(True)
-        self.scan_count = QLabel()
-        self.scan_count.setObjectName("meta")
-        self.scan_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.scan_progress = QProgressBar()
-        self.scan_progress.setTextVisible(True)
-        self.scan_progress.setFormat("%v / %m")
-        self.scan_progress.setMinimumHeight(18)
-        self.scan_progress.setFixedWidth(360)
-        self.scan_progress.setVisible(False)
-        self.scan_count.setVisible(False)
-        guide_col.addStretch()
-        guide_col.addWidget(self.guide, alignment=Qt.AlignmentFlag.AlignHCenter)
-        guide_col.addWidget(self.scan_count, alignment=Qt.AlignmentFlag.AlignHCenter)
-        guide_col.addWidget(self.scan_progress, alignment=Qt.AlignmentFlag.AlignHCenter)
-        guide_col.addStretch()
+        self.guide_page = GuidePage()
+        self.guide = self.guide_page.title
+        self.scan_count = self.guide_page.scan_count
+        self.scan_progress = self.guide_page.scan_progress
         self._preview_stack.addWidget(self.preview)
         self._preview_stack.addWidget(self.guide_page)
         overlay = QGridLayout(preview_stage)
@@ -363,11 +349,8 @@ class OperatorWindow(QMainWindow):
         self.btn_false_undo = _bar_button()
         self.btn_false_undo.setMinimumWidth(96)
         self.btn_false_undo.setVisible(False)
-        self.btn_prep_photos.setMinimumWidth(108)
         self.btn_prep_videos.setMinimumWidth(108)
-        self.btn_clear_cache.setMinimumWidth(120)
         self.btn_play = _bar_button()
-        self.btn_prep = _bar_button()
         self.btn_lang = _bar_button()
         self.btn_lang.setMinimumWidth(56)
         self.btn_help = _bar_button()
@@ -413,7 +396,6 @@ class OperatorWindow(QMainWindow):
         bar.addWidget(self.loupe_tools)
         bar.addStretch()
         bar.addWidget(self.btn_play)
-        bar.addWidget(self.btn_prep)
         bar.addWidget(self.btn_false_face)
         bar.addWidget(self.btn_false_undo)
         bar.addWidget(self.btn_lang)
@@ -428,7 +410,6 @@ class OperatorWindow(QMainWindow):
             self.btn_rot_right,
             self.btn_loupe,
             self.btn_play,
-            self.btn_prep,
             self.btn_false_face,
             self.btn_false_undo,
             self.btn_lang,
@@ -448,7 +429,7 @@ class OperatorWindow(QMainWindow):
         self._apply_loupe(False)
         self.retranslate()
         self._relayout_list()
-        self.show_guide(t("ja", "empty_guide"))
+        self.show_start([])
 
     def _fit_initial_size(self) -> None:
         screen = QApplication.primaryScreen()
@@ -484,10 +465,10 @@ class OperatorWindow(QMainWindow):
         self.btn_play.clicked.connect(self.play_requested.emit)
         self.btn_star.clicked.connect(self.star_requested.emit)
         self.btn_undo.clicked.connect(self.undo_requested.emit)
-        self.btn_prep.clicked.connect(self.prepare_requested.emit)
-        self.btn_prep_photos.clicked.connect(self.prepare_photos_requested.emit)
         self.btn_prep_videos.clicked.connect(self.prepare_videos_requested.emit)
-        self.btn_clear_cache.clicked.connect(self.clear_cache_requested.emit)
+        self.guide_page.pick_requested.connect(self.open_folder_requested.emit)
+        self.guide_page.recent_requested.connect(self.recent_folder_requested.emit)
+        self.guide_page.clear_filters_requested.connect(self.clear_filters_requested.emit)
         self.btn_clear_marks.clicked.connect(self.clear_marks_requested.emit)
         self.slider_brush.valueChanged.connect(self._on_brush_width)
         self.slider_loupe.valueChanged.connect(self._on_loupe_px)
@@ -500,7 +481,7 @@ class OperatorWindow(QMainWindow):
         self.preview.mark_added.connect(self.mark_added.emit)
         self.preview.clicked.connect(self.play_requested.emit)
         self.preview.region_clicked.connect(self.region_clicked.emit)
-        self.btn_help.clicked.connect(self._show_shortcuts)
+        self.btn_help.clicked.connect(self._show_help)
         self.btn_lang.clicked.connect(self.language_cycle_requested.emit)
         self.btn_false_face.toggled.connect(self._sync_false_face_caption)
         self.btn_rot_left.clicked.connect(self.rotate_left_requested.emit)
@@ -608,16 +589,37 @@ class OperatorWindow(QMainWindow):
             edit.setProperty("inactive", inactive)
             _repolish(edit)
 
-    def set_cache_text(self, text: str) -> None:
-        self._cache_text = text
-        self.cache_label.setText(text)
-        self._sync_cache_tip()
+    def set_prep_text(self, text: str) -> None:
+        """写真の下準備の進み具合。狭くて隠れたときは🎦のカーソル説明で見られる。"""
+        self.prep_label.setText(text)
+        self.prep_label.setToolTip(t(self.lang, "photo_prep_tip") if text else "")
+        self._prep_tip = text
+        self._sync_prep_tip()
 
-    def _sync_cache_tip(self) -> None:
-        tip = t(self.lang, "clear_cache")
-        if self._cache_text:
-            tip = f"{tip}\n{self._cache_text}"
-        self.btn_clear_cache.setToolTip(tip)
+    def _sync_prep_tip(self) -> None:
+        tip = t(self.lang, "prepare_videos")
+        if self._prep_tip:
+            tip = f"{tip}\n{self._prep_tip}"
+        self.btn_prep_videos.setToolTip(tip)
+
+    def set_library_ready(self, ready: bool) -> None:
+        """フォルダを開くまで、絞り込み・並び順・動画の下準備は押せなくする（押しても何も起きないため）。"""
+        for widget in (self.filter_box, self.sort_box, self.btn_prep_videos):
+            widget.setEnabled(ready)
+
+    def set_dates_available(self, available: bool) -> None:
+        """撮影日のわかるファイルが無いときは、日付の絞り込みを薄くして押せなくする。"""
+        for edit in (self.date_from, self.date_to):
+            edit.setSpecialValueText("" if available else "----/--/--")
+            if not available:
+                edit.blockSignals(True)
+                edit.setDate(edit.minimumDate())
+                edit.blockSignals(False)
+        if not available and self.chk_dates.isChecked():
+            self.chk_dates.setChecked(False)
+        self.date_group.setEnabled(available)
+        tip = "" if available else t(self.lang, "filter_no_dates")
+        self.date_group.setToolTip(tip)
 
     def set_live_probe(self, probe) -> None:
         """いま確認している物が、配信に出している物と同じかを返す関数。状態の表示に使う。"""
@@ -680,34 +682,38 @@ class OperatorWindow(QMainWindow):
         _caption(self.btn_brush, "🖌", t(lang, "btn_brush"), t(lang, "brush"))
         _caption(self.btn_clear_marks, "✕", t(lang, "btn_clear_marks"), t(lang, "clear_marks"))
         self.lbl_brush.setText(t(lang, "brush_width"))
-        _caption(self.btn_prep, "⏳", t(lang, "btn_prep"), t(lang, "prepare"))
-        self.btn_prep_photos.setText(f"📸{t(lang, 'btn_prep_photos')}\n{t(lang, 'btn_prep_action')}")
-        self.btn_prep_photos.setToolTip(t(lang, "prepare_photos"))
-        self.btn_prep_videos.setText(f"🎦{t(lang, 'btn_prep_videos')}\n{t(lang, 'btn_prep_action')}")
-        self.btn_prep_videos.setToolTip(t(lang, "prepare_videos"))
-        _caption(self.btn_clear_cache, "🧹", t(lang, "btn_clear"), t(lang, "clear_cache"))
-        self._sync_cache_tip()
+        _caption(self.btn_prep_videos, "🎦", t(lang, "btn_prep_videos"), t(lang, "prepare_videos"))
+        self._sync_prep_tip()
         _caption(self.btn_settings, "⚙", t(lang, "btn_settings"), t(lang, "settings"))
-        _caption(self.btn_lang, "あ/A", t(lang, "btn_lang"), t(lang, "language"))
-        _caption(self.btn_help, "?", t(lang, "btn_help"), t(lang, "shortcuts"))
+        # 下の名前は「押すと何語になるか」。あ/A だけでは行き先が分からないため
+        _caption(self.btn_lang, "あ/A", t(lang, "lang_next"), t(lang, "language"))
+        _caption(self.btn_help, "?", t(lang, "btn_help"), t(lang, "help_title"))
         self._sync_false_face_caption()
         _caption(self.btn_false_undo, "↩", t(lang, "btn_false_undo"), t(lang, "false_undo"))
-        self.filter_box.setTitle("🔍 " + t(lang, "filters_title"))
+        # 🔍 は拡大のボタンで使うので、絞り込みの見出しには付けない
+        self.filter_box.setTitle(t(lang, "filters_title"))
         self.sort_box.setTitle(t(lang, "sort_title"))
         self.chk_face.setText(t(lang, "face_blur"))
+        self.chk_face.setToolTip(t(lang, "face_blur_tip"))
         self.chk_text.setText(t(lang, "text_blur"))
+        self.chk_text.setToolTip(t(lang, "text_blur_tip"))
         self.set_enhance_level(self.enhance_level)
         self.chk_loop.setText(t(lang, "loop"))
+        self.chk_loop.setToolTip(t(lang, "loop_tip"))
         self.chk_audio.setText(t(lang, "audio"))
         self.chk_audio.setToolTip(t(lang, "audio_hint"))
         self.chk_star_only.setText("⭐")
         self.chk_star_only.setToolTip(t(lang, "filter_star"))
         self.chk_photos.setText(t(lang, "filter_photo"))
+        self.chk_photos.setToolTip(t(lang, "filter_photo_tip"))
         self.chk_videos.setText(t(lang, "filter_video"))
+        self.chk_videos.setToolTip(t(lang, "filter_video_tip"))
         self.chk_filter_face.setText("😊")
         self.chk_filter_face.setToolTip(t(lang, "filter_face"))
         self.chk_dates.setText(t(lang, "filter_dates"))
+        self.chk_dates.setToolTip(t(lang, "filter_dates_tip"))
         self.chk_hidden.setText(t(lang, "filter_hidden"))
+        self.chk_hidden.setToolTip(t(lang, "filter_hidden_tip"))
         self._fill_sort()
         self._set_combo_all(self.combo_place, "filter_place_all")
         if self.combo_place.count() >= 2 and self.combo_place.itemData(1) == PLACE_NONE:
@@ -715,10 +721,11 @@ class OperatorWindow(QMainWindow):
         self._set_combo_all(self.combo_folder, "filter_folder_all")
         self.lbl_in.setText(t(lang, "range_in"))
         self.lbl_out.setText(t(lang, "range_out"))
-        self.timeline.setToolTip(t(lang, "range_in"))
-        self.timeline_out.setToolTip(t(lang, "range_out"))
-        if self._preview_stack.currentWidget() is self.guide_page and not self.list.count():
-            self.show_guide(t(lang, "empty_guide"))
+        self.timeline.setToolTip(t(lang, "range_in_tip"))
+        self.timeline_out.setToolTip(t(lang, "range_out_tip"))
+        self.guide_page.set_lang(lang)
+        if not self.date_group.isEnabled():
+            self.date_group.setToolTip(t(lang, "filter_no_dates"))
         self._sync_date_style()
         self.refresh_status()
         self._place_tool_frames(remeasure=True)
@@ -838,7 +845,6 @@ class OperatorWindow(QMainWindow):
         )
         for widget in (
             self.btn_play,
-            self.btn_prep,
             self.lbl_in,
             self.timeline,
             self.lbl_out,
@@ -852,38 +858,46 @@ class OperatorWindow(QMainWindow):
     def set_range_visible(self, visible: bool) -> None:
         self.set_media_kind("video" if visible else "image")
 
-    def show_guide(self, text: str, *, done: int | None = None, total: int | None = None) -> None:
-        self.guide.setText(text)
-        scanning = done is not None and total is not None
-        self.scan_progress.setVisible(scanning)
-        self.scan_count.setVisible(scanning)
-        if scanning:
-            self._apply_scan_progress(done or 0, total or 0)
+    def show_guide(
+        self,
+        text: str,
+        *,
+        done: int | None = None,
+        total: int | None = None,
+        pick: bool = False,
+        recents: list[str] | None = None,
+    ) -> None:
+        """確認欄に知らせを出す。案内と同じ文を上の行に重ねて出さない。"""
+        self.guide_page.show_message(text, done=done, total=total, pick=pick, recents=recents)
+        self._show_guide_page()
+
+    def show_start(self, recents: list[str]) -> None:
+        """最初の案内（フォルダを選ぶボタンと最近のフォルダ）。"""
+        self.guide_page.show_start(recents)
+        self._show_guide_page()
+
+    def show_filtered_empty(self) -> None:
+        """絞り込みで全部隠れたとき。フォルダが空と言わず、解除ボタンを出す。"""
+        self.guide_page.show_filtered_empty()
+        self._show_guide_page()
+
+    def _show_guide_page(self) -> None:
+        self.meta.setText("")
+        self.meta.setToolTip("")
         self._preview_stack.setCurrentWidget(self.guide_page)
         self.btn_star.setVisible(False)
 
     def set_scan_progress(self, done: int, total: int) -> None:
         if self._preview_stack.currentWidget() is not self.guide_page:
             return
-        self.scan_progress.setVisible(True)
-        self.scan_count.setVisible(True)
-        self._apply_scan_progress(done, total)
-
-    def _apply_scan_progress(self, done: int, total: int) -> None:
-        if total <= 0:
-            self.scan_progress.setRange(0, 0)
-            if done > 0:
-                self.scan_count.setText(t(self.lang, "scanning_found").format(n=done))
-            else:
-                self.scan_count.setText(t(self.lang, "scanning_search"))
-            return
-        self.scan_progress.setRange(0, total)
-        self.scan_progress.setValue(max(0, min(done, total)))
-        self.scan_count.setText(f"{done} / {total}")
+        self.guide_page.set_scan_progress(done, total)
 
     def reveal_preview(self) -> None:
         self._preview_stack.setCurrentWidget(self.preview)
         self.btn_star.setVisible(True)
+
+    def showing_guide(self) -> bool:
+        return self._preview_stack.currentWidget() is self.guide_page
 
     def set_items(
         self,
@@ -925,7 +939,7 @@ class OperatorWindow(QMainWindow):
             row.setData(_ROLE_ROT, int(rot))
             fitted = self._row_icon(row)
             if fitted is not None and not fitted.isNull():
-                row.setIcon(QIcon(fitted))
+                row.setIcon(_list_icon(fitted))
             if tips and index < len(tips):
                 row.setToolTip(tips[index])
             row.setSizeHint(self.list.gridSize())
@@ -946,7 +960,7 @@ class OperatorWindow(QMainWindow):
         fitted = self._row_icon(item)
         if fitted is None or fitted.isNull():
             return
-        item.setIcon(QIcon(fitted))
+        item.setIcon(_list_icon(fitted))
 
     def set_row_rotation(self, row: int, degrees: int) -> None:
         item = self.list.item(row)
@@ -956,7 +970,7 @@ class OperatorWindow(QMainWindow):
         fitted = self._row_icon(item)
         if fitted is None or fitted.isNull():
             return
-        item.setIcon(QIcon(fitted))
+        item.setIcon(_list_icon(fitted))
 
     def _row_icon(self, item: QListWidgetItem) -> QPixmap | None:
         stored = item.data(_ROLE_PIX)
@@ -996,7 +1010,7 @@ class OperatorWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
-        self.cache_label.setVisible(self.width() >= _CACHE_LABEL_MIN_W)
+        self.prep_label.setVisible(self.width() >= _PREP_LABEL_MIN_W)
         self._place_tool_frames()
         self._relayout_list(rescale=False)
         self._relayout_timer.start(60)
@@ -1026,7 +1040,7 @@ class OperatorWindow(QMainWindow):
                 continue
             fitted = self._row_icon(item)
             if fitted is not None:
-                item.setIcon(QIcon(fitted))
+                item.setIcon(_list_icon(fitted))
 
     def set_false_face_visible(self, visible: bool) -> None:
         if self.btn_false_face.isHidden() != (not visible):
@@ -1131,25 +1145,11 @@ class OperatorWindow(QMainWindow):
             self.btn_false_undo.setVisible(visible)
             self._place_tool_frames(remeasure=True)
 
-    def _shortcuts_dialog(self) -> QDialog:
-        dialog = QDialog(self)
-        dialog.setWindowTitle(t(self.lang, "shortcuts"))
-        dialog.setStyleSheet(DARK_QSS)
-        body = QLabel(t(self.lang, "shortcuts_body"))
-        body.setObjectName("shortcutsBody")
-        body.setWordWrap(True)
-        body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(t(self.lang, "ok"))
-        buttons.accepted.connect(dialog.accept)
-        root = QVBoxLayout(dialog)
-        root.addWidget(body)
-        root.addWidget(buttons)
-        dialog.resize(360, 280)
-        return dialog
+    def _help_dialog(self) -> HelpDialog:
+        return HelpDialog(self, self.lang)
 
-    def _show_shortcuts(self) -> None:
-        dialog = self._shortcuts_dialog()
+    def _show_help(self) -> None:
+        dialog = self._help_dialog()
         dialog.exec()
         dialog.deleteLater()
 
