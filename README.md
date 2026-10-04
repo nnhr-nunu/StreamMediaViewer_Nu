@@ -80,6 +80,18 @@
 
 配信でご利用いただけたら、フォローや[動画の投稿](https://x.com/nnhr_nunu/status/2100926390078169405)のリポスト・いいねをいただけると、とても嬉しいです。
 
+## クレジット表記のお願い
+
+配信や動画などでこのソフトウェアをご利用いただいた場合は、概要欄などに次のクレジット表記をお願いいたします。
+
+```text
+StreamMediaViewer(ぬ)
+開発者：ぬぬはら - 催眠音声制作者
+YouTube：https://www.youtube.com/@nnhr_nunu
+X(Twitter)：https://x.com/nnhr_nunu
+使い方など：https://github.com/nnhr-nunu/StreamMediaViewer_Nu
+```
+
 ## ライセンス
 
 このソフトウェアは [MIT License](./LICENSE) です。
@@ -173,6 +185,18 @@ Blurred photos are prepared in the background after you open a folder, pausing b
 For bug reports, please contact me by X direct message.
 
 If you use StreamMediaViewer for streaming, I would be very happy if you followed me on X, or reposted or liked the [video post](https://x.com/nnhr_nunu/status/2100926390078169405).
+
+## Credit notice
+
+If you use this software in a stream, video, or similar, please include the following credit in the description (the text is in Japanese, as written by the developer).
+
+```text
+StreamMediaViewer(ぬ)
+開発者：ぬぬはら - 催眠音声制作者
+YouTube：https://www.youtube.com/@nnhr_nunu
+X(Twitter)：https://x.com/nnhr_nunu
+使い方など：https://github.com/nnhr-nunu/StreamMediaViewer_Nu
+```
 
 ## License
 
