@@ -70,3 +70,18 @@ git status → commit → git push origin main → 報告に hash と origin 同
 | `git-commit.mdc` | 常時（PowerShell commit） |
 | `python.mdc` | `src/**/*.py` / `tests/**/*.py` |
 | `testing.mdc` | `tests/**` |
+
+## 開発の補足（旧 CLAUDE.md から移した）
+
+- `.cursor/rules/*.mdc` の内容が正本のルール（Claude Code は自分では読まないので、ここに要点を書く）。特に次は毎回守る:
+  - 返信は日本語。先頭 2 行は `# ★【対応結果】★：{kind}-{ID}{絵文字}` と `---`（`StreamMediaViewer.mdc`）
+  - 配信用の窓に、隠すべき写真・デバッグ文字・パス・例外文を出さない（`safety-output.mdc`）
+  - コード変更後はセルフレビュー → `.py` を変えたら `pytest` → 日本語で commit → `git push origin main`（`composer-self-review.mdc`・`git-commit.mdc`）
+- 開発用 Python は `.venv\Scripts\python.exe`。`pytest` もここから。重いときに落ちるテストは単独で回し直す（メモリの test-timing-under-load）
+- commit は PowerShell 前提。bash heredoc は使わず `-m` か `-F` を使う（`git-commit.mdc`）
+- 兄弟プロジェクトの StreamHeartbeat(ぬ)（`D:\Dev\StreamHeartbeat_Nu`）と、Build and release の workflow・`scripts/ci_macos_*.py`・`.cursor/rules` がほぼ同じ。片方で直したらもう片方にも要るか確かめる
+
+## 層の決まり（どこを書き換えてよいか）
+- 事実（読み書きする）: task.md・AGENTS.md・`docs/product/spec.md`・`.cursor/rules/`。済んだ節は docs/history/ へ移す（入口の task.md と AGENTS.md は 20KB まで）
+- 原本（書き換えない）: docs/history/ の記録
+- 成果物（手で直さない。元かスクリプトを直して作り直す）: `dist/`・`build/`・`graphify-out/`（git の外）。配布物は CI が作る
