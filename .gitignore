@@ -34,3 +34,10 @@ Thumbs.db
 # Git worktrees
 .worktrees/
 .git/COMMIT_MSG_TEMP
+
+# secrets gate (2026-11-17): keep real env files out of git
+.env
+.env.*
+!.env.example
+!.env.local.example
+!.env.sample
